@@ -9,8 +9,11 @@
             <i class="fas fa-utensils fa-3x mb-3"></i>
             <h2>Maskan Breakfast Management</h2>
             <p class="text-muted">Please sign in to continue</p>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-home"></i> Back to Home
+            </a>
         </div>
-        
+
         <div class="card-body">
             <form method="POST" id="loginForm">
                 <div class="mb-3">
@@ -69,7 +72,7 @@ function toggleLoginFields() {
     const adminFields = document.getElementById('adminFields');
     const otherFields = document.getElementById('otherFields');
     const passwordField = document.getElementById('passwordField');
-    
+
     if (role === 'admin') {
         adminFields.style.display = 'block';
         otherFields.style.display = 'none';
@@ -86,27 +89,27 @@ function toggleLoginFields() {
 function verifyEmail() {
     const email = document.getElementById('email').value;
     const role = document.getElementById('role').value;
-    
+
     if (!email || !role) {
         alert('Please enter email and select role');
         return;
     }
-    
+
     // Create a form to submit email verification
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = '{{ url_for("verify_email") }}';
-    
+
     const emailInput = document.createElement('input');
     emailInput.type = 'hidden';
     emailInput.name = 'email';
     emailInput.value = email;
-    
+
     const roleInput = document.createElement('input');
     roleInput.type = 'hidden';
     roleInput.name = 'role';
     roleInput.value = role;
-    
+
     form.appendChild(emailInput);
     form.appendChild(roleInput);
     document.body.appendChild(form);

@@ -25,6 +25,7 @@ class Menu(db.Model):
     description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False)
     meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, dinner
+    dish_type = db.Column(db.String(20), nullable=False, default='main')  # main, side
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)

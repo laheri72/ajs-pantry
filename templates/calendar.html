@@ -61,8 +61,9 @@
 
 <script>
 let currentDate = new Date();
-const menus = {{ menus | tojsonfilter }};
-const teaTasks = {{ tea_tasks | tojsonfilter }};
+const menus = {{ menus | tojson }};
+const teaTasks = {{ tea_tasks | tojson }};
+</script>
 
 function generateCalendar(year, month) {
     const firstDay = new Date(year, month, 1);
@@ -105,7 +106,9 @@ function generateCalendar(year, month) {
                 if (menu.date === dateStr) {
                     const event = document.createElement('div');
                     event.className = 'calendar-event bg-teal';
-                    event.textContent = menu.meal_type + ': ' + menu.title;
+                    const dishTypeIcon = menu.dish_type === 'main' ? '🍽️' : '🥗';
+                    event.textContent = dishTypeIcon + ' ' + menu.title + ' (' + menu.meal_type + ')';
+                    event.title = 'Assigned to: ' + (menu.assigned_to_username || 'Unassigned');
                     dayCell.appendChild(event);
                 }
             });

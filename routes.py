@@ -165,6 +165,7 @@ def menus():
         description = request.form.get('description')
         date_str = request.form.get('date')
         meal_type = request.form.get('meal_type')
+        dish_type = request.form.get('dish_type', 'main')
         assigned_to_id = request.form.get('assigned_to_id')
         
         menu_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -174,6 +175,7 @@ def menus():
             description=description,
             date=menu_date,
             meal_type=meal_type,
+            dish_type=dish_type,
             assigned_to_id=assigned_to_id,
             created_by_id=user.id,
             floor=user.floor

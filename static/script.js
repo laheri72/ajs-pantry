@@ -391,6 +391,47 @@ function downloadApp() {
     }, 1000);
 }
 
+// Profile Picture Management
+function uploadProfilePicture(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('profilePicture').src = e.target.result;
+            // Store in localStorage for demo purposes
+            localStorage.setItem('profilePicture', e.target.result);
+            showNotification('Profile picture updated!', 'success');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Floor Filtering for Admin
+function filterByFloor() {
+    const selectedFloor = document.getElementById('floorFilter').value;
+    const rows = document.querySelectorAll('.user-row');
+    
+    rows.forEach(row => {
+        const userFloor = row.getAttribute('data-floor');
+        if (!selectedFloor || userFloor === selectedFloor) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Cooking Reminder Notifications
+function setupCookingReminders() {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        // Check for upcoming cooking assignments
+        const today = new Date();
+        const reminderDate = new Date(today.getTime() + (2 * 24 * 60 * 60 * 1000));
+        
+        // This would check against actual menu data
+        console.log('Checking for cooking reminders...');
+    }
+}
+
 // Data Management
 function exportData(format = 'json') {
     const data = {

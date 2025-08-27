@@ -48,7 +48,7 @@
                         </div>
 
                         <hr class="my-4">
-                        
+
                         <h4>Change Password</h4>
                         <div class="row">
                             <div class="col-md-6">
@@ -113,4 +113,23 @@
         </div>
     </div>
 </div>
+
+<script>
+function uploadProfilePicture(input) {
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            $('#profilePicture').attr('src', e.target.result);
+        };
+        reader.readAsDataURL(input.files[0]);
+
+        // Here you would typically send the file to the server for storage
+        // For now, we'll just simulate it with a console log
+        console.log("Uploading file:", input.files[0].name);
+
+        // Optionally, you could have a hidden input to store the file name or URL
+        // and submit it with the form.
+    }
+}
+</script>
 {% endblock %}

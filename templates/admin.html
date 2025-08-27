@@ -10,9 +10,21 @@
             <p class="text-muted">Manage users, roles, and system settings</p>
         </div>
         <div class="col-md-6 text-end">
-            <button class="btn btn-outline-teal me-2" onclick="refreshData()">
-                <i class="fas fa-sync-alt"></i> Refresh
-            </button>
+            <label for="floorFilter" class="form-label me-2">Filter by Floor:</label>
+            <select class="form-select d-inline-block w-auto" id="floorFilter" onchange="filterByFloor()">
+                <option value="">All Floors</option>
+                <option value="1">Floor 1</option>
+                <option value="2">Floor 2</option>
+                <option value="3">Floor 3</option>
+                <option value="4">Floor 4</option>
+                <option value="5">Floor 5</option>
+                <option value="6">Floor 6</option>
+                <option value="7">Floor 7</option>
+                <option value="8">Floor 8</option>
+                <option value="9">Floor 9</option>
+                <option value="10">Floor 10</option>
+                <option value="11">Floor 11</option>
+            </select>
         </div>
     </div>
 
@@ -110,7 +122,7 @@
                         </thead>
                         <tbody>
                             {% for admin_user in all_users %}
-                            <tr>
+                            <tr class="user-row" data-floor="{{ admin_user.floor }}">
                                 <td>
                                     <div class="user-info">
                                         <i class="fas fa-user-circle fa-2x me-2"></i>
@@ -324,11 +336,25 @@ function refreshData() {
     location.reload();
 }
 
+function filterByFloor() {
+    const selectedFloor = document.getElementById('floorFilter').value;
+    const rows = document.querySelectorAll('.user-row');
+
+    rows.forEach(row => {
+        const floor = row.getAttribute('data-floor');
+        if (selectedFloor === "" || floor === selectedFloor) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
 function editUser(userId, username, email) {
     document.getElementById('editUserId').value = userId;
     document.getElementById('editUsername').value = username;
     document.getElementById('editEmail').value = email;
-    
+
     const editModal = new bootstrap.Modal(document.getElementById('editUserModal'));
     editModal.show();
 }
