@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="welcome-header">
+                <h1>Welcome, {{ user.username or user.email }}!</h1>
+                <p class="text-muted">Floor {{ user.floor }} - {{ user.role.title() }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ stats.user_count }}</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ stats.pending_requests }}</h3>
+                    <p>Pending Requests</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-rupee-sign"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>₹{{ "%.2f"|format(stats.weekly_expenses) }}</h3>
+                    <p>Total Expenses</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row">
+        <div class="col-12">
+            <h3>Quick Actions</h3>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% if user.role in ['admin', 'pantryHead'] %}
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('menus') }}" class="action-card">
+                <i class="fas fa-utensils"></i>
+                <h5>Manage Menus</h5>
+                <p>Create and edit meal plans</p>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if user.role in ['admin', 'teaManager'] %}
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('tea') }}" class="action-card">
+                <i class="fas fa-coffee"></i>
+                <h5>Tea Management</h5>
+                <p>Schedule tea tasks</p>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if user.role in ['admin', 'pantryHead'] %}
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('expenses') }}" class="action-card">
+                <i class="fas fa-money-bill"></i>
+                <h5>Track Expenses</h5>
+                <p>Manage floor expenses</p>
+            </a>
+        </div>
+        {% endif %}
+        
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('suggestions') }}" class="action-card">
+                <i class="fas fa-lightbulb"></i>
+                <h5>Suggestions</h5>
+                <p>Share your ideas</p>
+            </a>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('feedbacks') }}" class="action-card">
+                <i class="fas fa-comment"></i>
+                <h5>Feedbacks</h5>
+                <p>Rate and review</p>
+            </a>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('requests') }}" class="action-card">
+                <i class="fas fa-bell"></i>
+                <h5>Requests</h5>
+                <p>Submit or manage requests</p>
+            </a>
+        </div>
+        
+        {% if user.role in ['admin', 'pantryHead'] %}
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('procurement') }}" class="action-card">
+                <i class="fas fa-shopping-cart"></i>
+                <h5>Procurement</h5>
+                <p>Manage shopping lists</p>
+            </a>
+        </div>
+        {% endif %}
+        
+        {% if user.role == 'admin' %}
+        <div class="col-md-3 mb-3">
+            <a href="{{ url_for('admin') }}" class="action-card">
+                <i class="fas fa-cog"></i>
+                <h5>Admin Panel</h5>
+                <p>Manage users and settings</p>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

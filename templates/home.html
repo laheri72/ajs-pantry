@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>Dashboard Overview</h2>
+            <p class="text-muted">Floor {{ user.floor }} Statistics</p>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-outline-teal me-2" onclick="refreshData()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button class="btn btn-outline-teal me-2" onclick="toggleTheme()">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+            <button class="btn btn-outline-teal" onclick="downloadApp()" title="Download App">
+                <i class="fas fa-download"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="stat-card bg-primary">
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ stats.user_count }}</h3>
+                    <p>Total Users on Floor</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card bg-warning">
+                <div class="stat-icon">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ stats.pending_requests }}</h3>
+                    <p>Pending Requests</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card bg-success">
+                <div class="stat-icon">
+                    <i class="fas fa-rupee-sign"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>₹{{ "%.2f"|format(stats.weekly_expenses) }}</h3>
+                    <p>Total Expenses (INR)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Avatar and Info -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="profile-card">
+                <div class="profile-avatar">
+                    <i class="fas fa-user-circle fa-4x"></i>
+                </div>
+                <div class="profile-info">
+                    <h4>{{ user.username or user.email }}</h4>
+                    <p class="text-muted">{{ user.role.title() }} - Floor {{ user.floor }}</p>
+                    <p class="text-muted">Member since {{ user.created_at.strftime('%B %Y') if user.created_at else 'N/A' }}</p>
+                </div>
+                <div class="profile-actions">
+                    <a href="{{ url_for('profile') }}" class="btn btn-teal">
+                        <i class="fas fa-edit"></i> Edit Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="activity-card">
+                <h5><i class="fas fa-clock me-2"></i>Recent Activity</h5>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <i class="fas fa-utensils text-teal"></i>
+                        <span>Welcome to Maskan Breakfast Management System</span>
+                        <small class="text-muted">Today</small>
+                    </div>
+                    <div class="activity-item">
+                        <i class="fas fa-user-check text-success"></i>
+                        <span>Account verified successfully</span>
+                        <small class="text-muted">Today</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshData() {
+    location.reload();
+}
+
+function toggleTheme() {
+    const body = document.body;
+    const themeIcon = document.getElementById('themeIcon');
+    
+    if (body.classList.contains('dark-theme')) {
+        body.classList.remove('dark-theme');
+        themeIcon.className = 'fas fa-moon';
+        localStorage.setItem('theme', 'light');
+    } else {
+        body.classList.add('dark-theme');
+        themeIcon.className = 'fas fa-sun';
+        localStorage.setItem('theme', 'dark');
+    }
+}
+
+function downloadApp() {
+    alert('Download feature will be available soon!');
+}
+
+// Load theme preference
+document.addEventListener('DOMContentLoaded', function() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+        document.getElementById('themeIcon').className = 'fas fa-sun';
+    }
+});
+</script>
+{% endblock %}

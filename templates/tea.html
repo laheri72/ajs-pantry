@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Tea Management - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>
+                <i class="fas fa-coffee text-teal"></i> Tea Management
+            </h2>
+        </div>
+        <div class="col-md-6 text-end">
+            {% if current_user.role in ['admin', 'teaManager'] %}
+            <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addTeaTaskModal">
+                <i class="fas fa-plus"></i> Add Tea Task
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tea Tasks List -->
+    <div class="row">
+        {% for task in tea_tasks %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="tea-card">
+                <div class="tea-header">
+                    <h5>{{ task.title }}</h5>
+                    <span class="badge bg-warning">{{ task.status.title() }}</span>
+                </div>
+                <div class="tea-body">
+                    <p>{{ task.description }}</p>
+                    <p class="text-muted">
+                        <i class="fas fa-calendar"></i> {{ task.date.strftime('%Y-%m-%d') }}
+                        <i class="fas fa-clock ms-2"></i> {{ task.time }}
+                    </p>
+                    {% if task.assigned_to %}
+                    <p class="text-muted">
+                        <i class="fas fa-user"></i> Assigned to: {{ task.assigned_to.username or task.assigned_to.email }}
+                    </p>
+                    {% endif %}
+                </div>
+                {% if current_user.role in ['admin', 'teaManager'] %}
+                <div class="tea-actions">
+                    <button class="btn btn-sm btn-outline-teal">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-check"></i> Complete
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if current_user.role in ['admin', 'teaManager'] %}
+<!-- Add Tea Task Modal -->
+<div class="modal fade" id="addTeaTaskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-coffee text-teal me-2"></i>Add New Tea Task
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Task Title</label>
+                                <input type="text" class="form-control" name="title" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="time" class="form-label">Time</label>
+                                <input type="time" class="form-control" name="time" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date" class="form-label">Date</label>
+                                <input type="date" class="form-control" name="date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assigned_to_id" class="form-label">Assigned To</label>
+                                <select class="form-select" name="assigned_to_id">
+                                    <option value="">Select User</option>
+                                    {% for user in floor_users %}
+                                    <option value="{{ user.id }}">{{ user.username or user.email }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-teal">
+                        <i class="fas fa-coffee me-2"></i>Add Tea Task
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

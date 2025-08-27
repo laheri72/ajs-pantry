@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}People - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>People on Floor {{ current_user.floor }}</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            {% if current_user.role == 'admin' %}
+            <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <i class="fas fa-user-plus"></i> Add User
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        {% for person in users %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="people-card">
+                <div class="people-avatar">
+                    <i class="fas fa-user-circle fa-3x"></i>
+                </div>
+                <div class="people-info">
+                    <h5>{{ person.username or person.email }}</h5>
+                    <p class="text-muted">{{ person.role.title() }}</p>
+                    <p class="text-muted">Floor {{ person.floor }}</p>
+                    {% if person.is_verified %}
+                        <span class="badge bg-success">Verified</span>
+                    {% else %}
+                        <span class="badge bg-warning">Pending Verification</span>
+                    {% endif %}
+                </div>
+                {% if current_user.role == 'admin' %}
+                <div class="people-actions">
+                    <button class="btn btn-sm btn-outline-teal" onclick="editUser({{ person.id }})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="add_user">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select class="form-select" name="role" required>
+                            <option value="member">Member</option>
+                            <option value="pantryHead">Pantry Head</option>
+                            <option value="teaManager">Tea Manager</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="floor" class="form-label">Floor</label>
+                        <select class="form-select" name="floor" required>
+                            {% for i in range(1, 12) %}
+                            <option value="{{ i }}" {% if i == current_user.floor %}selected{% endif %}>Floor {{ i }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-teal">Add User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function editUser(userId) {
+    // Implementation for editing user details
+    alert('Edit functionality will be implemented');
+}
+</script>
+{% endblock %}

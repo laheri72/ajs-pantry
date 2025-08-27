@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Requests - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>Requests</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addRequestModal">
+                <i class="fas fa-bell"></i> Add Request
+            </button>
+        </div>
+    </div>
+
+    <!-- Requests List -->
+    <div class="row">
+        {% for request in requests %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="request-card">
+                <div class="request-header">
+                    <h5>{{ request.title }}</h5>
+                    <span class="badge bg-{% if request.status == 'approved' %}success{% elif request.status == 'rejected' %}danger{% else %}warning{% endif %}">
+                        {{ request.status.title() }}
+                    </span>
+                </div>
+                <div class="request-body">
+                    <p>{{ request.description }}</p>
+                    <p class="text-muted">
+                        <i class="fas fa-tag"></i> {{ request.request_type.title() }}
+                    </p>
+                    {% if request.start_date %}
+                    <p class="text-muted">
+                        <i class="fas fa-calendar"></i> 
+                        {{ request.start_date.strftime('%Y-%m-%d') }}
+                        {% if request.end_date %}
+                        to {{ request.end_date.strftime('%Y-%m-%d') }}
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                    <p class="text-muted">
+                        <i class="fas fa-user"></i> {{ request.user.username or request.user.email }}
+                    </p>
+                    {% if request.approved_by %}
+                    <p class="text-muted">
+                        <i class="fas fa-check"></i> Approved by: {{ request.approved_by.username or request.approved_by.email }}
+                    </p>
+                    {% endif %}
+                </div>
+                {% if current_user.role == 'admin' and request.status == 'pending' %}
+                <div class="request-actions">
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="approve">
+                        <input type="hidden" name="request_id" value="{{ request.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-success">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                    </form>
+                    <button class="btn btn-sm btn-outline-danger" onclick="rejectRequest({{ request.id }})">
+                        <i class="fas fa-times"></i> Reject
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Add Request Modal -->
+<div class="modal fade" id="addRequestModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-bell text-info me-2"></i>Add New Request
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="request_type" class="form-label">Request Type</label>
+                        <select class="form-select" name="request_type" required>
+                            <option value="absence">Absence Request</option>
+                            <option value="maintenance">Maintenance Request</option>
+                            <option value="equipment">Equipment Request</option>
+                            <option value="schedule">Schedule Change</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="4" required></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">Start Date (Optional)</label>
+                                <input type="date" class="form-control" name="start_date">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">End Date (Optional)</label>
+                                <input type="date" class="form-control" name="end_date">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-teal">
+                        <i class="fas fa-bell me-2"></i>Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function rejectRequest(requestId) {
+    if (confirm('Are you sure you want to reject this request?')) {
+        // In a real implementation, this would make an AJAX call
+        alert('Request rejected successfully!');
+        location.reload();
+    }
+}
+</script>
+{% endblock %}

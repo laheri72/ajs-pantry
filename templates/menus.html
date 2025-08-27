@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Menus - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>Menu Management</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            {% if current_user.role in ['admin', 'pantryHead'] %}
+            <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addMenuModal">
+                <i class="fas fa-plus"></i> Add Menu
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Menu List -->
+    <div class="row">
+        {% for menu in menus %}
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="menu-card">
+                <div class="menu-header">
+                    <h5>{{ menu.title }}</h5>
+                    <span class="badge bg-teal">{{ menu.meal_type.title() }}</span>
+                </div>
+                <div class="menu-body">
+                    <p>{{ menu.description }}</p>
+                    <p class="text-muted">
+                        <i class="fas fa-calendar"></i> {{ menu.date.strftime('%Y-%m-%d') }}
+                    </p>
+                    {% if menu.assigned_to %}
+                    <p class="text-muted">
+                        <i class="fas fa-user"></i> Assigned to: {{ menu.assigned_to.username or menu.assigned_to.email }}
+                    </p>
+                    {% endif %}
+                </div>
+                {% if current_user.role in ['admin', 'pantryHead'] %}
+                <div class="menu-actions">
+                    <button class="btn btn-sm btn-outline-teal">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if current_user.role in ['admin', 'pantryHead'] %}
+<!-- Add Menu Modal -->
+<div class="modal fade" id="addMenuModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Menu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Menu Title</label>
+                                <input type="text" class="form-control" name="title" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="meal_type" class="form-label">Meal Type</label>
+                                <select class="form-select" name="meal_type" required>
+                                    <option value="breakfast">Breakfast</option>
+                                    <option value="lunch">Lunch</option>
+                                    <option value="dinner">Dinner</option>
+                                    <option value="snack">Snack</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date" class="form-label">Date</label>
+                                <input type="date" class="form-control" name="date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assigned_to_id" class="form-label">Assigned To</label>
+                                <select class="form-select" name="assigned_to_id">
+                                    <option value="">Select User</option>
+                                    {% for user in floor_users %}
+                                    <option value="{{ user.id }}">{{ user.username or user.email }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-teal">Add Menu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
