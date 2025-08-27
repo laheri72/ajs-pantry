@@ -1,0 +1,130 @@
+✅ Issues & Solutions
+1. Calendar Page Shows Internal Server Error
+
+Reason: The app likely tries to fetch or render menu data from a missing or broken endpoint, or the calendar component is rendering null data.
+Fix:
+
+Ensure the route for /calendar (React Router) is correct.
+
+Ensure menu data exists in state or database before rendering.
+
+Display menus like:
+
+[Date] - [Main Dish] by [Assigned Person]
+           [Side Dish] by [Assigned Person]
+
+2. Admin Can Select Floor & Filter Data
+
+Implementation:
+
+Add a Floor Selector (dropdown) in the Admin Dashboard.
+
+When Admin picks a floor:
+
+Filter members, menus, tasks by that floor.
+
+Example:
+
+const [selectedFloor, setSelectedFloor] = useState('All Floors');
+const filteredMenus = menus.filter(menu => menu.floor === selectedFloor);
+
+3. First-Time Login → Create Username & Password
+
+Workflow:
+
+Admin adds email → store { email, role, verified: false }.
+
+When user logs in:
+
+Check if verified === false:
+
+Redirect to Create Username & Password Page.
+
+After successful creation → set verified = true.
+
+If verified === true:
+
+Redirect to Enter Username & Password Page.
+
+4. Add Back to Homepage Button
+
+On both pages (Create Username & Password, Enter Username & Password):
+
+<button onClick={() => navigate('/')}>Back to Homepage</button>
+
+5. Profile Picture Upload
+
+Add a file input in profile:
+
+<input type="file" accept="image/*" onChange={handleProfilePicUpload} />
+
+
+Store in localStorage or Firebase Storage.
+
+Display uploaded picture on profile page.
+
+6. Edit Functionality in Admin's People Page
+
+In Admin's People table:
+
+Show Edit Button for each user → allows changing role, email, floor.
+
+Update in DB.
+
+7. Push Notifications (2 Days Before Cooking)
+
+Use browser notifications (via Notification API) or service workers.
+
+Example:
+
+if (Notification.permission === 'granted') {
+    new Notification('Reminder: You are cooking in 2 days!');
+}
+
+
+Trigger via a scheduled job or React useEffect when loading assignments.
+
+8. Add Dish Type in Menu
+
+In Add Menu form:
+
+<select>
+  <option>Main Dish</option>
+  <option>Side Dish</option>
+</select>
+
+
+Store in DB → Show in calendar:
+
+Date: Main Dish - Biryani (by Ali)
+      Side Dish - Salad (by Sara)
+
+9. Admin Profile Update (Username & Password)
+
+On profile page:
+
+Form to update username and password.
+
+Save to DB → After update, force logout → log in with new credentials.
+
+✅ Database Design (Simple JSON / Firebase)
+users: [
+  {
+    email: "abc@example.com",
+    role: "admin" | "pantryHead" | "teaManager" | "member",
+    floor: "2nd Floor",
+    username: "Ali",
+    password: "hashedPassword",
+    verified: true/false,
+    profilePic: "url"
+  }
+]
+
+menus: [
+  {
+    date: "2025-08-30",
+    floor: "2nd Floor",
+    mainDish: { name: "Biryani", assignedTo: "Ali" },
+    sideDish: { name: "Salad", assignedTo: "Sara" }
+  }
+]
