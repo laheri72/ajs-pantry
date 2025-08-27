@@ -163,7 +163,7 @@
                                 <td>
                                     {% if admin_user.id != user.id %}
                                     <div class="btn-group" role="group">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="editUser({{ admin_user.id }}, '{{ admin_user.username or '' }}', '{{ admin_user.email }}')">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="editUser({{ admin_user.id }}, '{{ admin_user.username or '' }}', '{{ admin_user.email }}', '{{ admin_user.role }}', {{ admin_user.floor }})">
                                             <i class="fas fa-edit"></i>
                                         </button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteUser({{ admin_user.id }}, '{{ admin_user.username or admin_user.email }}')">
@@ -318,6 +318,29 @@
                     <div class="mb-3">
                         <label for="editEmail" class="form-label">Email</label>
                         <input type="email" class="form-control" id="editEmail" name="email" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editRole" class="form-label">Role</label>
+                                <select class="form-select" id="editRole" name="role" required>
+                                    <option value="admin">Admin</option>
+                                    <option value="pantryHead">Pantry Head</option>
+                                    <option value="teaManager">Tea Manager</option>
+                                    <option value="member">Member</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="editFloor" class="form-label">Floor</label>
+                                <select class="form-select" id="editFloor" name="floor" required>
+                                    {% for i in range(1, 12) %}
+                                    <option value="{{ i }}">Floor {{ i }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

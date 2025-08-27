@@ -24,7 +24,10 @@
             <div class="menu-card">
                 <div class="menu-header">
                     <h5>{{ menu.title }}</h5>
-                    <span class="badge bg-teal">{{ menu.meal_type.title() }}</span>
+                    <div>
+                        <span class="badge bg-teal">{{ menu.meal_type.title() }}</span>
+                        <span class="badge bg-warning ms-1">{{ menu.dish_type.title() }} Dish</span>
+                    </div>
                 </div>
                 <div class="menu-body">
                     <p>{{ menu.description }}</p>
@@ -79,6 +82,17 @@
                                     <option value="lunch">Lunch</option>
                                     <option value="dinner">Dinner</option>
                                     <option value="snack">Snack</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="dish_type" class="form-label">Dish Type</label>
+                                <select class="form-select" name="dish_type" required>
+                                    <option value="main">Main Dish</option>
+                                    <option value="side">Side Dish</option>
                                 </select>
                             </div>
                         </div>

@@ -16,6 +16,7 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)
     floor = db.Column(db.Integer, nullable=True)
     is_verified = db.Column(db.Boolean, default=False)
+    profile_pic = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

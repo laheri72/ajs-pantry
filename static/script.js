@@ -562,6 +562,133 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// Profile picture handling
+function handleProfilePicUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            showNotification('File size must be less than 5MB', 'error');
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const profileImg = document.querySelector('.profile-pic');
+            const profileIcon = document.querySelector('.profile-avatar-large i');
+            
+            if (profileImg) {
+                profileImg.src = e.target.result;
+            } else if (profileIcon) {
+                profileIcon.style.display = 'none';
+                const newImg = document.createElement('img');
+                newImg.src = e.target.result;
+                newImg.alt = 'Profile Picture';
+                newImg.className = 'profile-pic';
+                newImg.style.cssText = 'width: 100px; height: 100px; border-radius: 50%; object-fit: cover;';
+                profileIcon.parentNode.appendChild(newImg);
+            }
+            
+            // Store in localStorage (in real app, would upload to server)
+            localStorage.setItem('userProfilePic', e.target.result);
+            showNotification('Profile picture updated successfully!', 'success');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// Admin edit user functionality
+function editUser(userId, username, email, role, floor) {
+    const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+    const form = document.getElementById('editUserForm');
+    
+    // Set form action to the edit user route
+    form.action = `/admin/edit_user/${userId}`;
+    
+    // Populate form fields
+    document.getElementById('editUserId').value = userId;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editRole').value = role;
+    document.getElementById('editFloor').value = floor;
+    
+    modal.show();
+}
+
+// Floor filtering for admin
+function filterByFloor() {
+    const selectedFloor = document.getElementById('floorFilter').value;
+    const rows = document.querySelectorAll('#usersTable tbody tr');
+    
+    rows.forEach(row => {
+        const floorCell = row.querySelector('td:nth-child(3)'); // Floor column
+        if (!selectedFloor || floorCell.textContent.trim() === selectedFloor) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Cooking reminder notifications
+function initializeCookingAlerts() {
+    console.log('Cooking alerts initialized');
+    
+    // Check for upcoming cooking tasks every 30 seconds
+    setInterval(checkCookingReminders, 30000);
+    
+    // Check immediately on load
+    checkCookingReminders();
+}
+
+function checkCookingReminders() {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = now.getHours() * 60 + now.getMinutes(); // Minutes since midnight
+    
+    // Check for menus and tea tasks due soon (within 30 minutes)
+    const upcomingTasks = JSON.parse(localStorage.getItem('upcomingTasks') || '[]');
+    
+    upcomingTasks.forEach(task => {
+        if (task.date === today) {
+            const taskTime = parseTime(task.time || '08:00'); // Default breakfast time
+            const timeDiff = taskTime - currentTime;
+            
+            if (timeDiff > 0 && timeDiff <= 30) { // Within 30 minutes
+                showCookingNotification(task);
+            }
+        }
+    });
+}
+
+function parseTime(timeString) {
+    const [hours, minutes] = timeString.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
+function showCookingNotification(task) {
+    const notificationId = `cooking-${task.id}-${task.date}`;
+    
+    // Avoid duplicate notifications
+    if (localStorage.getItem(notificationId)) {
+        return;
+    }
+    
+    const message = `🍳 Reminder: "${task.title}" is scheduled soon!`;
+    showNotification(message, 'warning', 8000);
+    
+    // Push notification if supported
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Cooking Reminder', {
+            body: message,
+            icon: '/static/icon-192x192.png',
+            tag: notificationId
+        });
+    }
+    
+    // Mark as notified
+    localStorage.setItem(notificationId, 'true');
+}
+
 // Expose global functions
 window.toggleTheme = toggleTheme;
 window.refreshData = refreshData;
@@ -570,3 +697,7 @@ window.returnToLastPage = returnToLastPage;
 window.exportData = exportData;
 window.printExpenseReport = printExpenseReport;
 window.showNotification = showNotification;
+window.handleProfilePicUpload = handleProfilePicUpload;
+window.editUser = editUser;
+window.filterByFloor = filterByFloor;
+window.initializeCookingAlerts = initializeCookingAlerts;

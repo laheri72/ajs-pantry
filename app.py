@@ -32,21 +32,24 @@ with app.app_context():
     db.create_all()
     
     # Create default admin user if it doesn't exist
-    from models import User
-    admin = User.query.filter_by(username='Administrator').first()
-    if not admin:
-        from werkzeug.security import generate_password_hash
-        admin_user = User(
-            username='Administrator',
-            email='admin@maskan.local',
-            password_hash=generate_password_hash('administrator'),
-            role='admin',
-            floor=1,
-            is_verified=True
-        )
-        db.session.add(admin_user)
-        db.session.commit()
-        logging.info("Default admin user created")
+    try:
+        from models import User
+        admin = User.query.filter_by(username='Administrator').first()
+        if not admin:
+            from werkzeug.security import generate_password_hash
+            admin_user = User(
+                username='Administrator',
+                email='admin@maskan.local',
+                password_hash=generate_password_hash('administrator'),
+                role='admin',
+                floor=1,
+                is_verified=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            logging.info("Default admin user created")
+    except Exception as e:
+        logging.warning(f"Admin user creation failed: {e}")
 
 # Import routes
 from routes import *

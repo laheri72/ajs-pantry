@@ -511,6 +511,29 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
+@app.route('/admin/edit_user/<int:user_id>', methods=['POST'])
+def edit_user_admin(user_id):
+    if 'user_id' not in session:
+        flash('Please log in first', 'error')
+        return redirect(url_for('login'))
+    
+    current_user = User.query.get(session['user_id'])
+    if current_user.role != 'admin':
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    user_to_edit = User.query.get_or_404(user_id)
+    
+    user_to_edit.username = request.form.get('username')
+    user_to_edit.email = request.form.get('email')
+    user_to_edit.role = request.form.get('role')
+    user_to_edit.floor = int(request.form.get('floor'))
+    
+    db.session.commit()
+    flash('User updated successfully', 'success')
+    
+    return redirect(url_for('admin'))
+
 @app.context_processor
 def inject_user():
     if 'user_id' in session:
