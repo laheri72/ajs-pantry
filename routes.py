@@ -69,6 +69,11 @@ def create_account():
     if 'temp_user_id' not in session:
         return redirect(url_for('login'))
     
+    user = User.query.get(session['temp_user_id'])
+    if not user:
+        session.pop('temp_user_id', None)
+        return redirect(url_for('login'))
+    
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
@@ -84,7 +89,6 @@ def create_account():
             flash('Username already exists', 'error')
             return render_template('create_account.html')
         
-        user = User.query.get(session['temp_user_id'])
         user.username = username
         user.password_hash = generate_password_hash(password)
         db.session.commit()
@@ -124,6 +128,10 @@ def home():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+        
     stats = {
         'user_count': User.query.filter_by(floor=user.floor).count(),
         'pending_requests': Request.query.filter_by(floor=user.floor, status='pending').count(),
@@ -138,6 +146,10 @@ def people():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+        
     users = User.query.filter_by(floor=user.floor).all()
     
     return render_template('people.html', user=user, users=users)
@@ -148,6 +160,10 @@ def calendar():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+        
     menus = Menu.query.filter_by(floor=user.floor).all()
     tea_tasks = TeaTask.query.filter_by(floor=user.floor).all()
     
@@ -159,6 +175,9 @@ def menus():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         title = request.form.get('title')
@@ -168,22 +187,22 @@ def menus():
         dish_type = request.form.get('dish_type', 'main')
         assigned_to_id = request.form.get('assigned_to_id')
         
-        menu_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        
-        menu = Menu(
-            title=title,
-            description=description,
-            date=menu_date,
-            meal_type=meal_type,
-            dish_type=dish_type,
-            assigned_to_id=assigned_to_id,
-            created_by_id=user.id,
-            floor=user.floor
-        )
-        
-        db.session.add(menu)
-        db.session.commit()
-        flash('Menu added successfully', 'success')
+        if date_str:
+            menu_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+            menu = Menu()
+            menu.title=title
+            menu.description=description
+            menu.date=menu_date
+            menu.meal_type=meal_type
+            menu.dish_type=dish_type
+            menu.assigned_to_id=assigned_to_id
+            menu.created_by_id=user.id
+            menu.floor=user.floor
+            
+            db.session.add(menu)
+            db.session.commit()
+            flash('Menu added successfully', 'success')
     
     menus = Menu.query.filter_by(floor=user.floor).order_by(Menu.date.desc()).all()
     floor_users = User.query.filter_by(floor=user.floor).all()
@@ -196,6 +215,9 @@ def tea():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST' and user.role in ['admin', 'teaManager']:
         title = request.form.get('title')
@@ -204,21 +226,21 @@ def tea():
         time = request.form.get('time')
         assigned_to_id = request.form.get('assigned_to_id')
         
-        task_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        
-        tea_task = TeaTask(
-            title=title,
-            description=description,
-            date=task_date,
-            time=time,
-            assigned_to_id=assigned_to_id,
-            created_by_id=user.id,
-            floor=user.floor
-        )
-        
-        db.session.add(tea_task)
-        db.session.commit()
-        flash('Tea task added successfully', 'success')
+        if date_str:
+            task_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+            tea_task = TeaTask()
+            tea_task.title=title
+            tea_task.description=description
+            tea_task.date=task_date
+            tea_task.time=time
+            tea_task.assigned_to_id=assigned_to_id
+            tea_task.created_by_id=user.id
+            tea_task.floor=user.floor
+            
+            db.session.add(tea_task)
+            db.session.commit()
+            flash('Tea task added successfully', 'success')
     
     tea_tasks = TeaTask.query.filter_by(floor=user.floor).order_by(TeaTask.date.desc()).all()
     floor_users = User.query.filter_by(floor=user.floor).all()
@@ -231,38 +253,42 @@ def expenses():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         description = request.form.get('description')
-        amount = float(request.form.get('amount'))
+        amount_str = request.form.get('amount')
         category = request.form.get('category')
         date_str = request.form.get('date')
         
-        expense_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        
-        expense = Expense(
-            description=description,
-            amount=amount,
-            category=category,
-            date=expense_date,
-            user_id=user.id,
-            floor=user.floor
-        )
-        
-        db.session.add(expense)
-        db.session.commit()
-        flash('Expense added successfully', 'success')
+        if amount_str and date_str:
+            amount = float(amount_str)
+            expense_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            
+            expense = Expense()
+            expense.description=description
+            expense.amount=amount
+            expense.category=category
+            expense.date=expense_date
+            expense.user_id=user.id
+            expense.floor=user.floor
+            
+            db.session.add(expense)
+            db.session.commit()
+            flash('Expense added successfully', 'success')
     
     # Filter expenses based on query parameters
     filter_category = request.args.get('category', '')
-    filter_date = request.args.get('date', '')
+    filter_date_str = request.args.get('date', '')
     
     query = Expense.query.filter_by(floor=user.floor)
     
     if filter_category:
         query = query.filter(Expense.category == filter_category)
-    if filter_date:
-        filter_date = datetime.strptime(filter_date, '%Y-%m-%d').date()
+    if filter_date_str:
+        filter_date = datetime.strptime(filter_date_str, '%Y-%m-%d').date()
         query = query.filter(Expense.date == filter_date)
     
     expenses = query.order_by(Expense.date.desc()).all()
@@ -271,7 +297,7 @@ def expenses():
     
     return render_template('expenses.html', user=user, expenses=expenses, 
                          total_amount=total_amount, categories=categories,
-                         filter_category=filter_category, filter_date=filter_date)
+                         filter_category=filter_category, filter_date=filter_date_str)
 
 @app.route('/suggestions', methods=['GET', 'POST'])
 def suggestions():
@@ -279,17 +305,19 @@ def suggestions():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
         
-        suggestion = Suggestion(
-            title=title,
-            description=description,
-            user_id=user.id,
-            floor=user.floor
-        )
+        suggestion = Suggestion()
+        suggestion.title=title
+        suggestion.description=description
+        suggestion.user_id=user.id
+        suggestion.floor=user.floor
         
         db.session.add(suggestion)
         db.session.commit()
@@ -305,20 +333,23 @@ def feedbacks():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST':
         title = request.form.get('title')
         description = request.form.get('description')
-        rating = int(request.form.get('rating', 0))
+        rating_str = request.form.get('rating', '0')
+        rating = int(rating_str) if rating_str else 0
         
-        feedback = Feedback(
-            title=title,
-            description=description,
-            rating=rating,
-            user_id=user.id,
-            floor=user.floor,
-            is_approved=(user.role == 'admin')
-        )
+        feedback = Feedback()
+        feedback.title=title
+        feedback.description=description
+        feedback.rating=rating
+        feedback.user_id=user.id
+        feedback.floor=user.floor
+        feedback.is_approved=(user.role == 'admin')
         
         db.session.add(feedback)
         db.session.commit()
@@ -337,15 +368,19 @@ def requests():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST':
         if request.form.get('action') == 'approve' and user.role == 'admin':
             request_id = request.form.get('request_id')
             req = Request.query.get(request_id)
-            req.status = 'approved'
-            req.approved_by_id = user.id
-            db.session.commit()
-            flash('Request approved', 'success')
+            if req:
+                req.status = 'approved'
+                req.approved_by_id = user.id
+                db.session.commit()
+                flash('Request approved', 'success')
         else:
             title = request.form.get('title')
             description = request.form.get('description')
@@ -356,15 +391,14 @@ def requests():
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
             
-            req = Request(
-                title=title,
-                description=description,
-                request_type=request_type,
-                start_date=start_date,
-                end_date=end_date,
-                user_id=user.id,
-                floor=user.floor
-            )
+            req = Request()
+            req.title=title
+            req.description=description
+            req.request_type=request_type
+            req.start_date=start_date
+            req.end_date=end_date
+            req.user_id=user.id
+            req.floor=user.floor
             
             db.session.add(req)
             db.session.commit()
@@ -380,6 +414,9 @@ def procurement():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         item_name = request.form.get('item_name')
@@ -388,15 +425,14 @@ def procurement():
         priority = request.form.get('priority')
         assigned_to_id = request.form.get('assigned_to_id')
         
-        procurement_item = ProcurementItem(
-            item_name=item_name,
-            quantity=quantity,
-            category=category,
-            priority=priority,
-            assigned_to_id=assigned_to_id,
-            created_by_id=user.id,
-            floor=user.floor
-        )
+        procurement_item = ProcurementItem()
+        procurement_item.item_name=item_name
+        procurement_item.quantity=quantity
+        procurement_item.category=category
+        procurement_item.priority=priority
+        procurement_item.assigned_to_id=assigned_to_id
+        procurement_item.created_by_id=user.id
+        procurement_item.floor=user.floor
         
         db.session.add(procurement_item)
         db.session.commit()
@@ -413,6 +449,9 @@ def profile():
         return redirect(url_for('login'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -441,6 +480,9 @@ def admin():
         return redirect(url_for('dashboard'))
     
     user = User.query.get(session['user_id'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
     
     if request.method == 'POST':
         action = request.form.get('action')
@@ -448,31 +490,35 @@ def admin():
         if action == 'add_user':
             email = request.form.get('email')
             role = request.form.get('role')
-            floor = int(request.form.get('floor', user.floor))
+            floor_str = request.form.get('floor')
+            floor = int(floor_str) if floor_str else user.floor
             
             # Check if user already exists
             existing_user = User.query.filter_by(email=email).first()
             if existing_user:
                 flash('User with this email already exists', 'error')
             else:
-                new_user = User(
-                    email=email,
-                    role=role,
-                    floor=floor,
-                    password_hash=generate_password_hash('maskanmarol'),
-                    is_verified=False
-                )
+                new_user = User()
+                new_user.email=email
+                new_user.role=role
+                new_user.floor=floor
+                new_user.password_hash=generate_password_hash('maskanmarol')
+                new_user.is_verified=False
+                
                 db.session.add(new_user)
                 db.session.commit()
-                flash(f'{role.title()} added successfully', 'success')
+                flash(f'{role.title() if role else "User"} added successfully', 'success')
         
         elif action == 'update_floor':
             user_id = request.form.get('user_id')
-            new_floor = int(request.form.get('floor'))
-            target_user = User.query.get(user_id)
-            target_user.floor = new_floor
-            db.session.commit()
-            flash('User floor updated successfully', 'success')
+            new_floor_str = request.form.get('floor')
+            if user_id and new_floor_str:
+                new_floor = int(new_floor_str)
+                target_user = User.query.get(user_id)
+                if target_user:
+                    target_user.floor = new_floor
+                    db.session.commit()
+                    flash('User floor updated successfully', 'success')
     
     all_users = User.query.all()
     
@@ -485,25 +531,25 @@ def add_user():
     
     email = request.form.get('email')
     role = request.form.get('role')
-    floor = int(request.form.get('floor', session.get('floor', 1)))
+    floor_str = request.form.get('floor')
+    floor = int(floor_str) if floor_str else session.get('floor', 1)
     
     # Check if user already exists
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return jsonify({'error': 'User with this email already exists'}), 400
     
-    new_user = User(
-        email=email,
-        role=role,
-        floor=floor,
-        password_hash=generate_password_hash('maskanmarol'),
-        is_verified=False
-    )
+    new_user = User()
+    new_user.email=email
+    new_user.role=role
+    new_user.floor=floor
+    new_user.password_hash=generate_password_hash('maskanmarol')
+    new_user.is_verified=False
     
     db.session.add(new_user)
     db.session.commit()
     
-    return jsonify({'success': True, 'message': f'{role.title()} added successfully'})
+    return jsonify({'success': True, 'message': f'{role.title() if role else "User"} added successfully'})
 
 @app.route('/logout')
 def logout():
@@ -518,7 +564,7 @@ def edit_user_admin(user_id):
         return redirect(url_for('login'))
     
     current_user = User.query.get(session['user_id'])
-    if current_user.role != 'admin':
+    if not current_user or current_user.role != 'admin':
         flash('Access denied', 'error')
         return redirect(url_for('dashboard'))
     
@@ -527,7 +573,9 @@ def edit_user_admin(user_id):
     user_to_edit.username = request.form.get('username')
     user_to_edit.email = request.form.get('email')
     user_to_edit.role = request.form.get('role')
-    user_to_edit.floor = int(request.form.get('floor'))
+    floor_str = request.form.get('floor')
+    if floor_str:
+        user_to_edit.floor = int(floor_str)
     
     db.session.commit()
     flash('User updated successfully', 'success')

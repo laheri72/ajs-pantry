@@ -37,14 +37,13 @@ with app.app_context():
         admin = User.query.filter_by(username='Administrator').first()
         if not admin:
             from werkzeug.security import generate_password_hash
-            admin_user = User(
-                username='Administrator',
-                email='admin@maskan.local',
-                password_hash=generate_password_hash('administrator'),
-                role='admin',
-                floor=1,
-                is_verified=True
-            )
+            admin_user = User()
+            admin_user.username='Administrator'
+            admin_user.email='admin@maskan.local'
+            admin_user.password_hash=generate_password_hash('administrator')
+            admin_user.role='admin'
+            admin_user.floor=1
+            admin_user.is_verified=True
             db.session.add(admin_user)
             db.session.commit()
             logging.info("Default admin user created")
