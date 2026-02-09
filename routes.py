@@ -557,8 +557,8 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
-@app.route('/admin/edit_user/<int:user_id>', methods=['POST'])
-def edit_user_admin(user_id):
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+def delete_user_admin(user_id):
     if 'user_id' not in session:
         flash('Please log in first', 'error')
         return redirect(url_for('login'))
@@ -568,19 +568,82 @@ def edit_user_admin(user_id):
         flash('Access denied', 'error')
         return redirect(url_for('dashboard'))
     
-    user_to_edit = User.query.get_or_404(user_id)
+    if current_user.id == user_id:
+        flash('You cannot delete yourself', 'error')
+        return redirect(url_for('admin'))
     
-    user_to_edit.username = request.form.get('username')
-    user_to_edit.email = request.form.get('email')
-    user_to_edit.role = request.form.get('role')
-    floor_str = request.form.get('floor')
-    if floor_str:
-        user_to_edit.floor = int(floor_str)
-    
+    user_to_delete = User.query.get_or_404(user_id)
+    db.session.delete(user_to_delete)
     db.session.commit()
-    flash('User updated successfully', 'success')
+    flash('User deleted successfully', 'success')
     
     return redirect(url_for('admin'))
+
+@app.route('/procurement/complete/<int:item_id>', methods=['POST'])
+def complete_procurement(item_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    item = ProcurementItem.query.get_or_404(item_id)
+    item.status = 'completed'
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@app.route('/tea/complete/<int:task_id>', methods=['POST'])
+def complete_tea_task(task_id):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role not in ['admin', 'teaManager']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    task = TeaTask.query.get_or_404(task_id)
+    task.status = 'completed'
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+@app.route('/expenses/delete/<int:expense_id>', methods=['POST'])
+def delete_expense(expense_id):
+    if 'user_id' not in session:
+        flash('Please log in first', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role not in ['admin', 'pantryHead']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    expense = Expense.query.get_or_404(expense_id)
+    db.session.delete(expense)
+    db.session.commit()
+    flash('Expense deleted successfully', 'success')
+    
+    return redirect(url_for('expenses'))
+
+@app.route('/menus/delete/<int:menu_id>', methods=['POST'])
+def delete_menu(menu_id):
+    if 'user_id' not in session:
+        flash('Please log in first', 'error')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(session['user_id'])
+    if not user or user.role not in ['admin', 'pantryHead']:
+        flash('Access denied', 'error')
+        return redirect(url_for('dashboard'))
+    
+    menu = Menu.query.get_or_404(menu_id)
+    db.session.delete(menu)
+    db.session.commit()
+    flash('Menu deleted successfully', 'success')
+    
+    return redirect(url_for('menus'))
 
 @app.context_processor
 def inject_user():

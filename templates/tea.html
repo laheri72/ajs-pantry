@@ -45,7 +45,7 @@
                     <button class="btn btn-sm btn-outline-teal">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn btn-sm btn-outline-success">
+                    <button class="btn btn-sm btn-outline-success" onclick="completeTeaTask({{ task.id }})">
                         <i class="fas fa-check"></i> Complete
                     </button>
                 </div>
@@ -55,6 +55,25 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function completeTeaTask(taskId) {
+    if (confirm('Mark this tea task as completed?')) {
+        fetch('/tea/complete/' + taskId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to mark task as completed');
+            }
+        });
+    }
+}
+</script>
 
 {% if current_user.role in ['admin', 'teaManager'] %}
 <!-- Add Tea Task Modal -->

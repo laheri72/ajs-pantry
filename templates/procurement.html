@@ -142,9 +142,18 @@
 <script>
 function markCompleted(itemId) {
     if (confirm('Mark this item as completed?')) {
-        // In a real implementation, this would make an AJAX call
-        alert('Item marked as completed!');
-        location.reload();
+        fetch('/procurement/complete/' + itemId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to mark item as completed');
+            }
+        });
     }
 }
 </script>

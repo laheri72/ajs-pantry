@@ -384,17 +384,21 @@ function editUser(userId, username, email) {
 
 function deleteUser(userId, userName) {
     if (confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
-        // In a real implementation, this would make a form submission or AJAX call
-        alert('User deletion functionality will be implemented');
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/admin/delete_user/' + userId;
+        document.body.appendChild(form);
+        form.submit();
     }
 }
 
 // Handle edit form submission
 document.getElementById('editUserForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    // In a real implementation, this would submit the form data
-    alert('User edit functionality will be implemented');
-    bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+    const userId = document.getElementById('editUserId').value;
+    this.action = '/admin/edit_user/' + userId;
+    this.method = 'POST';
+    this.submit();
 });
 </script>
 {% endblock %}
