@@ -32,3 +32,8 @@ waitForPort = 5000
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_DATABASE_URL = "Idris@515253"

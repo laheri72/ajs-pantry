@@ -17,7 +17,10 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "maskan-breakfast-management-secret-key")
 
 # Configure the database
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///maskan_breakfast.db"
+db_url = os.environ.get("SUPABASE_DATABASE_URL")
+if db_url and db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
