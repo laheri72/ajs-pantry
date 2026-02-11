@@ -36,4 +36,4 @@ externalPort = 80
 [userenv]
 
 [userenv.shared]
-SUPABASE_DATABASE_URL = "Idris@515253"
+SUPABASE_DATABASE_URL = "postgresql://postgres:  [Idris@515253]@db.nowdhtfvhrhdkmwnerth.supabase .co:5432/postgres"
