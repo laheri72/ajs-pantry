@@ -32,11 +32,13 @@ class Menu(db.Model):
     meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, dinner
     dish_type = db.Column(db.String(20), nullable=False, default='main')  # main, side
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
+    assigned_team = db.relationship('Team', foreign_keys=[assigned_team_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 class Expense(db.Model):
@@ -53,10 +55,7 @@ class Expense(db.Model):
 
 class TeaTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False)
-    time = db.Column(db.String(10), nullable=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)
@@ -119,3 +118,24 @@ class ProcurementItem(db.Model):
     
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class Team(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    icon = db.Column(db.String(50), nullable=True)  # emoji or short label
+    floor = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class TeamMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship('Team', foreign_keys=[team_id])
+    user = db.relationship('User', foreign_keys=[user_id])

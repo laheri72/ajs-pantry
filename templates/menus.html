@@ -34,9 +34,15 @@
                     <p class="text-muted">
                         <i class="fas fa-calendar"></i> {{ menu.date.strftime('%Y-%m-%d') }}
                     </p>
-                    {% if menu.assigned_to %}
+                    {% if menu.assigned_team %}
                     <p class="text-muted">
-                        <i class="fas fa-user"></i> Assigned to: {{ menu.assigned_to.username or menu.assigned_to.email }}
+                        <i class="fas fa-users"></i> Assigned to team:
+                        {% if menu.assigned_team.icon %}{{ menu.assigned_team.icon }}{% endif %}
+                        {{ menu.assigned_team.name }}
+                    </p>
+                    {% elif menu.assigned_to %}
+                    <p class="text-muted">
+                        <i class="fas fa-user"></i> Assigned to: {{ menu.assigned_to.full_name or menu.assigned_to.username or menu.assigned_to.email }}
                     </p>
                     {% endif %}
                 </div>
@@ -79,12 +85,10 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="meal_type" class="form-label">Meal Type</label>
-                                <select class="form-select" name="meal_type" required>
-                                    <option value="breakfast">Breakfast</option>
-                                    <option value="lunch">Lunch</option>
-                                    <option value="dinner">Dinner</option>
-                                    <option value="snack">Snack</option>
-                                </select>
+                                <div>
+                                    <span class="badge bg-teal">Breakfast</span>
+                                </div>
+                                <input type="hidden" name="meal_type" value="breakfast">
                             </div>
                         </div>
                     </div>
@@ -112,15 +116,25 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="assigned_to_id" class="form-label">Assigned To</label>
-                                <select class="form-select" name="assigned_to_id">
-                                    <option value="">Select User</option>
-                                    {% for user in floor_users %}
-                                    <option value="{{ user.id }}">{{ user.username or user.email }}</option>
+                                <label for="assigned_team_id" class="form-label">Assign To Team (optional)</label>
+                                <select class="form-select" id="assignedTeamSelect" name="assigned_team_id">
+                                    <option value="">Select Team</option>
+                                    {% for t in floor_teams %}
+                                    <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assigned_to_id" class="form-label">Assign To Person (optional)</label>
+                        <select class="form-select" id="assignedUserSelect" name="assigned_to_id">
+                            <option value="">Select User</option>
+                            {% for user in floor_users %}
+                            <option value="{{ user.id }}">{{ user.full_name or user.username or user.email }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">If a team is selected, the person assignment will be ignored.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -132,4 +146,26 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const teamSelect = document.getElementById('assignedTeamSelect');
+    const userSelect = document.getElementById('assignedUserSelect');
+    if (!teamSelect || !userSelect) return;
+
+    function syncAssignmentSelects() {
+        if (teamSelect.value) {
+            userSelect.value = '';
+            userSelect.disabled = true;
+        } else {
+            userSelect.disabled = false;
+        }
+    }
+
+    teamSelect.addEventListener('change', syncAssignmentSelects);
+    syncAssignmentSelects();
+});
+</script>
 {% endblock %}

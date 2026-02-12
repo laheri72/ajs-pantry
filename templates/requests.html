@@ -17,49 +17,56 @@
 
     <!-- Requests List -->
     <div class="row">
-        {% for request in requests %}
+        {% for req in requests %}
         <div class="col-md-6 col-lg-4 mb-3">
             <div class="request-card">
                 <div class="request-header">
-                    <h5>{{ request.title }}</h5>
-                    <span class="badge bg-{% if request.status == 'approved' %}success{% elif request.status == 'rejected' %}danger{% else %}warning{% endif %}">
-                        {{ request.status.title() }}
+                    <h5>{{ req.title }}</h5>
+                    <span class="badge bg-{% if req.status == 'approved' %}success{% elif req.status == 'rejected' %}danger{% else %}warning{% endif %}">
+                        {{ req.status.title() }}
                     </span>
                 </div>
                 <div class="request-body">
-                    <p>{{ request.description }}</p>
+                    <p>{{ req.description }}</p>
                     <p class="text-muted">
-                        <i class="fas fa-tag"></i> {{ request.request_type.title() }}
+                        <i class="fas fa-tag"></i> {{ req.request_type.title() }}
                     </p>
-                    {% if request.start_date %}
+                    {% if req.start_date %}
                     <p class="text-muted">
                         <i class="fas fa-calendar"></i> 
-                        {{ request.start_date.strftime('%Y-%m-%d') }}
-                        {% if request.end_date %}
-                        to {{ request.end_date.strftime('%Y-%m-%d') }}
+                        {{ req.start_date.strftime('%Y-%m-%d') }}
+                        {% if req.end_date %}
+                        to {{ req.end_date.strftime('%Y-%m-%d') }}
                         {% endif %}
                     </p>
                     {% endif %}
                     <p class="text-muted">
-                        <i class="fas fa-user"></i> {{ request.user.username or request.user.email }}
+                        <i class="fas fa-user"></i> {{ req.user.full_name or req.user.username or req.user.email }}
                     </p>
-                    {% if request.approved_by %}
+                    {% if current_user.role == 'admin' %}
                     <p class="text-muted">
-                        <i class="fas fa-check"></i> Approved by: {{ request.approved_by.username or request.approved_by.email }}
+                        <i class="fas fa-building"></i> Floor {{ req.floor }}
+                    </p>
+                    {% endif %}
+                    {% if req.approved_by %}
+                    <p class="text-muted">
+                        <i class="fas fa-check"></i> Approved by: {{ req.approved_by.username or req.approved_by.email }}
                     </p>
                     {% endif %}
                 </div>
-                {% if current_user.role == 'admin' and request.status == 'pending' %}
+                {% if current_user.role in ['admin', 'pantryHead'] %}
                 <div class="request-actions">
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="approve">
-                        <input type="hidden" name="request_id" value="{{ request.id }}">
-                        <button type="submit" class="btn btn-sm btn-outline-success">
-                            <i class="fas fa-check"></i> Approve
-                        </button>
-                    </form>
-                    <button class="btn btn-sm btn-outline-danger" onclick="rejectRequest({{ request.id }})">
+                    <button type="button" class="btn btn-sm btn-outline-success js-request-status" data-request-id="{{ req.id }}" data-status="approved">
+                        <i class="fas fa-check"></i> Approve
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger js-request-status" data-request-id="{{ req.id }}" data-status="rejected">
                         <i class="fas fa-times"></i> Reject
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-request-status" data-request-id="{{ req.id }}" data-status="pending">
+                        <i class="fas fa-clock"></i> Pending
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger js-request-delete" data-request-id="{{ req.id }}">
+                        <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
                 {% endif %}
@@ -89,10 +96,7 @@
                         <label for="request_type" class="form-label">Request Type</label>
                         <select class="form-select" name="request_type" required>
                             <option value="absence">Absence Request</option>
-                            <option value="maintenance">Maintenance Request</option>
-                            <option value="equipment">Equipment Request</option>
                             <option value="schedule">Schedule Change</option>
-                            <option value="other">Other</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -126,12 +130,55 @@
 </div>
 
 <script>
-function rejectRequest(requestId) {
-    if (confirm('Are you sure you want to reject this request?')) {
-        // In a real implementation, this would make an AJAX call
-        alert('Request rejected successfully!');
-        location.reload();
-    }
+function updateRequestStatus(requestId, status) {
+    return fetch(`/requests/${requestId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
 }
+
+function deleteRequest(requestId) {
+    return fetch(`/requests/${requestId}/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+}
+
+document.addEventListener('click', function (e) {
+    const statusBtn = e.target.closest('.js-request-status');
+    if (statusBtn) {
+        const requestId = statusBtn.dataset.requestId;
+        const status = statusBtn.dataset.status;
+        if (!requestId || !status) return;
+
+        if (!confirm(`Are you sure you want to set this request to ${status}?`)) return;
+        updateRequestStatus(requestId, status).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Failed to update request');
+                }).catch(() => alert('Failed to update request'));
+            }
+        });
+        return;
+    }
+
+    const deleteBtn = e.target.closest('.js-request-delete');
+    if (deleteBtn) {
+        const requestId = deleteBtn.dataset.requestId;
+        if (!requestId) return;
+
+        if (!confirm('Delete this request?')) return;
+        deleteRequest(requestId).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to delete request');
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

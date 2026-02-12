@@ -506,14 +506,32 @@ function generateCalendarEvents(menus, teaTasks) {
 
 // Print Functions
 function printExpenseReport() {
-    const printContent = document.getElementById('printableReport');
-    if (printContent) {
-        const originalContent = document.body.innerHTML;
-        document.body.innerHTML = printContent.innerHTML;
-        window.print();
-        document.body.innerHTML = originalContent;
-        location.reload();
-    }
+    const printEl = document.getElementById('printableReport');
+    if (!printEl) return;
+
+    const w = window.open('', '_blank', 'width=900,height=650');
+    if (!w) return;
+
+    w.document.open();
+    w.document.write(`
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Expense Report</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        </head>
+        <body class="p-4">
+            ${printEl.innerHTML}
+        </body>
+        </html>
+    `);
+    w.document.close();
+
+    w.focus();
+    w.print();
+    w.close();
 }
 
 // Error Handling

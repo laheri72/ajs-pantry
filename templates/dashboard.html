@@ -7,12 +7,100 @@
     <div class="row">
         <div class="col-12">
             <div class="welcome-header">
-                <h1>Welcome, {{ user.username or user.email }}!</h1>
-                <p class="text-muted">Floor {{ user.floor }} - {{ user.role.title() }}</p>
+                <h1>Welcome, {{ display_name }}!</h1>
+                <p class="text-muted">Floor {{ active_floor }} - {{ user.role.title() }}</p>
             </div>
         </div>
     </div>
-    
+
+    {% if needs_profile_details %}
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-warning d-flex justify-content-between align-items-center" role="alert">
+                <div>
+                    <strong>Complete your profile</strong> &mdash; add your name so others can recognize you.
+                </div>
+                <a class="btn btn-sm btn-outline-dark" href="{{ url_for('profile') }}">Update Profile</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if upcoming_menu_assignments or upcoming_tea_duties or upcoming_procurement_assignments %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="fas fa-bolt me-2"></i>Upcoming Assignments (Next 2 Days)</h5>
+
+                    {% if upcoming_menu_assignments %}
+                    <div class="mb-3">
+                        <div class="fw-bold mb-2"><i class="fas fa-utensils me-2 text-teal"></i>Menus</div>
+                        <div class="list-group">
+                            {% for m in upcoming_menu_assignments %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold">{{ m.date.strftime('%Y-%m-%d') }} &mdash; {{ m.title }}</div>
+                                    {% if m.assigned_team %}
+                                    <span class="badge bg-secondary">
+                                        {% if m.assigned_team.icon %}{{ m.assigned_team.icon }}{% endif %}
+                                        {{ m.assigned_team.name }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-success">Assigned to you</span>
+                                    {% endif %}
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    {{ m.meal_type.title() }} &bull; {{ m.dish_type.title() }} dish
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if upcoming_tea_duties %}
+                    <div class="mb-3">
+                        <div class="fw-bold mb-2"><i class="fas fa-coffee me-2 text-warning"></i>Tea Duty</div>
+                        <div class="list-group">
+                            {% for t in upcoming_tea_duties %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="fw-bold">Tea Duty on {{ t.date.strftime('%Y-%m-%d') }}</div>
+                                <span class="badge bg-warning text-dark">{{ t.status.title() }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if upcoming_procurement_assignments %}
+                    <div>
+                        <div class="fw-bold mb-2"><i class="fas fa-shopping-cart me-2 text-teal"></i>Procurement</div>
+                        <div class="list-group">
+                            {% for p in upcoming_procurement_assignments %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold">
+                                        {{ p.item_name }} &mdash; {{ p.quantity }}
+                                        <span class="text-muted">({{ p.category.title() }})</span>
+                                    </div>
+                                    <span class="badge bg-info text-white">{{ p.priority.title() }}</span>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Assigned {{ p.created_at.strftime('%Y-%m-%d') }} &bull; Status: {{ p.status.title() }}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Quick Stats -->
     <div class="row mb-4">
         <div class="col-md-4">
@@ -43,7 +131,7 @@
                     <i class="fas fa-rupee-sign"></i>
                 </div>
                 <div class="stat-content">
-                    <h3>₹{{ "%.2f"|format(stats.weekly_expenses) }}</h3>
+                    <h3>&#8377;{{ "%.2f"|format(stats.weekly_expenses) }}</h3>
                     <p>Total Expenses</p>
                 </div>
             </div>
@@ -56,7 +144,7 @@
             <h3>Quick Actions</h3>
         </div>
     </div>
-    
+
     <div class="row">
         {% if user.role in ['admin', 'pantryHead'] %}
         <div class="col-md-3 mb-3">
@@ -67,7 +155,7 @@
             </a>
         </div>
         {% endif %}
-        
+
         {% if user.role in ['admin', 'teaManager'] %}
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('tea') }}" class="action-card">
@@ -77,7 +165,7 @@
             </a>
         </div>
         {% endif %}
-        
+
         {% if user.role in ['admin', 'pantryHead'] %}
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('expenses') }}" class="action-card">
@@ -87,7 +175,7 @@
             </a>
         </div>
         {% endif %}
-        
+
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('suggestions') }}" class="action-card">
                 <i class="fas fa-lightbulb"></i>
@@ -95,7 +183,7 @@
                 <p>Share your ideas</p>
             </a>
         </div>
-        
+
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('feedbacks') }}" class="action-card">
                 <i class="fas fa-comment"></i>
@@ -103,7 +191,7 @@
                 <p>Rate and review</p>
             </a>
         </div>
-        
+
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('requests') }}" class="action-card">
                 <i class="fas fa-bell"></i>
@@ -111,7 +199,7 @@
                 <p>Submit or manage requests</p>
             </a>
         </div>
-        
+
         {% if user.role in ['admin', 'pantryHead'] %}
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('procurement') }}" class="action-card">
@@ -121,7 +209,7 @@
             </a>
         </div>
         {% endif %}
-        
+
         {% if user.role == 'admin' %}
         <div class="col-md-3 mb-3">
             <a href="{{ url_for('admin') }}" class="action-card">

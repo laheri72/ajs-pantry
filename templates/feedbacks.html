@@ -31,22 +31,30 @@
                 <div class="feedback-body">
                     <p>{{ feedback.description }}</p>
                     <p class="text-muted">
-                        <i class="fas fa-user"></i> {{ feedback.user.username or feedback.user.email }}
+                        <i class="fas fa-user"></i> {{ feedback.user.full_name or feedback.user.username or feedback.user.email }}
                     </p>
+                    {% if current_user.role == 'admin' %}
+                    <p class="text-muted">
+                        <i class="fas fa-building"></i> Floor {{ feedback.floor }}
+                    </p>
+                    {% endif %}
                     <p class="text-muted">
                         <i class="fas fa-calendar"></i> {{ feedback.created_at.strftime('%Y-%m-%d') }}
                     </p>
-                    {% if not feedback.is_approved and current_user.role != 'admin' %}
-                    <span class="badge bg-warning">Pending Approval</span>
-                    {% endif %}
+                    <span class="badge bg-{% if feedback.is_approved %}success{% else %}warning{% endif %}">
+                        {% if feedback.is_approved %}Approved{% else %}Pending{% endif %}
+                    </span>
                 </div>
-                {% if current_user.role == 'admin' and not feedback.is_approved %}
+                {% if current_user.role in ['admin', 'pantryHead'] %}
                 <div class="feedback-actions">
-                    <button class="btn btn-sm btn-outline-success" onclick="approveFeedback({{ feedback.id }})">
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="updateFeedbackStatus({{ feedback.id }}, 'approved')">
                         <i class="fas fa-check"></i> Approve
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="rejectFeedback({{ feedback.id }})">
-                        <i class="fas fa-times"></i> Reject
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updateFeedbackStatus({{ feedback.id }}, 'pending')">
+                        <i class="fas fa-clock"></i> Pending
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteFeedback({{ feedback.id }})">
+                        <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
                 {% endif %}
@@ -104,19 +112,36 @@
 </div>
 
 <script>
-function approveFeedback(feedbackId) {
-    if (confirm('Are you sure you want to approve this feedback?')) {
-        // In a real implementation, this would make an AJAX call
-        alert('Feedback approved successfully!');
-        location.reload();
+function updateFeedbackStatus(feedbackId, status) {
+    if (confirm(`Are you sure you want to set this feedback to ${status}?`)) {
+        fetch(`/feedbacks/${feedbackId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Failed to update feedback');
+                }).catch(() => alert('Failed to update feedback'));
+            }
+        });
     }
 }
 
-function rejectFeedback(feedbackId) {
-    if (confirm('Are you sure you want to reject this feedback?')) {
-        // In a real implementation, this would make an AJAX call
-        alert('Feedback rejected successfully!');
-        location.reload();
+function deleteFeedback(feedbackId) {
+    if (confirm('Delete this feedback?')) {
+        fetch(`/feedbacks/${feedbackId}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to delete feedback');
+            }
+        });
     }
 }
 

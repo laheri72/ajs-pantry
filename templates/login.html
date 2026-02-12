@@ -4,26 +4,13 @@
     <div class="col-md-6 col-lg-4">
         <div class="card shadow-lg border-0 rounded-lg">
             <div class="card-header bg-primary text-white text-center py-4">
-                <h3 class="font-weight-light my-1">Login</h3>
+                <h3 class="font-weight-light my-1">Member Login</h3>
             </div>
             <div class="card-body p-4">
                 <form method="POST">
                     <div class="form-group mb-3">
-                        <label class="small mb-1" for="role">Role</label>
-                        <select class="form-control" name="role" id="role" onchange="toggleInputs()">
-                            <option value="member">Member</option>
-                            <option value="pantryHead">Pantry Head</option>
-                            <option value="teaManager">Tea Manager</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                    </div>
-                    <div class="form-group mb-3" id="emailInput">
                         <label class="small mb-1" for="email">Email</label>
-                        <input class="form-control" name="email" type="email" placeholder="Enter email address" />
-                    </div>
-                    <div class="form-group mb-3 d-none" id="usernameInput">
-                        <label class="small mb-1" for="username">Username</label>
-                        <input class="form-control" name="username" type="text" placeholder="Enter admin username" />
+                        <input class="form-control" name="email" type="email" placeholder="Enter email address" required />
                     </div>
                     <div class="form-group mb-3">
                         <label class="small mb-1" for="password">Password</label>
@@ -36,25 +23,11 @@
             </div>
             <div class="card-footer text-center py-3">
                 <div class="small text-muted">First login password: <b>maskan1447</b></div>
+                <div class="small text-muted mt-2">
+                    Staff? <a href="{{ url_for('staff_login') }}">Login here</a>
+                </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-function toggleInputs() {
-    const role = document.getElementById('role').value;
-    const emailInput = document.getElementById('emailInput');
-    const usernameInput = document.getElementById('usernameInput');
-    
-    if (role === 'admin') {
-        emailInput.classList.add('d-none');
-        usernameInput.classList.remove('d-none');
-    } else {
-        emailInput.classList.remove('d-none');
-        usernameInput.classList.add('d-none');
-    }
-}
-toggleInputs();
-</script>
 {% endblock %}

@@ -29,19 +29,27 @@
                 <div class="suggestion-body">
                     <p>{{ suggestion.description }}</p>
                     <p class="text-muted">
-                        <i class="fas fa-user"></i> {{ suggestion.user.username or suggestion.user.email }}
+                        <i class="fas fa-user"></i> {{ suggestion.user.full_name or suggestion.user.username or suggestion.user.email }}
                     </p>
+                    {% if current_user.role == 'admin' %}
+                    <p class="text-muted">
+                        <i class="fas fa-building"></i> Floor {{ suggestion.floor }}
+                    </p>
+                    {% endif %}
                     <p class="text-muted">
                         <i class="fas fa-calendar"></i> {{ suggestion.created_at.strftime('%Y-%m-%d') }}
                     </p>
                 </div>
-                {% if current_user.role == 'admin' %}
+                {% if current_user.role in ['admin', 'pantryHead'] %}
                 <div class="suggestion-actions">
-                    <button class="btn btn-sm btn-outline-success" onclick="updateSuggestionStatus({{ suggestion.id }}, 'approved')">
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="updateSuggestionStatus({{ suggestion.id }}, 'approved')">
                         <i class="fas fa-check"></i> Approve
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="updateSuggestionStatus({{ suggestion.id }}, 'rejected')">
-                        <i class="fas fa-times"></i> Reject
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updateSuggestionStatus({{ suggestion.id }}, 'pending')">
+                        <i class="fas fa-clock"></i> Pending
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSuggestion({{ suggestion.id }})">
+                        <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
                 {% endif %}
@@ -85,11 +93,35 @@
 
 <script>
 function updateSuggestionStatus(suggestionId, status) {
-    // Implementation for updating suggestion status
     if (confirm(`Are you sure you want to ${status} this suggestion?`)) {
-        // In a real implementation, this would make an AJAX call
-        alert(`Suggestion ${status} successfully!`);
-        location.reload();
+        fetch(`/suggestions/${suggestionId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                response.json().then(data => {
+                    alert(data.error || 'Failed to update suggestion');
+                }).catch(() => alert('Failed to update suggestion'));
+            }
+        });
+    }
+}
+
+function deleteSuggestion(suggestionId) {
+    if (confirm('Delete this suggestion?')) {
+        fetch(`/suggestions/${suggestionId}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Failed to delete suggestion');
+            }
+        });
     }
 }
 </script>

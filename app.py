@@ -17,33 +17,35 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "maskan-breakfast-management-secret-key")
 
 def get_db_url():
-    url = os.environ.get("SUPABASE_DATABASE_URL")
+    # Read both possible env names
+    url = os.environ.get("DATABASE_URL") or os.environ.get("SUPABASE_DATABASE_URL")
+
+    # If still missing → stop immediately (no SQLite fallback)
     if not url:
-        return "sqlite:///maskan.db"
-    
+        raise RuntimeError("No DATABASE_URL or SUPABASE_DATABASE_URL set.")
+
+    # Fix old postgres:// prefix
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
-    
-    import re
-    from urllib.parse import quote_plus
-    url = url.replace(" ", "")
-    try:
-        if "://" in url and "@" in url:
-            proto, rest = url.split("://", 1)
-            creds, host_part = rest.rsplit("@", 1)
-            if ":" in creds:
-                user, password = creds.split(":", 1)
-                password = password.strip("[]")
-                url = f"{proto}://{user}:{quote_plus(password)}@{host_part}"
-    except Exception:
-        pass
 
-    if "supabase.co" in url:
-        if "sslmode" not in url:
-            url += "&sslmode=require" if "?" in url else "?sslmode=require"
-        if "connect_timeout" not in url:
-            url += "&connect_timeout=5"
+    # Encode password safely
+    from urllib.parse import quote_plus
+
+    try:
+        proto, rest = url.split("://", 1)
+        creds, host = rest.rsplit("@", 1)
+        user, password = creds.split(":", 1)
+        password = quote_plus(password)
+        url = f"{proto}://{user}:{password}@{host}"
+    except Exception:
+        pass  # if parsing fails, keep original
+
+    # Ensure SSL for Supabase
+    if "supabase.co" in url and "sslmode" not in url:
+        url += "?sslmode=require"
+
     return url
+
 
 # Initial configuration
 app.config["SQLALCHEMY_DATABASE_URI"] = get_db_url()
@@ -57,23 +59,16 @@ db.init_app(app)
 # Attempt to connect to the configured database
 with app.app_context():
     import models
+    from sqlalchemy import text
+
     try:
-        # Test connection
-        from sqlalchemy import text
         db.session.execute(text("SELECT 1")).fetchone()
         db.create_all()
         logging.info("Connected to primary database successfully.")
     except Exception as e:
-        logging.error(f"Primary database connection failed: {e}. Falling back to SQLite.")
-        # Reconfigure for SQLite
-        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///maskan.db"
-        # In Flask-SQLAlchemy 3, the engine is cached. We must bypass the cached engine for migrations.
-        from sqlalchemy import create_engine
-        engine = create_engine(app.config["SQLALCHEMY_DATABASE_URI"])
-        models.db.metadata.create_all(bind=engine)
-        # Note: The app will still attempt to use the failed engine for requests 
-        # unless we explicitly swap it or the user restarts without the env var.
-        # But for booting the app, this is the safest path.
+        logging.critical("DATABASE CONNECTION FAILED. App will stop.")
+        raise RuntimeError("Cannot connect to primary database.") from e
+
 
     # Admin setup
     try:
@@ -98,6 +93,7 @@ with app.app_context():
             admin_user.role='admin'
             admin_user.floor=1
             admin_user.is_verified=True
+            admin_user.is_first_login=False
             session.add(admin_user)
             session.commit()
             logging.info("Default admin user created.")

@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-md-6">
-            <h2>People on Floor {{ current_user.floor }}</h2>
+            <h2>People on Floor {{ active_floor }}</h2>
         </div>
         <div class="col-md-6 text-end">
             {% if current_user.role == 'admin' %}
@@ -18,32 +18,189 @@
     </div>
 
     <div class="row">
-        {% for person in users %}
-        <div class="col-md-6 col-lg-4 mb-3">
-            <div class="people-card">
-                <div class="people-avatar">
-                    <i class="fas fa-user-circle fa-3x"></i>
-                </div>
-                <div class="people-info">
-                    <h5>{{ person.username or person.email }}</h5>
-                    <p class="text-muted">{{ person.role.title() }}</p>
-                    <p class="text-muted">Floor {{ person.floor }}</p>
-                    {% if person.is_verified %}
-                        <span class="badge bg-success">Verified</span>
+        <div class="col-lg-7 mb-4">
+            {% if current_user.role in ['admin', 'pantryHead'] %}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="fas fa-layer-group me-2"></i>Team Builder (Floor {{ active_floor }})</h5>
+
+                    <form class="row g-2 align-items-end" method="POST" action="{{ url_for('create_team') }}">
+                        <div class="col-md-6">
+                            <label class="form-label mb-1" for="teamName">Team Name</label>
+                            <input id="teamName" class="form-control" name="name" placeholder="e.g. Room A / Class 10A" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label mb-1" for="teamIcon">Icon (optional)</label>
+                            <input id="teamIcon" class="form-control" name="icon" placeholder="e.g. A / ⭐">
+                        </div>
+                        <div class="col-md-3 d-grid">
+                            <button class="btn btn-teal" type="submit">
+                                <i class="fas fa-plus me-1"></i>Create Team
+                            </button>
+                        </div>
+                    </form>
+
+                    {% if teams %}
+                    <hr class="my-4">
+
+                    <div class="accordion" id="teamsAccordion">
+                        {% for team in teams %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="teamHeading{{ team.id }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#teamCollapse{{ team.id }}">
+                                    <span class="me-2">{% if team.icon %}{{ team.icon }}{% else %}<i class="fas fa-users"></i>{% endif %}</span>
+                                    <span class="fw-bold">{{ team.name }}</span>
+                                    <span class="ms-2 badge bg-secondary">
+                                        {{ (members_by_team_id.get(team.id, []) | length) }} members
+                                    </span>
+                                </button>
+                            </h2>
+                            <div id="teamCollapse{{ team.id }}" class="accordion-collapse collapse" data-bs-parent="#teamsAccordion">
+                                <div class="accordion-body">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <form class="row g-2 align-items-end" method="POST" action="{{ url_for('update_team', team_id=team.id) }}">
+                                                <div class="col-md-6">
+                                                    <label class="form-label mb-1">Team Name</label>
+                                                    <input class="form-control" name="name" value="{{ team.name }}" required>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label mb-1">Icon</label>
+                                                    <input class="form-control" name="icon" value="{{ team.icon or '' }}">
+                                                </div>
+                                                <div class="col-md-3 d-grid">
+                                                    <button class="btn btn-outline-teal" type="submit">
+                                                        <i class="fas fa-save me-1"></i>Save
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+
+                                        <div class="col-12">
+                                            <form class="row g-2 align-items-end" method="POST" action="{{ url_for('add_team_member', team_id=team.id) }}">
+                                                <div class="col-md-9">
+                                                    <label class="form-label mb-1">Add Member</label>
+                                                    <select class="form-select" name="user_id" required>
+                                                        <option value="">Select user</option>
+                                                        {% for person in users %}
+                                                        <option value="{{ person.id }}">{{ person.full_name or person.username or person.email }} ({{ person.role }})</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3 d-grid">
+                                                    <button class="btn btn-teal" type="submit">
+                                                        <i class="fas fa-user-plus me-1"></i>Add
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+
+                                        <div class="col-12">
+                                            <div class="fw-bold mb-2">Members</div>
+                                            {% set members = members_by_team_id.get(team.id, []) %}
+                                            {% if members %}
+                                            <div class="list-group">
+                                                {% for m in members %}
+                                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <span class="fw-bold">{{ m.full_name or m.username or m.email }}</span>
+                                                        <span class="text-muted small">({{ m.role }})</span>
+                                                    </div>
+                                                    <form method="POST" action="{{ url_for('remove_team_member', team_id=team.id) }}" onsubmit="return confirm('Remove this member from the team?')">
+                                                        <input type="hidden" name="user_id" value="{{ m.id }}">
+                                                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                                                            <i class="fas fa-user-minus"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                            {% else %}
+                                            <div class="text-muted">No members yet.</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="col-12 d-flex justify-content-end">
+                                            <form method="POST" action="{{ url_for('delete_team', team_id=team.id) }}" onsubmit="return confirm('Delete this team? This will unassign it from any menus.')">
+                                                <button class="btn btn-outline-danger" type="submit">
+                                                    <i class="fas fa-trash me-1"></i>Delete Team
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                     {% else %}
-                        <span class="badge bg-warning">Pending Verification</span>
+                    <div class="text-muted mt-3">No teams yet for this floor.</div>
                     {% endif %}
                 </div>
-                {% if current_user.role == 'admin' %}
-                <div class="people-actions">
-                    <button class="btn btn-sm btn-outline-teal" onclick="editUser({{ person.id }})">
-                        <i class="fas fa-edit"></i>
-                    </button>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-12">
+                    <h4 class="mb-3"><i class="fas fa-users me-2"></i>My Teams</h4>
                 </div>
-                {% endif %}
+            </div>
+
+            {% if my_teams %}
+            <div class="row">
+                {% for team in my_teams %}
+                <div class="col-md-6 mb-3">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="me-2">{% if team.icon %}{{ team.icon }}{% else %}<i class="fas fa-users"></i>{% endif %}</div>
+                                <div class="fw-bold">{{ team.name }}</div>
+                            </div>
+                            <div class="text-muted small mb-2">Team members</div>
+                            {% set members = members_by_team_id.get(team.id, []) %}
+                            {% if members %}
+                            <ul class="list-group list-group-flush">
+                                {% for m in members %}
+                                <li class="list-group-item px-0 py-1">
+                                    {{ m.full_name or m.username or m.email }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <div class="text-muted">No members yet.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-muted">You are not in any team yet.</div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-5 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="fas fa-list me-2"></i>Floor People</h5>
+                    <div class="list-group">
+                        {% for person in users %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-bold">{{ person.full_name or person.username or person.email }}</div>
+                                <div class="small text-muted">Role: {{ person.role.title() }}</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge {% if person.is_verified %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                    {% if person.is_verified %}Verified{% else %}Pending{% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
         </div>
-        {% endfor %}
     </div>
 </div>
 
@@ -75,7 +232,7 @@
                         <label for="floor" class="form-label">Floor</label>
                         <select class="form-select" name="floor" required>
                             {% for i in range(1, 12) %}
-                            <option value="{{ i }}" {% if i == current_user.floor %}selected{% endif %}>Floor {{ i }}</option>
+                            <option value="{{ i }}" {% if i == active_floor %}selected{% endif %}>Floor {{ i }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -89,11 +246,4 @@
     </div>
 </div>
 {% endif %}
-
-<script>
-function editUser(userId) {
-    // Implementation for editing user details
-    alert('Edit functionality will be implemented');
-}
-</script>
 {% endblock %}
