@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-md-6">
-            <h2>Calendar - Floor {{ current_user.floor }}</h2>
+            <h2>Calendar - Floor {{ active_floor }}</h2>
         </div>
         <div class="col-md-6 text-end">
             <button class="btn btn-outline-teal me-2" onclick="previousMonth()">
@@ -63,73 +63,70 @@
 let currentDate = new Date();
 const menus = {{ menus | tojson }};
 const teaTasks = {{ tea_tasks | tojson }};
-</script>
 
 function generateCalendar(year, month) {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
+
     const calendarBody = document.getElementById('calendarBody');
     calendarBody.innerHTML = '';
-    
+
     for (let week = 0; week < 6; week++) {
         const weekRow = document.createElement('div');
         weekRow.className = 'calendar-week';
-        
+
         for (let day = 0; day < 7; day++) {
             const currentDay = new Date(startDate);
             currentDay.setDate(startDate.getDate() + (week * 7) + day);
-            
+
             const dayCell = document.createElement('div');
             dayCell.className = 'calendar-day';
-            
+
             if (currentDay.getMonth() !== month) {
                 dayCell.classList.add('other-month');
             }
-            
+
             if (currentDay.toDateString() === new Date().toDateString()) {
                 dayCell.classList.add('today');
             }
-            
+
             const dayNumber = document.createElement('div');
             dayNumber.className = 'day-number';
             dayNumber.textContent = currentDay.getDate();
             dayCell.appendChild(dayNumber);
-            
-            // Add events for this day
+
             const dateStr = currentDay.toISOString().split('T')[0];
-            
-            // Add menu items
+
             menus.forEach(menu => {
                 if (menu.date === dateStr) {
                     const event = document.createElement('div');
                     event.className = 'calendar-event bg-teal';
-                    const dishTypeIcon = menu.dish_type === 'main' ? '🍽️' : '🥗';
-                    event.textContent = dishTypeIcon + ' ' + menu.title + ' (' + menu.meal_type + ')';
-                    event.title = 'Assigned to: ' + (menu.assigned_to_username || 'Unassigned');
+                    const dishTypeIcon = menu.dish_type === 'main' ? 'M' : 'S';
+                    const assignedTo = menu.assigned_to_label || 'Unassigned';
+                    event.textContent = dishTypeIcon + ' ' + menu.title + ' (' + menu.meal_type + ') - ' + assignedTo;
+                    event.title = 'Assigned to: ' + assignedTo;
                     dayCell.appendChild(event);
                 }
             });
-            
-            // Add tea tasks
+
             teaTasks.forEach(task => {
                 if (task.date === dateStr) {
                     const event = document.createElement('div');
                     event.className = 'calendar-event bg-warning';
-                    event.textContent = 'Tea: ' + task.title;
+                    const name = task.assigned_to_name || 'Unassigned';
+                    event.textContent = (task.title || 'Tea Duty') + ': ' + name;
                     dayCell.appendChild(event);
                 }
             });
-            
+
             weekRow.appendChild(dayCell);
         }
-        
+
         calendarBody.appendChild(weekRow);
     }
-    
-    // Update month display
+
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                        'July', 'August', 'September', 'October', 'November', 'December'];
     document.getElementById('currentMonth').textContent = monthNames[month] + ' ' + year;
@@ -145,7 +142,6 @@ function nextMonth() {
     generateCalendar(currentDate.getFullYear(), currentDate.getMonth());
 }
 
-// Initialize calendar
 document.addEventListener('DOMContentLoaded', function() {
     generateCalendar(currentDate.getFullYear(), currentDate.getMonth());
 });

@@ -79,11 +79,13 @@
                             <i class="fas fa-shopping-cart"></i> Procurement
                         </a>
                     </li>
+                    {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('profile') }}">
-                            <i class="fas fa-user"></i> Profile
+                        <a class="nav-link" href="{{ url_for('floor_admin') }}">
+                            <i class="fas fa-user-shield"></i> Floor Admin
                         </a>
                     </li>
+                    {% endif %}
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('admin') }}">
@@ -92,11 +94,22 @@
                     </li>
                     {% endif %}
                 </ul>
+
+                {% if current_user.role == 'admin' %}
+                <form class="d-flex align-items-center me-3" method="POST" action="{{ url_for('set_active_floor') }}">
+                    <label class="text-white small me-2 mb-0" for="activeFloorSelect">Viewing</label>
+                    <select class="form-select form-select-sm" id="activeFloorSelect" name="floor" onchange="this.form.submit()">
+                        {% for f in floor_options %}
+                        <option value="{{ f }}" {% if f == active_floor %}selected{% endif %}>Floor {{ f }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
                 
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-circle"></i> {{ current_user.username or current_user.email }}
+                            <i class="fas fa-user-circle"></i> {{ display_name }}
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="{{ url_for('profile') }}">Profile</a></li>

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Floor Admin - Maskan Breakfast Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Floor Admin Panel</h2>
+            <p class="text-muted">
+                Manage Tea Managers for Floor {{ floor }}
+                {% if current_user.role == 'admin' %}(Admin view){% else %}(Pantry Head view){% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="shadow-sm p-4 bg-white rounded">
+                <h5>Assign Tea Manager</h5>
+                <form method="POST" class="row g-3 align-items-end">
+                    <input type="hidden" name="action" value="assign_tea_manager">
+                    <div class="col-md-6">
+                        <label class="form-label">Select User (Floor {{ floor }})</label>
+                        <select class="form-select" name="user_id" required>
+                            <option value="" selected disabled>Select a user</option>
+                            {% for u in floor_users %}
+                                {% if u.role == 'member' %}
+                                <option value="{{ u.id }}">
+                                    {{ u.full_name or u.username or u.email }} — {{ u.role }}
+                                </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">This promotes an existing user on this floor to Tea Manager.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-info text-white w-100">
+                            <i class="fas fa-coffee"></i> Make Tea Manager
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="shadow-sm p-4 bg-white rounded">
+                <h5>Current Tea Managers (Floor {{ floor }})</h5>
+                {% if tea_managers %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name / Email</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in tea_managers %}
+                            <tr>
+                                <td>
+                                    <strong>{{ u.full_name or u.username or 'No Name' }}</strong><br>
+                                    <small class="text-muted">{{ u.email }}</small>
+                                </td>
+                                <td><span class="badge bg-info text-white">{{ u.role }}</span></td>
+                                <td>
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Remove Tea Manager role for this user?')">
+                                        <input type="hidden" name="action" value="remove_tea_manager">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-user-minus"></i> Remove
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No tea managers assigned yet for this floor.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

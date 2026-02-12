@@ -19,24 +19,64 @@
         </div>
     </div>
 
+    {% if current_user.role in ['admin', 'teaManager', 'pantryHead'] %}
+    <!-- Monthly Assignment Counter -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Tea Assignments ({{ month_start.strftime('%B %Y') }})
+                        </h5>
+                        <form method="GET" class="d-flex align-items-center gap-2">
+                            <label class="form-label mb-0 small text-muted" for="monthSelect">Month</label>
+                            <input type="month" class="form-control form-control-sm" id="monthSelect" name="month" value="{{ selected_month }}">
+                            <button type="submit" class="btn btn-sm btn-outline-teal">View</button>
+                        </form>
+                    </div>
+
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th class="text-end">Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in tea_counts %}
+                                <tr>
+                                    <td>{{ row.user.full_name or row.user.username or row.user.email }}</td>
+                                    <td class="text-end"><span class="badge bg-secondary">{{ row.count }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted">Tip: assign tea to users with the lowest count for fairness.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Tea Tasks List -->
     <div class="row">
         {% for task in tea_tasks %}
         <div class="col-md-6 col-lg-4 mb-3">
             <div class="tea-card">
                 <div class="tea-header">
-                    <h5>{{ task.title }}</h5>
+                    <h5>Tea Duty</h5>
                     <span class="badge bg-warning">{{ task.status.title() }}</span>
                 </div>
                 <div class="tea-body">
-                    <p>{{ task.description }}</p>
                     <p class="text-muted">
                         <i class="fas fa-calendar"></i> {{ task.date.strftime('%Y-%m-%d') }}
-                        <i class="fas fa-clock ms-2"></i> {{ task.time }}
                     </p>
                     {% if task.assigned_to %}
                     <p class="text-muted">
-                        <i class="fas fa-user"></i> Assigned to: {{ task.assigned_to.username or task.assigned_to.email }}
+                        <i class="fas fa-user"></i> Assigned to: {{ task.assigned_to.full_name or task.assigned_to.username or task.assigned_to.email }}
                     </p>
                     {% endif %}
                 </div>
@@ -91,24 +131,6 @@ function completeTeaTask(taskId) {
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="title" class="form-label">Task Title</label>
-                                <input type="text" class="form-control" name="title" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="time" class="form-label">Time</label>
-                                <input type="time" class="form-control" name="time" required>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" name="description" rows="3"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
                                 <label for="date" class="form-label">Date</label>
                                 <input type="date" class="form-control" name="date" required>
                             </div>
@@ -116,10 +138,10 @@ function completeTeaTask(taskId) {
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="assigned_to_id" class="form-label">Assigned To</label>
-                                <select class="form-select" name="assigned_to_id">
+                                <select class="form-select" name="assigned_to_id" required>
                                     <option value="">Select User</option>
                                     {% for user in floor_users %}
-                                    <option value="{{ user.id }}">{{ user.username or user.email }}</option>
+                                    <option value="{{ user.id }}">{{ user.full_name or user.username or user.email }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
