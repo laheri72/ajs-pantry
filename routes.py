@@ -496,14 +496,7 @@ def home():
     if not user:
         return redirect(url_for('login'))
 
-    floor = _get_active_floor(user)
-    stats = {
-        'user_count': User.query.filter_by(floor=floor).count(),
-        'pending_requests': Request.query.filter_by(floor=floor, status='pending').count(),
-        'weekly_expenses': sum([e.amount for e in Expense.query.filter_by(floor=floor).all()])
-    }
-
-    return render_template('home.html', user=user, stats=stats, current_user=user)
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/people')

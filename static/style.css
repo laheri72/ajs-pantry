@@ -207,6 +207,121 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Professional Dashboard (scoped) */
+.dashboard-page .card:hover,
+.dashboard-page .stat-card:hover,
+.dashboard-page .action-card:hover {
+    transform: none;
+}
+
+.dashboard-page .stat-card {
+    margin-bottom: 0;
+}
+
+.dashboard-page .dashboard-hero {
+    border: none;
+    color: #ffffff;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--teal-primary), var(--teal-dark));
+}
+
+.dashboard-page .dashboard-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.22), transparent 55%),
+        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.16), transparent 50%),
+        radial-gradient(circle at 70% 90%, rgba(0, 0, 0, 0.15), transparent 55%);
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+.dashboard-page .dashboard-hero .card-body {
+    position: relative;
+    padding: 1.75rem;
+}
+
+.dashboard-page .dashboard-hero-kicker {
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+.dashboard-page .dashboard-hero-title {
+    margin: 0.25rem 0 0 0;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.dashboard-page .dashboard-hero-subtitle {
+    margin-top: 0.35rem;
+    opacity: 0.9;
+}
+
+.dashboard-page .dashboard-hero-meta .badge {
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    padding: 0.45rem 0.7rem;
+    margin-right: 0.4rem;
+}
+
+.dashboard-page .dashboard-toolbar .btn {
+    border-color: rgba(255, 255, 255, 0.55);
+}
+
+.dashboard-page .dashboard-toolbar .btn:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.8);
+    color: #ffffff;
+}
+
+.dashboard-page .dashboard-avatar {
+    color: var(--teal-primary);
+    background: rgba(38, 166, 154, 0.12);
+    border: 1px solid rgba(38, 166, 154, 0.25);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+}
+
+.dashboard-page .dashboard-avatar i {
+    line-height: 1;
+}
+
+.dashboard-page .dashboard-section .card-header {
+    padding-top: 1rem;
+}
+
+.dashboard-page .dashboard-section .card-body {
+    padding-bottom: 1.25rem;
+}
+
+.dashboard-page .action-card {
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 1.25rem;
+}
+
+.dashboard-page .action-card:hover {
+    background: rgba(38, 166, 154, 0.04);
+    border-color: rgba(38, 166, 154, 0.35);
+    color: var(--teal-dark);
+}
+
+.dashboard-page .action-card i {
+    font-size: 2.25rem;
+}
+
+.dashboard-page .activity-item {
+    padding: 0.85rem 0;
+}
+
 /* Statistics Cards */
 .stat-card {
     background: var(--white);
