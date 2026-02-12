@@ -1,133 +1,60 @@
 {% extends "base.html" %}
-
-{% block title %}Login - Maskan Breakfast Management{% endblock %}
-
 {% block content %}
-<div class="login-container">
-    <div class="login-card">
-        <div class="card-header text-center">
-            <i class="fas fa-utensils fa-3x mb-3"></i>
-            <h2>Maskan Breakfast Management</h2>
-            <p class="text-muted">Please sign in to continue</p>
-            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-home"></i> Back to Home
-            </a>
-        </div>
-
-        <div class="card-body">
-            <form method="POST" id="loginForm">
-                <div class="mb-3">
-                    <label for="role" class="form-label">Role</label>
-                    <select class="form-select" id="role" name="role" required onchange="toggleLoginFields()">
-                        <option value="">Select Role</option>
-                        <option value="admin">Admin</option>
-                        <option value="pantryHead">Pantry Head</option>
-                        <option value="teaManager">Tea Manager</option>
-                        <option value="member">Member</option>
-                    </select>
-                </div>
-
-                <!-- Admin Login Fields -->
-                <div id="adminFields" style="display: none;">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" placeholder="Enter username">
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-lg border-0 rounded-lg">
+            <div class="card-header bg-primary text-white text-center py-4">
+                <h3 class="font-weight-light my-1">Login</h3>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="form-group mb-3">
+                        <label class="small mb-1" for="role">Role</label>
+                        <select class="form-control" name="role" id="role" onchange="toggleInputs()">
+                            <option value="member">Member</option>
+                            <option value="pantryHead">Pantry Head</option>
+                            <option value="teaManager">Tea Manager</option>
+                            <option value="admin">Admin</option>
+                        </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="adminPassword" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="adminPassword" name="password" placeholder="Enter password">
+                    <div class="form-group mb-3" id="emailInput">
+                        <label class="small mb-1" for="email">Email</label>
+                        <input class="form-control" name="email" type="email" placeholder="Enter email address" />
                     </div>
-                </div>
-
-                <!-- Other Roles Login Fields -->
-                <div id="otherFields" style="display: none;">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email</label>
-                        <div class="input-group">
-                            <input type="email" class="form-control" id="email" name="email" placeholder="Enter email address">
-                            <button type="button" class="btn btn-outline-teal" id="verifyEmailBtn" onclick="verifyEmail()">
-                                Verify Email
-                            </button>
-                        </div>
+                    <div class="form-group mb-3 d-none" id="usernameInput">
+                        <label class="small mb-1" for="username">Username</label>
+                        <input class="form-control" name="username" type="text" placeholder="Enter admin username" />
                     </div>
-                    <div class="mb-3" id="passwordField" style="display: none;">
-                        <label for="otherPassword" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="otherPassword" name="password" placeholder="Enter password">
+                    <div class="form-group mb-3">
+                        <label class="small mb-1" for="password">Password</label>
+                        <input class="form-control" name="password" type="password" placeholder="Enter password" required />
                     </div>
-                </div>
-
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-teal btn-3d">
-                        <i class="fas fa-lock me-2"></i>Sign In
-                    </button>
-                </div>
-                
-                <div class="text-center mt-3">
-                    <a href="/" class="btn btn-outline-secondary">
-                        <i class="fas fa-home me-2"></i>Back to Homepage
-                    </a>
-                </div>
-            </form>
+                    <div class="form-group d-flex align-items-center justify-content-between mt-4 mb-0">
+                        <button type="submit" class="btn btn-primary btn-block w-100 py-2">Login</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center py-3">
+                <div class="small text-muted">First login password: <b>maskan1447</b></div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-function toggleLoginFields() {
+function toggleInputs() {
     const role = document.getElementById('role').value;
-    const adminFields = document.getElementById('adminFields');
-    const otherFields = document.getElementById('otherFields');
-    const passwordField = document.getElementById('passwordField');
-
+    const emailInput = document.getElementById('emailInput');
+    const usernameInput = document.getElementById('usernameInput');
+    
     if (role === 'admin') {
-        adminFields.style.display = 'block';
-        otherFields.style.display = 'none';
-    } else if (role) {
-        adminFields.style.display = 'none';
-        otherFields.style.display = 'block';
-        passwordField.style.display = 'none';
+        emailInput.classList.add('d-none');
+        usernameInput.classList.remove('d-none');
     } else {
-        adminFields.style.display = 'none';
-        otherFields.style.display = 'none';
+        emailInput.classList.remove('d-none');
+        usernameInput.classList.add('d-none');
     }
 }
-
-function verifyEmail() {
-    const email = document.getElementById('email').value;
-    const role = document.getElementById('role').value;
-
-    if (!email || !role) {
-        alert('Please enter email and select role');
-        return;
-    }
-
-    // Create a form to submit email verification
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{{ url_for("verify_email") }}';
-
-    const emailInput = document.createElement('input');
-    emailInput.type = 'hidden';
-    emailInput.name = 'email';
-    emailInput.value = email;
-
-    const roleInput = document.createElement('input');
-    roleInput.type = 'hidden';
-    roleInput.name = 'role';
-    roleInput.value = role;
-
-    form.appendChild(emailInput);
-    form.appendChild(roleInput);
-    document.body.appendChild(form);
-    form.submit();
-}
-
-// Show password field for verified users
-document.addEventListener('DOMContentLoaded', function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('verified') === 'true') {
-        document.getElementById('passwordField').style.display = 'block';
-    }
-});
+toggleInputs();
 </script>
 {% endblock %}

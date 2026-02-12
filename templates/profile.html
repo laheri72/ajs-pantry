@@ -1,147 +1,63 @@
 {% extends "base.html" %}
-
 {% block title %}Profile - Maskan Breakfast Management{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-8 mx-auto">
-            <div class="profile-container">
-                <div class="profile-header">
-                    <div class="profile-avatar-large">
-                        {% if user.profile_pic %}
-                        <img src="{{ user.profile_pic }}" alt="Profile Picture" class="profile-pic" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;">
-                        {% else %}
-                        <i class="fas fa-user-circle fa-5x"></i>
-                        {% endif %}
-                    </div>
-                    <h2>{{ user.username or user.email }}</h2>
-                    <p class="text-muted">{{ user.role.title() }} - Floor {{ user.floor }}</p>
-                    
-                    <!-- Profile Picture Upload -->
-                    <div class="profile-pic-upload mt-3">
-                        <label for="profilePicInput" class="btn btn-outline-teal btn-sm">
-                            <i class="fas fa-camera me-2"></i>Change Picture
-                        </label>
-                        <input type="file" id="profilePicInput" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(event)">
-                    </div>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">My Profile</h4>
                 </div>
-
-                <div class="profile-content">
+                <div class="card-body">
                     <form method="POST">
-                        <div class="row">
+                        <div class="row mb-3">
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="username" class="form-label">Username</label>
-                                    <input type="text" class="form-control" name="username" value="{{ user.username or '' }}" required>
-                                </div>
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-control" name="full_name" value="{{ user.full_name or '' }}" placeholder="Enter your full name">
                             </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="email" class="form-label">Email</label>
-                                    <input type="email" class="form-control" name="email" value="{{ user.email }}" required>
-                                </div>
+                                <label class="form-label">Phone Number</label>
+                                <input type="text" class="form-control" name="phone_number" value="{{ user.phone_number or '' }}" placeholder="Enter phone number">
                             </div>
                         </div>
 
-                        <div class="row">
+                        <div class="row mb-3">
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="role" class="form-label">Role</label>
-                                    <input type="text" class="form-control" value="{{ user.role.title() }}" readonly>
-                                </div>
+                                <label class="form-label">Email</label>
+                                <input type="text" class="form-control" value="{{ user.email }}" readonly>
                             </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="floor" class="form-label">Floor</label>
-                                    <input type="text" class="form-control" value="{{ user.floor }}" readonly>
-                                </div>
+                                <label class="form-label">TR Number</label>
+                                <input type="text" class="form-control" value="{{ user.tr_number or 'N/A' }}" readonly>
                             </div>
                         </div>
 
-                        <hr class="my-4">
-
-                        <h4>Change Password</h4>
-                        <div class="row">
+                        <div class="row mb-4">
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="current_password" class="form-label">Current Password</label>
-                                    <input type="password" class="form-control" name="current_password">
-                                </div>
+                                <label class="form-label">Role</label>
+                                <input type="text" class="form-control" value="{{ user.role }}" readonly>
                             </div>
                             <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="new_password" class="form-label">New Password</label>
-                                    <input type="password" class="form-control" name="new_password">
-                                </div>
+                                <label class="form-label">Floor</label>
+                                <input type="text" class="form-control" value="{{ user.floor }}" readonly>
                             </div>
                         </div>
 
-                        <div class="profile-actions">
-                            <button type="submit" class="btn btn-teal">
-                                <i class="fas fa-save"></i> Update Profile
-                            </button>
-                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary ms-2">
-                                <i class="fas fa-arrow-left"></i> Back to Dashboard
-                            </a>
+                        <hr>
+                        <h5>Change Password</h5>
+                        <div class="mb-3">
+                            <label class="form-label">New Password</label>
+                            <input type="password" class="form-control" name="new_password" placeholder="Leave blank to keep current password">
+                        </div>
+
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary py-2">Save Changes</button>
                         </div>
                     </form>
-                </div>
-
-                <!-- Profile Statistics -->
-                <div class="profile-stats mt-4">
-                    <h4>Profile Statistics</h4>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="stat-item">
-                                <i class="fas fa-calendar-check text-success"></i>
-                                <div>
-                                    <h5>Member Since</h5>
-                                    <p>{{ user.created_at.strftime('%B %Y') if user.created_at else 'N/A' }}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="stat-item">
-                                <i class="fas fa-check-circle text-primary"></i>
-                                <div>
-                                    <h5>Account Status</h5>
-                                    <p>{% if user.is_verified %}Verified{% else %}Pending{% endif %}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="stat-item">
-                                <i class="fas fa-sync text-info"></i>
-                                <div>
-                                    <h5>Last Updated</h5>
-                                    <p>{{ user.updated_at.strftime('%Y-%m-%d') if user.updated_at else 'N/A' }}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-function uploadProfilePicture(input) {
-    if (input.files && input.files[0]) {
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            $('#profilePicture').attr('src', e.target.result);
-        };
-        reader.readAsDataURL(input.files[0]);
-
-        // Here you would typically send the file to the server for storage
-        // For now, we'll just simulate it with a console log
-        console.log("Uploading file:", input.files[0].name);
-
-        // Optionally, you could have a hidden input to store the file name or URL
-        // and submit it with the form.
-    }
-}
-</script>
 {% endblock %}
