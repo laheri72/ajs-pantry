@@ -24,12 +24,12 @@
                     </div>
                     <div class="col-md-4">
                         <button class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#addPantryHeadModal">
-                            <i class="fas fa-utensils"></i> Add Pantry Head
+                            <i class="fas fa-utensils"></i> Assign Pantry Head
                         </button>
                     </div>
                     <div class="col-md-4">
                         <button class="btn btn-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#addTeaManagerModal">
-                            <i class="fas fa-coffee"></i> Add Tea Manager
+                            <i class="fas fa-coffee"></i> Assign Tea Manager
                         </button>
                     </div>
                 </div>
@@ -108,7 +108,7 @@
                     <div class="mb-3">
                         <label class="form-label">Floor</label>
                         <select class="form-select" name="floor" required>
-                            {% for i in range(1, 13) %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                            {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
                         </select>
                     </div>
                 </div>
@@ -125,26 +125,29 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Pantry Head</h5>
+                <h5 class="modal-title">Assign Pantry Head</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
-                    <input type="hidden" name="action" value="add_user">
+                    <input type="hidden" name="action" value="assign_role">
                     <input type="hidden" name="role" value="pantryHead">
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email" required>
+                        <label class="form-label">Floor</label>
+                        <select class="form-select" name="floor" id="pantryHeadFloorSelect" required>
+                            <option value="" selected disabled>Select a floor</option>
+                            {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                        </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Floor</label>
-                        <select class="form-select" name="floor" required>
-                            {% for i in range(1, 13) %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                        <label class="form-label">Member (TR - Name)</label>
+                        <select class="form-select" name="user_id" id="pantryHeadUserSelect" required disabled>
+                            <option value="">Select a floor first</option>
                         </select>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-success">Add Pantry Head</button>
+                    <button type="submit" class="btn btn-success">Assign Pantry Head</button>
                 </div>
             </form>
         </div>
@@ -156,29 +159,97 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Tea Manager</h5>
+                <h5 class="modal-title">Assign Tea Manager</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
-                    <input type="hidden" name="action" value="add_user">
+                    <input type="hidden" name="action" value="assign_role">
                     <input type="hidden" name="role" value="teaManager">
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" name="email" required>
+                        <label class="form-label">Floor</label>
+                        <select class="form-select" name="floor" id="teaManagerFloorSelect" required>
+                            <option value="" selected disabled>Select a floor</option>
+                            {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                        </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Floor</label>
-                        <select class="form-select" name="floor" required>
-                            {% for i in range(1, 13) %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                        <label class="form-label">Member (TR - Name)</label>
+                        <select class="form-select" name="user_id" id="teaManagerUserSelect" required disabled>
+                            <option value="">Select a floor first</option>
                         </select>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-info text-white">Add Tea Manager</button>
+                    <button type="submit" class="btn btn-info text-white">Assign Tea Manager</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+(() => {
+    async function loadFloorMembers(floor, userSelect) {
+        userSelect.disabled = true;
+        userSelect.innerHTML = '<option value="">Loading...</option>';
+
+        try {
+            const res = await fetch(`/admin/floor-members?floor=${encodeURIComponent(floor)}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!res.ok) {
+                userSelect.innerHTML = '<option value="">Failed to load members</option>';
+                return;
+            }
+
+            const data = await res.json();
+            const members = (data && data.members) ? data.members : [];
+
+            if (!members.length) {
+                userSelect.innerHTML = '<option value="">No members found on this floor</option>';
+                return;
+            }
+
+            const options = ['<option value="" selected disabled>Select a member</option>'];
+            for (const m of members) {
+                const label = m.label || `${m.tr_number || '-'} - ${m.name || ''}`.trim();
+                options.push(`<option value="${m.id}">${label}</option>`);
+            }
+            userSelect.innerHTML = options.join('');
+            userSelect.disabled = false;
+        } catch (e) {
+            userSelect.innerHTML = '<option value="">Failed to load members</option>';
+        }
+    }
+
+    function wireRoleModal(floorSelectId, userSelectId, modalId) {
+        const floorSelect = document.getElementById(floorSelectId);
+        const userSelect = document.getElementById(userSelectId);
+        const modalEl = document.getElementById(modalId);
+        if (!floorSelect || !userSelect) return;
+
+        const refresh = () => {
+            const floor = floorSelect.value;
+            if (!floor) {
+                userSelect.disabled = true;
+                userSelect.innerHTML = '<option value="">Select a floor first</option>';
+                return;
+            }
+            loadFloorMembers(floor, userSelect);
+        };
+
+        floorSelect.addEventListener('change', refresh);
+        if (modalEl) {
+            modalEl.addEventListener('shown.bs.modal', refresh);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        wireRoleModal('pantryHeadFloorSelect', 'pantryHeadUserSelect', 'addPantryHeadModal');
+        wireRoleModal('teaManagerFloorSelect', 'teaManagerUserSelect', 'addTeaManagerModal');
+    });
+})();
+</script>
 {% endblock %}

@@ -22,9 +22,6 @@
             <div class="suggestion-card">
                 <div class="suggestion-header">
                     <h5>{{ suggestion.title }}</h5>
-                    <span class="badge bg-{% if suggestion.status == 'approved' %}success{% elif suggestion.status == 'rejected' %}danger{% else %}warning{% endif %}">
-                        {{ suggestion.status.title() }}
-                    </span>
                 </div>
                 <div class="suggestion-body">
                     <p>{{ suggestion.description }}</p>
@@ -42,12 +39,6 @@
                 </div>
                 {% if current_user.role in ['admin', 'pantryHead'] %}
                 <div class="suggestion-actions">
-                    <button type="button" class="btn btn-sm btn-outline-success" onclick="updateSuggestionStatus({{ suggestion.id }}, 'approved')">
-                        <i class="fas fa-check"></i> Approve
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updateSuggestionStatus({{ suggestion.id }}, 'pending')">
-                        <i class="fas fa-clock"></i> Pending
-                    </button>
                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSuggestion({{ suggestion.id }})">
                         <i class="fas fa-trash"></i> Delete
                     </button>
@@ -92,24 +83,6 @@
 </div>
 
 <script>
-function updateSuggestionStatus(suggestionId, status) {
-    if (confirm(`Are you sure you want to ${status} this suggestion?`)) {
-        fetch(`/suggestions/${suggestionId}/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status }),
-        }).then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                response.json().then(data => {
-                    alert(data.error || 'Failed to update suggestion');
-                }).catch(() => alert('Failed to update suggestion'));
-            }
-        });
-    }
-}
-
 function deleteSuggestion(suggestionId) {
     if (confirm('Delete this suggestion?')) {
         fetch(`/suggestions/${suggestionId}/delete`, {
