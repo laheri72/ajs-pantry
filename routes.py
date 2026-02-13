@@ -1394,18 +1394,64 @@ def procurement():
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
+        category = (request.form.get('category') or 'other').strip() or 'other'
+        priority = (request.form.get('priority') or 'medium').strip() or 'medium'
+
+        item_names = request.form.getlist('item_name[]')
+        quantities = request.form.getlist('quantity[]')
+        if item_names or quantities:
+            max_len = max(len(item_names), len(quantities))
+            items_to_add = []
+
+            for idx in range(max_len):
+                name = (item_names[idx] if idx < len(item_names) else '').strip()
+                qty = (quantities[idx] if idx < len(quantities) else '').strip()
+
+                if not name and not qty:
+                    continue
+                if not name or not qty:
+                    flash(f'Row {idx + 1}: please provide both item and quantity (or leave the row blank).', 'error')
+                    return redirect(url_for('procurement'))
+
+                items_to_add.append(
+                    ProcurementItem(
+                        item_name=name,
+                        quantity=qty,
+                        category=category,
+                        priority=priority,
+                        assigned_to_id=assigned_to_id,
+                        created_by_id=user.id,
+                        floor=floor,
+                    )
+                )
+
+            if not items_to_add:
+                flash('Please add at least one item.', 'error')
+                return redirect(url_for('procurement'))
+
+            db.session.add_all(items_to_add)
+            db.session.commit()
+            flash(f'Added {len(items_to_add)} procurement items successfully.', 'success')
+            return redirect(url_for('procurement'))
+
+        item_name = (request.form.get('item_name') or '').strip()
+        quantity = (request.form.get('quantity') or '').strip()
+        if not item_name or not quantity:
+            flash('Item name and quantity are required.', 'error')
+            return redirect(url_for('procurement'))
+
         item = ProcurementItem(
-            item_name=request.form.get('item_name'),
-            quantity=request.form.get('quantity'),
-            category=request.form.get('category'),
-            priority=request.form.get('priority') or 'medium',
+            item_name=item_name,
+            quantity=quantity,
+            category=category,
+            priority=priority,
             assigned_to_id=assigned_to_id,
             created_by_id=user.id,
             floor=floor,
         )
         db.session.add(item)
         db.session.commit()
-        flash('Procurement item added successfully', 'success')
+        flash('Procurement item added successfully.', 'success')
         return redirect(url_for('procurement'))
 
     procurement_items = ProcurementItem.query.filter_by(floor=floor).order_by(ProcurementItem.created_at.desc()).all()
@@ -1421,9 +1467,30 @@ def procurement():
     )
     completed_items.sort(key=lambda i: -(i.created_at.timestamp() if i.created_at else 0))
 
+    pending_group_map = {}
+    for item in pending_items:
+        key = item.assigned_to_id or 0
+        pending_group_map.setdefault(key, []).append(item)
+
+    pending_groups = []
+    for key, items in pending_group_map.items():
+        is_unassigned = key == 0
+        label = 'Unassigned' if is_unassigned else (_display_name_for(items[0].assigned_to) or f'User #{key}')
+        pending_groups.append(
+            {
+                "assigned_to_id": None if is_unassigned else key,
+                "label": label,
+                "is_unassigned": is_unassigned,
+                "items": items,
+            }
+        )
+
+    pending_groups.sort(key=lambda g: (0 if g["is_unassigned"] else 1, (g["label"] or "").lower()))
+
     return render_template(
         'procurement.html',
         pending_items=pending_items,
+        pending_groups=pending_groups,
         completed_items=completed_items,
         floor_users=floor_users,
         current_user=user,
@@ -1459,3 +1526,76 @@ def complete_procurement_item(item_id):
         flash('Marked as completed', 'success')
         return redirect(url_for('procurement'))
     return ('', 204)
+
+
+@app.route('/procurement/suggest', methods=['GET'])
+def procurement_suggest():
+    user = _require_user()
+    if not user:
+        return ('', 401)
+
+    floor = _get_active_floor(user)
+    q = (request.args.get('q') or '').strip()
+
+    base_query = ProcurementItem.query.filter_by(floor=floor)
+    if q:
+        q_lower = q.lower()
+        base_query = base_query.filter(func.lower(ProcurementItem.item_name).like(f"%{q_lower}%"))
+
+    recent_rows = base_query.order_by(ProcurementItem.created_at.desc()).limit(250).all()
+
+    seen = set()
+    out = []
+    for row in recent_rows:
+        name = (row.item_name or '').strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"name": name, "last_quantity": (row.quantity or '').strip()})
+        if len(out) >= 30:
+            break
+
+    return jsonify({"items": out})
+
+
+@app.route('/procurement/suggest-qty', methods=['GET'])
+def procurement_suggest_qty():
+    user = _require_user()
+    if not user:
+        return ('', 401)
+
+    floor = _get_active_floor(user)
+    item = (request.args.get('item') or '').strip()
+    if not item:
+        return jsonify({"quantities": [], "last_quantity": ""})
+
+    item_lower = item.lower()
+    rows = (
+        ProcurementItem.query.filter_by(floor=floor)
+        .filter(func.lower(ProcurementItem.item_name) == item_lower)
+        .order_by(ProcurementItem.created_at.desc())
+        .limit(80)
+        .all()
+    )
+
+    quantities = []
+    seen = set()
+    last_quantity = ""
+    for r in rows:
+        q = (r.quantity or '').strip()
+        if not last_quantity and q:
+            last_quantity = q
+        if not q:
+            continue
+        key = q.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        quantities.append(q)
+        if len(quantities) >= 10:
+            break
+
+    return jsonify({"quantities": quantities, "last_quantity": last_quantity})

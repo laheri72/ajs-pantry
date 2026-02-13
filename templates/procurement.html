@@ -11,8 +11,8 @@
         </div>
         <div class="col-md-5 text-md-end mt-3 mt-md-0">
             {% if current_user.role in ['admin', 'pantryHead'] %}
-            <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addProcurementModal">
-                <i class="fas fa-plus me-1"></i> Add Item
+            <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#procurementListModal">
+                <i class="fas fa-list-check me-1"></i> Create List
             </button>
             {% endif %}
         </div>
@@ -55,45 +55,62 @@
                     <div class="text-muted small">Highest priority first</div>
                 </div>
 
-                {% if pending_items %}
-                <div class="list-group list-group-flush">
-                    {% for item in pending_items %}
-                    <div class="list-group-item">
-                        <div class="d-flex gap-3 align-items-start">
-                            <div class="pt-1">
-                                {% if current_user.role in ['admin', 'pantryHead'] %}
-                                <form method="POST" action="{{ url_for('complete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Mark this item as completed?')">
-                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Mark completed">
-                                        <i class="fas fa-check"></i>
-                                    </button>
-                                </form>
-                                {% else %}
-                                <span class="text-muted"><i class="fas fa-circle"></i></span>
-                                {% endif %}
-                            </div>
+                {% if pending_groups %}
+                <div class="accordion accordion-flush" id="toBuyGroupedAccordion">
+                    {% for group in pending_groups %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="toBuyGroupHeading{{ loop.index }}">
+                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#toBuyGroupCollapse{{ loop.index }}" aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="toBuyGroupCollapse{{ loop.index }}">
+                                <div class="d-flex align-items-center justify-content-between w-100 gap-3 pe-4">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="fas fa-user text-teal"></i>
+                                        <span class="fw-semibold">{{ group.label }}</span>
+                                        {% if group.is_unassigned %}
+                                        <span class="badge bg-warning text-dark border">Needs delegation</span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="badge bg-light text-dark border">{{ group['items']|length }}</span>
+                                </div>
+                            </button>
+                        </h2>
+                        <div id="toBuyGroupCollapse{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="toBuyGroupHeading{{ loop.index }}" data-bs-parent="#toBuyGroupedAccordion">
+                            <div class="list-group list-group-flush">
+                                {% for item in group['items'] %}
+                                <div class="list-group-item">
+                                    <div class="d-flex gap-3 align-items-start">
+                                        <div class="pt-1">
+                                            {% if current_user.role in ['admin', 'pantryHead'] %}
+                                            <form method="POST" action="{{ url_for('complete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Mark this item as completed?')">
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Mark completed">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                            {% else %}
+                                            <span class="text-muted"><i class="fas fa-circle"></i></span>
+                                            {% endif %}
+                                        </div>
 
-                            <div class="flex-grow-1">
-                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                    <div class="fw-semibold">{{ item.item_name }}</div>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        <span class="badge bg-{% if item.priority == 'high' %}danger{% elif item.priority == 'medium' %}warning{% else %}info{% endif %}">
-                                            {{ (item.priority or 'low').title() }}
-                                        </span>
-                                        <span class="badge bg-light text-dark border">
-                                            {{ (item.category or 'other').title() }}
-                                        </span>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                                <div class="fw-semibold">{{ item.item_name }}</div>
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <span class="badge bg-{% if item.priority == 'high' %}danger{% elif item.priority == 'medium' %}warning{% else %}info{% endif %}">
+                                                        {{ (item.priority or 'low').title() }}
+                                                    </span>
+                                                    <span class="badge bg-light text-dark border">
+                                                        {{ (item.category or 'other').title() }}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div class="text-muted small mt-1">
+                                                <span class="me-3"><i class="fas fa-balance-scale me-1"></i>{{ item.quantity }}</span>
+                                                <span><i class="fas fa-calendar me-1"></i>{{ item.created_at.strftime('%Y-%m-%d') }}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-
-                                <div class="text-muted small mt-1">
-                                    <span class="me-3"><i class="fas fa-balance-scale me-1"></i>{{ item.quantity }}</span>
-                                    {% if item.assigned_to %}
-                                    <span class="me-3"><i class="fas fa-user me-1"></i>{{ item.assigned_to.full_name or item.assigned_to.username or item.assigned_to.email }}</span>
-                                    {% else %}
-                                    <span class="me-3"><i class="fas fa-user me-1"></i><span class="text-muted">Unassigned</span></span>
-                                    {% endif %}
-                                    <span><i class="fas fa-calendar me-1"></i>{{ item.created_at.strftime('%Y-%m-%d') }}</span>
-                                </div>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>
@@ -150,24 +167,18 @@
 </div>
 
 {% if current_user.role in ['admin', 'pantryHead'] %}
-<div class="modal fade" id="addProcurementModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="procurementListModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-shopping-cart text-success me-2"></i>Add Procurement Item</h5>
+                <h5 class="modal-title"><i class="fas fa-shopping-cart text-success me-2"></i>Delegate Procurement List</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST">
+            <form id="procurementBulkForm" method="POST">
                 <div class="modal-body">
+                    <input type="hidden" name="priority" value="medium">
+
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Item Name</label>
-                            <input type="text" class="form-control" name="item_name" required placeholder="Ex: Tomatoes">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Quantity</label>
-                            <input type="text" class="form-control" name="quantity" required placeholder="Ex: 5 kg / 2 packs">
-                        </div>
                         <div class="col-md-6">
                             <label class="form-label">Category</label>
                             <select class="form-select" name="category" required>
@@ -180,16 +191,9 @@
                                 <option value="utensils">Utensils</option>
                                 <option value="other" selected>Other</option>
                             </select>
+                            <div class="form-text">Applies to the whole list. Default is <span class="fw-semibold">Other</span>.</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Priority</label>
-                            <select class="form-select" name="priority" required>
-                                <option value="low">Low</option>
-                                <option value="medium" selected>Medium</option>
-                                <option value="high">High</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
                             <label class="form-label">Assign To (optional)</label>
                             <select class="form-select" name="assigned_to_id">
                                 <option value="">Unassigned</option>
@@ -197,13 +201,56 @@
                                 <option value="{{ user.id }}">{{ user.full_name or user.username or user.email }}</option>
                                 {% endfor %}
                             </select>
-                            <div class="form-text">Assign to someone who will bring it from the store.</div>
+                            <div class="form-text">Select the member who will buy these items. Leave unassigned if you are only creating the list.</div>
                         </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div id="procurementBulkError" class="alert alert-danger d-none mb-3" role="alert"></div>
+                    <datalist id="procurementItemNameList"></datalist>
+                    <datalist id="procurementQuantityList"></datalist>
+
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <div class="fw-semibold">Items</div>
+                        <button id="addProcurementRow" type="button" class="btn btn-sm btn-outline-teal">
+                            <i class="fas fa-plus me-1"></i> Add row
+                        </button>
+                    </div>
+                    <div class="text-muted small mb-2">Add multiple items at once. For each row, fill only <span class="fw-semibold">Item</span> and <span class="fw-semibold">Quantity</span>. Leave unused rows blank.</div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="min-width: 260px;">Item</th>
+                                    <th style="min-width: 180px;">Quantity</th>
+                                    <th class="text-end" style="width: 64px;">&nbsp;</th>
+                                </tr>
+                            </thead>
+                            <tbody id="procurementItemsBody">
+                                {% for _ in range(5) %}
+                                <tr>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm" name="item_name[]" placeholder="Ex: Tomatoes" list="procurementItemNameList" autocomplete="off">
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm" name="quantity[]" placeholder="Ex: 5 kg / 2 packs" list="procurementQuantityList" autocomplete="off">
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger procurement-remove-row" title="Remove row">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-teal"><i class="fas fa-plus me-1"></i>Add Item</button>
+                    <button type="submit" class="btn btn-teal"><i class="fas fa-check me-1"></i>Create Items</button>
                 </div>
             </form>
         </div>
@@ -212,3 +259,296 @@
 {% endif %}
 {% endblock %}
 
+{% block extra_scripts %}
+<template id="procurementRowTemplate">
+    <tr>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="item_name[]" placeholder="Ex: Tomatoes" list="procurementItemNameList" autocomplete="off">
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="quantity[]" placeholder="Ex: 5 kg / 2 packs" list="procurementQuantityList" autocomplete="off">
+        </td>
+        <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-danger procurement-remove-row" title="Remove row">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    </tr>
+</template>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('procurementBulkForm');
+        const errorBox = document.getElementById('procurementBulkError');
+        const tbody = document.getElementById('procurementItemsBody');
+        const addRowBtn = document.getElementById('addProcurementRow');
+        const rowTemplate = document.getElementById('procurementRowTemplate');
+        const itemNameDatalist = document.getElementById('procurementItemNameList');
+        const qtyDatalist = document.getElementById('procurementQuantityList');
+
+        if (!form || !tbody || !addRowBtn || !rowTemplate) return;
+
+        function showError(message) {
+            if (!errorBox) return;
+            errorBox.textContent = message;
+            errorBox.classList.remove('d-none');
+        }
+
+        function clearError() {
+            if (!errorBox) return;
+            errorBox.textContent = '';
+            errorBox.classList.add('d-none');
+        }
+
+        function addRow() {
+            const fragment = rowTemplate.content.cloneNode(true);
+            tbody.appendChild(fragment);
+            const inputs = tbody.querySelectorAll('tr:last-child input');
+            if (inputs && inputs[0]) inputs[0].focus();
+        }
+
+        function removeRow(button) {
+            const rows = tbody.querySelectorAll('tr');
+            if (rows.length <= 1) {
+                showError('At least one row is required.');
+                return;
+            }
+            const row = button.closest('tr');
+            if (row) row.remove();
+        }
+
+        const qtyByNameLower = new Map();
+        let itemSuggestTimer = null;
+        let lastSuggestQuery = '';
+        let suggestRequestId = 0;
+        let qtySuggestRequestId = 0;
+        const datalistNav = new WeakMap();
+
+        function setDatalistOptions(items) {
+            if (!itemNameDatalist) return;
+            itemNameDatalist.innerHTML = '';
+            qtyByNameLower.clear();
+            for (const it of items || []) {
+                const name = (it?.name || '').toString().trim();
+                if (!name) continue;
+                const qty = (it?.last_quantity || '').toString().trim();
+                qtyByNameLower.set(name.toLowerCase(), qty);
+
+                const opt = document.createElement('option');
+                opt.value = name;
+                if (qty) opt.textContent = `Last: ${qty}`;
+                itemNameDatalist.appendChild(opt);
+            }
+        }
+
+        function setQtyDatalistOptions(quantities) {
+            if (!qtyDatalist) return;
+            qtyDatalist.innerHTML = '';
+            for (const q of quantities || []) {
+                const val = (q || '').toString().trim();
+                if (!val) continue;
+                const opt = document.createElement('option');
+                opt.value = val;
+                qtyDatalist.appendChild(opt);
+            }
+        }
+
+        async function fetchItemSuggestions(query) {
+            const q = (query || '').toString().trim();
+            if (q === lastSuggestQuery && qtyByNameLower.size > 0) return;
+            lastSuggestQuery = q;
+
+            const myId = ++suggestRequestId;
+            const url = `/procurement/suggest?q=${encodeURIComponent(q)}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return;
+            const data = await res.json().catch(() => null);
+            if (myId !== suggestRequestId) return;
+            setDatalistOptions(data?.items || []);
+        }
+
+        async function fetchQuantitySuggestions(itemName) {
+            const name = (itemName || '').toString().trim();
+            if (!name) return null;
+
+            const myId = ++qtySuggestRequestId;
+            const url = `/procurement/suggest-qty?item=${encodeURIComponent(name)}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return null;
+            const data = await res.json().catch(() => null);
+            if (myId !== qtySuggestRequestId) return null;
+            return data;
+        }
+
+        function scheduleSuggest(query) {
+            if (itemSuggestTimer) window.clearTimeout(itemSuggestTimer);
+            itemSuggestTimer = window.setTimeout(() => {
+                fetchItemSuggestions(query).catch(() => {});
+            }, 120);
+        }
+
+        function _rowQuantityInputFor(itemInput) {
+            const row = itemInput?.closest?.('tr');
+            if (!row) return null;
+            return row.querySelector('input[name="quantity[]"]');
+        }
+
+        function tryAutofillQuantityFromCache(itemInput) {
+            const name = (itemInput?.value || '').toString().trim();
+            if (!name) return;
+            const qty = qtyByNameLower.get(name.toLowerCase());
+            if (!qty) return;
+
+            const qtyInput = _rowQuantityInputFor(itemInput);
+            if (!qtyInput) return;
+            if ((qtyInput.value || '').trim()) return;
+            qtyInput.value = qty;
+        }
+
+        async function maybeAutofillQuantity(itemInput) {
+            const name = (itemInput?.value || '').toString().trim();
+            if (!name) return;
+
+            const qtyInput = _rowQuantityInputFor(itemInput);
+            if (!qtyInput) return;
+            if ((qtyInput.value || '').trim()) return;
+
+            tryAutofillQuantityFromCache(itemInput);
+            if ((qtyInput.value || '').trim()) return;
+
+            const data = await fetchQuantitySuggestions(name).catch(() => null);
+            const lastQty = (data?.last_quantity || '').toString().trim();
+            const list = data?.quantities || [];
+            setQtyDatalistOptions(list);
+            if (lastQty && !(qtyInput.value || '').trim()) {
+                qtyInput.value = lastQty;
+            }
+        }
+
+        addRowBtn.addEventListener('click', function () {
+            clearError();
+            addRow();
+        });
+
+        tbody.addEventListener('click', function (e) {
+            const btn = e.target.closest('.procurement-remove-row');
+            if (!btn) return;
+            clearError();
+            removeRow(btn);
+        });
+
+        tbody.addEventListener('focusin', function (e) {
+            const itemInput = e.target.closest('input[name="item_name[]"]');
+            if (!itemInput) return;
+            scheduleSuggest(itemInput.value);
+        });
+
+        tbody.addEventListener('input', function (e) {
+            const itemInput = e.target.closest('input[name="item_name[]"]');
+            if (!itemInput) return;
+            scheduleSuggest(itemInput.value);
+        });
+
+        tbody.addEventListener('change', function (e) {
+            const itemInput = e.target.closest('input[name="item_name[]"]');
+            if (!itemInput) return;
+            maybeAutofillQuantity(itemInput).catch(() => {});
+        });
+
+        tbody.addEventListener('keydown', function (e) {
+            const itemInput = e.target.closest('input[name="item_name[]"]');
+            if (itemInput) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    datalistNav.set(itemInput, true);
+                    window.setTimeout(() => datalistNav.set(itemInput, false), 800);
+                    return;
+                }
+                if (e.key !== 'Enter') return;
+
+                const allowDatalistEnter = datalistNav.get(itemInput) === true;
+                if (!allowDatalistEnter) {
+                    e.preventDefault();
+                    const qtyInput = _rowQuantityInputFor(itemInput);
+                    qtyInput?.focus?.();
+                }
+
+                window.setTimeout(() => {
+                    maybeAutofillQuantity(itemInput).catch(() => {});
+                }, 0);
+                return;
+            }
+
+            const qtyInput = e.target.closest('input[name="quantity[]"]');
+            if (!qtyInput) return;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                datalistNav.set(qtyInput, true);
+                window.setTimeout(() => datalistNav.set(qtyInput, false), 800);
+                return;
+            }
+            if (e.key !== 'Enter') return;
+
+            const allowDatalistEnter = datalistNav.get(qtyInput) === true;
+            if (!allowDatalistEnter) {
+                e.preventDefault();
+                const row = qtyInput.closest('tr');
+                const nextRow = row?.nextElementSibling;
+                const nextItem = nextRow?.querySelector?.('input[name="item_name[]"]');
+                if (nextItem) {
+                    nextItem.focus();
+                } else {
+                    addRow();
+                }
+            }
+        });
+
+        tbody.addEventListener('focusin', function (e) {
+            const qtyInput = e.target.closest('input[name="quantity[]"]');
+            if (!qtyInput) return;
+
+            const row = qtyInput.closest('tr');
+            const itemInput = row?.querySelector('input[name="item_name[]"]');
+            const name = (itemInput?.value || '').toString().trim();
+            if (!name) return;
+
+            fetchQuantitySuggestions(name)
+                .then((data) => {
+                    if (!data) return;
+                    setQtyDatalistOptions(data?.quantities || []);
+                    const lastQty = (data?.last_quantity || '').toString().trim();
+                    if (lastQty && !(qtyInput.value || '').trim()) {
+                        qtyInput.value = lastQty;
+                        qtyInput.select?.();
+                    }
+                })
+                .catch(() => {});
+        });
+
+        form.addEventListener('submit', function (e) {
+            clearError();
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            let validCount = 0;
+            for (let i = 0; i < rows.length; i++) {
+                const itemInput = rows[i].querySelector('input[name="item_name[]"]');
+                const qtyInput = rows[i].querySelector('input[name="quantity[]"]');
+                const itemVal = (itemInput?.value || '').trim();
+                const qtyVal = (qtyInput?.value || '').trim();
+
+                if (!itemVal && !qtyVal) continue;
+                if (!itemVal || !qtyVal) {
+                    e.preventDefault();
+                    showError(`Row ${i + 1}: please provide both item and quantity (or leave the row blank).`);
+                    (itemInput && !itemVal ? itemInput : qtyInput)?.focus?.();
+                    return;
+                }
+                validCount++;
+            }
+
+            if (validCount === 0) {
+                e.preventDefault();
+                showError('Please add at least one item.');
+            }
+        });
+    });
+</script>
+{% endblock %}
