@@ -41,18 +41,9 @@
                     <p class="text-muted">
                         <i class="fas fa-calendar"></i> {{ feedback.created_at.strftime('%Y-%m-%d') }}
                     </p>
-                    <span class="badge bg-{% if feedback.is_approved %}success{% else %}warning{% endif %}">
-                        {% if feedback.is_approved %}Approved{% else %}Pending{% endif %}
-                    </span>
                 </div>
                 {% if current_user.role in ['admin', 'pantryHead'] %}
                 <div class="feedback-actions">
-                    <button type="button" class="btn btn-sm btn-outline-success" onclick="updateFeedbackStatus({{ feedback.id }}, 'approved')">
-                        <i class="fas fa-check"></i> Approve
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="updateFeedbackStatus({{ feedback.id }}, 'pending')">
-                        <i class="fas fa-clock"></i> Pending
-                    </button>
                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteFeedback({{ feedback.id }})">
                         <i class="fas fa-trash"></i> Delete
                     </button>
@@ -112,24 +103,6 @@
 </div>
 
 <script>
-function updateFeedbackStatus(feedbackId, status) {
-    if (confirm(`Are you sure you want to set this feedback to ${status}?`)) {
-        fetch(`/feedbacks/${feedbackId}/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status }),
-        }).then(response => {
-            if (response.ok) {
-                location.reload();
-            } else {
-                response.json().then(data => {
-                    alert(data.error || 'Failed to update feedback');
-                }).catch(() => alert('Failed to update feedback'));
-            }
-        });
-    }
-}
-
 function deleteFeedback(feedbackId) {
     if (confirm('Delete this feedback?')) {
         fetch(`/feedbacks/${feedbackId}/delete`, {

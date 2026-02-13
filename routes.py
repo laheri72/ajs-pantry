@@ -5,6 +5,7 @@ from models import User, Menu, Expense, TeaTask, Suggestion, Feedback, Request, 
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
 
 
 FLOOR_MIN = 1
@@ -585,11 +586,32 @@ def admin():
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        action = request.form.get('action')
+        action = (request.form.get('action') or '').strip()
         
         if action == 'add_user':
-            role = request.form.get('role')
-            floor = int(request.form.get('floor', user.floor))
+            role = (request.form.get('role') or '').strip()
+            if role != 'member':
+                flash('Only members can be created from the admin panel now.', 'error')
+                return redirect(url_for('admin'))
+
+            try:
+                floor = int(request.form.get('floor', user.floor) or user.floor or FLOOR_MIN)
+            except Exception:
+                floor = user.floor or FLOOR_MIN
+
+            if floor < FLOOR_MIN or floor > FLOOR_MAX:
+                flash('Invalid floor selected', 'error')
+                return redirect(url_for('admin'))
+
+            tr_number = (request.form.get('tr_number') or '').strip()
+            if not tr_number:
+                flash('TR Number is required', 'error')
+                return redirect(url_for('admin'))
+
+            email = f"{tr_number}@jameasaifiyah.edu"
+            if User.query.filter(or_(User.email == email, User.tr_number == tr_number)).first():
+                flash('A user with this TR number/email already exists', 'error')
+                return redirect(url_for('admin'))
             
             new_user = User()
             new_user.role = role
@@ -597,19 +619,156 @@ def admin():
             new_user.password_hash = generate_password_hash('maskan1447')
             new_user.is_first_login = True
             
-            if role == 'member':
-                tr_number = request.form.get('tr_number')
-                new_user.tr_number = tr_number
-                new_user.email = f"{tr_number}@jameasaifiyah.edu"
-            else:
-                new_user.email = request.form.get('email')
+            new_user.tr_number = tr_number
+            new_user.email = email
                 
             db.session.add(new_user)
             db.session.commit()
-            flash(f'User added successfully', 'success')
+            flash('Member added successfully', 'success')
+            return redirect(url_for('admin'))
+
+        if action == 'assign_role':
+            role = (request.form.get('role') or '').strip()
+            if role not in {'pantryHead', 'teaManager'}:
+                flash('Invalid role selected', 'error')
+                return redirect(url_for('admin'))
+
+            try:
+                floor = int(request.form.get('floor') or '')
+            except Exception:
+                flash('Invalid floor selected', 'error')
+                return redirect(url_for('admin'))
+
+            if floor < FLOOR_MIN or floor > FLOOR_MAX:
+                flash('Invalid floor selected', 'error')
+                return redirect(url_for('admin'))
+
+            try:
+                target_user_id = int(request.form.get('user_id') or '')
+            except Exception:
+                flash('Invalid user selected', 'error')
+                return redirect(url_for('admin'))
+
+            target = User.query.get(target_user_id)
+            if not target:
+                flash('User not found', 'error')
+                return redirect(url_for('admin'))
+
+            if target.role == 'admin':
+                flash('Admin users cannot be reassigned.', 'error')
+                return redirect(url_for('admin'))
+
+            if target.floor != floor:
+                flash('Selected user must be on the selected floor', 'error')
+                return redirect(url_for('admin'))
+
+            if target.role != 'member':
+                flash('Only members can be assigned to staff roles.', 'error')
+                return redirect(url_for('admin'))
+
+            target.role = role
+            db.session.commit()
+            flash('Role assigned successfully', 'success')
+            return redirect(url_for('admin'))
+
+        if action == 'delete_user':
+            try:
+                target_user_id = int(request.form.get('user_id') or '')
+            except Exception:
+                flash('Invalid user selected', 'error')
+                return redirect(url_for('admin'))
+
+            target = User.query.get(target_user_id)
+            if not target:
+                flash('User not found', 'error')
+                return redirect(url_for('admin'))
+
+            if target.id == user.id:
+                flash('You cannot delete your own account.', 'error')
+                return redirect(url_for('admin'))
+
+            if target.role == 'admin':
+                flash('Admin users cannot be deleted from this panel.', 'error')
+                return redirect(url_for('admin'))
+
+            # Remove / detach references to avoid FK constraint failures.
+            TeamMember.query.filter_by(user_id=target.id).delete(synchronize_session=False)
+
+            Menu.query.filter_by(assigned_to_id=target.id).update({Menu.assigned_to_id: None}, synchronize_session=False)
+            Menu.query.filter_by(created_by_id=target.id).update({Menu.created_by_id: None}, synchronize_session=False)
+
+            TeaTask.query.filter_by(assigned_to_id=target.id).update({TeaTask.assigned_to_id: None}, synchronize_session=False)
+            TeaTask.query.filter_by(created_by_id=target.id).update({TeaTask.created_by_id: None}, synchronize_session=False)
+
+            ProcurementItem.query.filter_by(assigned_to_id=target.id).update({ProcurementItem.assigned_to_id: None}, synchronize_session=False)
+            ProcurementItem.query.filter_by(created_by_id=target.id).update({ProcurementItem.created_by_id: None}, synchronize_session=False)
+
+            Request.query.filter_by(user_id=target.id).update({Request.user_id: None}, synchronize_session=False)
+            Request.query.filter_by(approved_by_id=target.id).update({Request.approved_by_id: None}, synchronize_session=False)
+
+            Expense.query.filter_by(user_id=target.id).update({Expense.user_id: None}, synchronize_session=False)
+            Suggestion.query.filter_by(user_id=target.id).update({Suggestion.user_id: None}, synchronize_session=False)
+            Feedback.query.filter_by(user_id=target.id).update({Feedback.user_id: None}, synchronize_session=False)
+
+            Team.query.filter_by(created_by_id=target.id).update({Team.created_by_id: None}, synchronize_session=False)
+
+            try:
+                db.session.delete(target)
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                flash('Cannot delete this user because they are referenced elsewhere.', 'error')
+                return redirect(url_for('admin'))
+
+            flash('User deleted successfully', 'success')
+            return redirect(url_for('admin'))
             
     all_users = User.query.all()
     return render_template('admin.html', user=user, all_users=all_users, current_user=user)
+
+
+@app.route('/admin/floor-members', methods=['GET'])
+def admin_floor_members():
+    user = _require_user()
+    if not user:
+        return jsonify({"error": "unauthorized"}), 401
+
+    if user.role != 'admin':
+        return jsonify({"error": "forbidden"}), 403
+
+    try:
+        floor = int(request.args.get('floor') or '')
+    except Exception:
+        return jsonify({"error": "invalid_floor"}), 400
+
+    if floor < FLOOR_MIN or floor > FLOOR_MAX:
+        return jsonify({"error": "invalid_floor"}), 400
+
+    members = (
+        User.query.filter_by(floor=floor, role='member')
+        .order_by(User.tr_number.asc(), User.full_name.asc(), User.email.asc())
+        .all()
+    )
+
+    def _label(u):
+        name = (u.full_name or u.username or u.email or '').strip()
+        tr = (u.tr_number or '-').strip()
+        return f"{tr} - {name}".strip(' -')
+
+    return jsonify(
+        {
+            "floor": floor,
+            "members": [
+                {
+                    "id": u.id,
+                    "tr_number": u.tr_number,
+                    "name": (u.full_name or u.username or u.email),
+                    "label": _label(u),
+                }
+                for u in members
+            ],
+        }
+    )
 
 
 @app.route('/floor-admin', methods=['GET', 'POST'])
@@ -1011,7 +1170,7 @@ def suggestions():
         )
         db.session.add(suggestion)
         db.session.commit()
-        flash('Suggestion submitted successfully. Pending approval.', 'success')
+        flash('Suggestion submitted successfully.', 'success')
         return redirect(url_for('suggestions'))
 
     floor = _get_active_floor(user)
@@ -1020,43 +1179,9 @@ def suggestions():
     elif user.role == 'pantryHead':
         visible_suggestions = Suggestion.query.filter_by(floor=user.floor).order_by(Suggestion.created_at.desc()).all()
     else:
-        visible_suggestions = (
-            Suggestion.query.filter_by(floor=user.floor, status='approved')
-            .order_by(Suggestion.created_at.desc())
-            .all()
-        )
+        visible_suggestions = Suggestion.query.filter_by(floor=user.floor).order_by(Suggestion.created_at.desc()).all()
 
     return render_template('suggestions.html', suggestions=visible_suggestions, current_user=user)
-
-
-@app.route('/suggestions/<int:suggestion_id>/status', methods=['POST'])
-def update_suggestion_status(suggestion_id):
-    user = _require_user()
-    if not user:
-        return ('', 401)
-
-    if user.role not in {'admin', 'pantryHead'}:
-        return ('', 403)
-
-    suggestion = Suggestion.query.get(suggestion_id)
-    if not suggestion:
-        return ('', 404)
-
-    if user.role == 'pantryHead' and suggestion.floor != user.floor:
-        return ('', 403)
-
-    payload = request.get_json(silent=True) or {}
-    new_status = (payload.get('status') or request.form.get('status') or '').strip().lower()
-    if new_status == 'accepted':
-        new_status = 'approved'
-
-    allowed = {'pending', 'approved', 'rejected'}
-    if new_status not in allowed:
-        return jsonify({"error": "invalid_status", "allowed": sorted(allowed)}), 400
-
-    suggestion.status = new_status
-    db.session.commit()
-    return ('', 204)
 
 
 @app.route('/suggestions/<int:suggestion_id>/delete', methods=['POST'])
@@ -1105,7 +1230,7 @@ def feedbacks():
         )
         db.session.add(feedback)
         db.session.commit()
-        flash('Feedback submitted successfully. Pending approval.', 'success')
+        flash('Feedback submitted successfully.', 'success')
         return redirect(url_for('feedbacks'))
 
     floor = _get_active_floor(user)
@@ -1114,43 +1239,9 @@ def feedbacks():
     elif user.role == 'pantryHead':
         visible_feedbacks = Feedback.query.filter_by(floor=user.floor).order_by(Feedback.created_at.desc()).all()
     else:
-        visible_feedbacks = (
-            Feedback.query.filter_by(floor=user.floor, is_approved=True)
-            .order_by(Feedback.created_at.desc())
-            .all()
-        )
+        visible_feedbacks = Feedback.query.filter_by(floor=user.floor).order_by(Feedback.created_at.desc()).all()
 
     return render_template('feedbacks.html', feedbacks=visible_feedbacks, current_user=user)
-
-
-@app.route('/feedbacks/<int:feedback_id>/status', methods=['POST'])
-def update_feedback_status(feedback_id):
-    user = _require_user()
-    if not user:
-        return ('', 401)
-
-    if user.role not in {'admin', 'pantryHead'}:
-        return ('', 403)
-
-    feedback = Feedback.query.get(feedback_id)
-    if not feedback:
-        return ('', 404)
-
-    if user.role == 'pantryHead' and feedback.floor != user.floor:
-        return ('', 403)
-
-    payload = request.get_json(silent=True) or {}
-    new_status = (payload.get('status') or request.form.get('status') or '').strip().lower()
-    if new_status == 'accepted':
-        new_status = 'approved'
-
-    allowed = {'pending', 'approved'}
-    if new_status not in allowed:
-        return jsonify({"error": "invalid_status", "allowed": sorted(allowed)}), 400
-
-    feedback.is_approved = (new_status == 'approved')
-    db.session.commit()
-    return ('', 204)
 
 
 @app.route('/feedbacks/<int:feedback_id>/delete', methods=['POST'])
@@ -1318,9 +1409,22 @@ def procurement():
         return redirect(url_for('procurement'))
 
     procurement_items = ProcurementItem.query.filter_by(floor=floor).order_by(ProcurementItem.created_at.desc()).all()
+    pending_items = [i for i in procurement_items if (i.status or '').strip().lower() != 'completed']
+    completed_items = [i for i in procurement_items if (i.status or '').strip().lower() == 'completed']
+
+    priority_rank = {'high': 0, 'medium': 1, 'low': 2}
+    pending_items.sort(
+        key=lambda i: (
+            priority_rank.get((i.priority or '').strip().lower(), 99),
+            -(i.created_at.timestamp() if i.created_at else 0),
+        )
+    )
+    completed_items.sort(key=lambda i: -(i.created_at.timestamp() if i.created_at else 0))
+
     return render_template(
         'procurement.html',
-        procurement_items=procurement_items,
+        pending_items=pending_items,
+        completed_items=completed_items,
         floor_users=floor_users,
         current_user=user,
     )
@@ -1330,17 +1434,28 @@ def procurement():
 def complete_procurement_item(item_id):
     user = _require_user()
     if not user:
+        if request.accept_mimetypes.accept_html:
+            return redirect(url_for('login'))
         return ('', 401)
 
     if user.role not in ['admin', 'pantryHead']:
+        if request.accept_mimetypes.accept_html:
+            abort(403)
         return ('', 403)
 
     item = ProcurementItem.query.get(item_id)
     if not item:
+        if request.accept_mimetypes.accept_html:
+            abort(404)
         return ('', 404)
     if user.role != 'admin' and item.floor != user.floor:
+        if request.accept_mimetypes.accept_html:
+            abort(404)
         return ('', 404)
 
     item.status = 'completed'
     db.session.commit()
+    if request.accept_mimetypes.accept_html:
+        flash('Marked as completed', 'success')
+        return redirect(url_for('procurement'))
     return ('', 204)
