@@ -85,6 +85,15 @@ class Suggestion(db.Model):
     
     user = db.relationship('User', backref='suggestions')
 
+class SuggestionVote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    suggestion_id = db.Column(db.Integer, db.ForeignKey('suggestion.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    suggestion = db.relationship('Suggestion', backref=db.backref('votes', cascade='all, delete-orphan'))
+    user = db.relationship('User')
+
 class Feedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -181,5 +190,17 @@ class FloorLendBorrow(db.Model):
     lender_verified_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class SpecialEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    date = db.Column(db.Date, nullable=False)
+    floor = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
