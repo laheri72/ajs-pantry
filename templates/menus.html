@@ -6,12 +6,13 @@
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-md-6">
-            <h2>Menu Management</h2>
+            <h2 class="fw-bold"><i class="fas fa-utensils text-teal me-2"></i>Menu Management</h2>
+            <div class="text-muted">Schedule meals and assign them to teams for performance tracking.</div>
         </div>
         <div class="col-md-6 text-end">
             {% if current_user.role in ['admin', 'pantryHead'] %}
             <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addMenuModal">
-                <i class="fas fa-plus"></i> Add Menu
+                <i class="fas fa-plus"></i> Schedule New Meal
             </button>
             {% endif %}
         </div>
@@ -19,41 +20,58 @@
 
     <!-- Menu List -->
     <div class="row">
+        {% if not menus %}
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No menus scheduled yet.</h5>
+        </div>
+        {% endif %}
+        
         {% for menu in menus %}
         <div class="col-md-6 col-lg-4 mb-3">
-            <div class="menu-card">
+            <div class="menu-card h-100">
                 <div class="menu-header">
-                    <h5>{{ menu.title }}</h5>
+                    <h5 class="fw-bold mb-0">{{ menu.dish.name if menu.dish else menu.title }}</h5>
                     <div>
                         <span class="badge bg-teal">{{ menu.meal_type.title() }}</span>
-                        <span class="badge bg-warning ms-1">{{ menu.dish_type.title() }} Dish</span>
+                        <span class="badge bg-warning ms-1 text-dark">{{ menu.dish_type.title() }}</span>
                     </div>
                 </div>
                 <div class="menu-body">
-                    <p>{{ menu.description }}</p>
-                    <p class="text-muted">
-                        <i class="fas fa-calendar"></i> {{ menu.date.strftime('%Y-%m-%d') }}
-                    </p>
-                    {% if menu.assigned_team %}
-                    <p class="text-muted">
-                        <i class="fas fa-users"></i> Assigned to team:
-                        {% if menu.assigned_team.icon %}{{ menu.assigned_team.icon }}{% endif %}
-                        {{ menu.assigned_team.name }}
-                    </p>
-                    {% elif menu.assigned_to %}
-                    <p class="text-muted">
-                        <i class="fas fa-user"></i> Assigned to: {{ menu.assigned_to.full_name or menu.assigned_to.username or menu.assigned_to.email }}
-                    </p>
-                    {% endif %}
+                    <p class="mb-3 text-secondary">{{ menu.description or 'No description provided.' }}</p>
+                    
+                    <div class="d-flex flex-column gap-2 small">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-calendar-day text-teal me-2" style="width: 20px;"></i>
+                            <span class="fw-bold">{{ menu.date.strftime('%A, %b %d, %Y') }}</span>
+                        </div>
+                        
+                        {% if menu.assigned_team %}
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-users text-teal me-2" style="width: 20px;"></i>
+                            <span>Assigned to <strong>{% if menu.assigned_team.icon %}{{ menu.assigned_team.icon }} {% endif %}{{ menu.assigned_team.name }}</strong></span>
+                        </div>
+                        {% elif menu.assigned_to %}
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-user text-teal me-2" style="width: 20px;"></i>
+                            <span>Assigned to <strong>{{ menu.assigned_to.full_name or menu.assigned_to.username or menu.assigned_to.email }}</strong></span>
+                        </div>
+                        {% else %}
+                        <div class="d-flex align-items-center text-muted">
+                            <i class="fas fa-user-slash me-2" style="width: 20px;"></i>
+                            <span>Unassigned</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
                 {% if current_user.role in ['admin', 'pantryHead'] %}
                 <div class="menu-actions">
-                    <button class="btn btn-sm btn-outline-teal">
-                        <i class="fas fa-edit"></i> Edit
+                    <button class="btn btn-sm btn-outline-teal flex-grow-1">
+                        <i class="fas fa-edit me-1"></i> Edit
                     </button>
-                    <form action="{{ url_for('delete_menu', menu_id=menu.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this menu?')">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                            <i class="fas fa-trash"></i> Delete
+                    <form action="{{ url_for('delete_menu', menu_id=menu.id) }}" method="POST" class="flex-grow-1" onsubmit="return confirm('Are you sure you want to delete this menu?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                            <i class="fas fa-trash me-1"></i> Delete
                         </button>
                     </form>
                 </div>
@@ -70,82 +88,124 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Menu</h5>
+                <h5 class="modal-title fw-bold"><i class="fas fa-calendar-plus me-2"></i>Schedule New Meal</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
-                    <div class="row">
+                    <div class="row g-3">
+                        <!-- Dish Selection -->
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="title" class="form-label">Menu Title</label>
-                                <input type="text" class="form-control" name="title" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="meal_type" class="form-label">Meal Type</label>
-                                <div>
-                                    <span class="badge bg-teal">Breakfast</span>
+                                <label for="dishSelect" class="form-label">Dish</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="fas fa-utensils"></i></span>
+                                    <select class="form-select" name="dish_id" id="dishSelect" required>
+                                        <option value="">Select a dish...</option>
+                                        {% for d in dishes %}
+                                        <option value="{{ d.id }}">{{ d.name }}</option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
-                                <input type="hidden" name="meal_type" value="breakfast">
+                                <div class="form-text mt-2">
+                                    New dish? <a href="#" id="showNewDishLink" class="text-teal text-decoration-none fw-bold">Add it to the catalog</a>
+                                </div>
+                                
+                                <div class="mt-3 p-3 bg-light rounded d-none" id="newDishWrap">
+                                    <label for="newDishName" class="form-label fw-bold">New Dish Identity</label>
+                                    <input type="text" class="form-control mb-2" name="new_dish_name" id="newDishName" maxlength="120" placeholder="e.g. Aloo Paratha">
+                                    <div class="small text-muted mb-2">This will create a permanent entry for tracking.</div>
+                                    <a href="#" id="cancelNewDishLink" class="small text-danger text-decoration-none">Cancel and use existing</a>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="row">
+
+                        <!-- Date and Type -->
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="dish_type" class="form-label">Dish Type</label>
-                                <select class="form-select" name="dish_type" required>
-                                    <option value="main">Main Dish</option>
-                                    <option value="side">Side Dish</option>
-                                </select>
+                                <label for="date" class="form-label">Meal Date</label>
+                                <input type="date" class="form-control" name="date" value="{{ today.strftime('%Y-%m-%d') if today else '' }}" required>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Meal</label>
+                                        <select class="form-select" name="meal_type">
+                                            <option value="breakfast" selected>Breakfast</option>
+                                            <option value="lunch">Lunch</option>
+                                            <option value="dinner">Dinner</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Category</label>
+                                        <select class="form-select" name="dish_type">
+                                            <option value="main" selected>Main</option>
+                                            <option value="side">Side</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" name="description" rows="3"></textarea>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
+
+                        <div class="col-12">
                             <div class="mb-3">
-                                <label for="date" class="form-label">Date</label>
-                                <input type="date" class="form-control" name="date" required>
+                                <label for="description" class="form-label">Description / Special Instructions</label>
+                                <textarea class="form-control" name="description" rows="2" placeholder="e.g. Extra spicy, serve with chutney..."></textarea>
                             </div>
                         </div>
+
+                        <!-- Assignment -->
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="assigned_team_id" class="form-label">Assign To Team (optional)</label>
-                                <select class="form-select" id="assignedTeamSelect" name="assigned_team_id">
-                                    <option value="">Select Team</option>
+                                <label for="assigned_team_id" class="form-label text-teal fw-bold">Assign to Team (Room)</label>
+                                <select class="form-select border-teal" id="assignedTeamSelect" name="assigned_team_id">
+                                    <option value="">Select Team for performance...</option>
                                     {% for t in floor_teams %}
                                     <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Highly recommended for evaluation tracking.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="assigned_to_id" class="form-label">Assign to Individual</label>
+                                <select class="form-select" id="assignedUserSelect" name="assigned_to_id">
+                                    <option value="">Select individual...</option>
+                                    {% for user in floor_users %}
+                                    <option value="{{ user.id }}">{{ user.full_name or user.username or user.email }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="assigned_to_id" class="form-label">Assign To Person (optional)</label>
-                        <select class="form-select" id="assignedUserSelect" name="assigned_to_id">
-                            <option value="">Select User</option>
-                            {% for user in floor_users %}
-                            <option value="{{ user.id }}">{{ user.full_name or user.username or user.email }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">If a team is selected, the person assignment will be ignored.</div>
-                    </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-teal">Add Menu</button>
+                    <button type="submit" class="btn btn-teal px-4">
+                        <i class="fas fa-check-circle me-1"></i> Save Menu
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 {% endif %}
+
+<style>
+.menu-card {
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+.menu-header {
+    background: var(--teal-lighter);
+    color: var(--teal-dark);
+    border-radius: 12px 12px 0 0;
+    padding: 1.25rem;
+}
+</style>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -153,19 +213,49 @@
 document.addEventListener('DOMContentLoaded', function () {
     const teamSelect = document.getElementById('assignedTeamSelect');
     const userSelect = document.getElementById('assignedUserSelect');
-    if (!teamSelect || !userSelect) return;
+    const dishSelect = document.getElementById('dishSelect');
+    const showNewDishLink = document.getElementById('showNewDishLink');
+    const cancelNewDishLink = document.getElementById('cancelNewDishLink');
+    const newDishWrap = document.getElementById('newDishWrap');
+    const newDishName = document.getElementById('newDishName');
 
-    function syncAssignmentSelects() {
-        if (teamSelect.value) {
-            userSelect.value = '';
-            userSelect.disabled = true;
-        } else {
-            userSelect.disabled = false;
+    if (teamSelect && userSelect) {
+        function syncAssignmentSelects() {
+            if (teamSelect.value) {
+                userSelect.value = '';
+                userSelect.disabled = true;
+                userSelect.classList.add('bg-light');
+            } else {
+                userSelect.disabled = false;
+                userSelect.classList.remove('bg-light');
+            }
         }
+        teamSelect.addEventListener('change', syncAssignmentSelects);
+        syncAssignmentSelects();
     }
 
-    teamSelect.addEventListener('change', syncAssignmentSelects);
-    syncAssignmentSelects();
+    if (showNewDishLink) {
+        showNewDishLink.addEventListener('click', function (e) {
+            e.preventDefault();
+            dishSelect.value = '';
+            dishSelect.required = false;
+            dishSelect.disabled = true;
+            newDishWrap.classList.remove('d-none');
+            newDishName.required = true;
+            newDishName.focus();
+        });
+    }
+
+    if (cancelNewDishLink) {
+        cancelNewDishLink.addEventListener('click', function (e) {
+            e.preventDefault();
+            dishSelect.disabled = false;
+            dishSelect.required = true;
+            newDishWrap.classList.add('d-none');
+            newDishName.required = false;
+            newDishName.value = '';
+        });
+    }
 });
 </script>
 {% endblock %}

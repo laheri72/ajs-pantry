@@ -49,16 +49,20 @@
                             <i class="fas fa-utensils"></i> Menus
                         </a>
                     </li>
+                    {% if current_user.role in ['admin', 'pantryHead', 'teaManager'] %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('tea') }}">
                             <i class="fas fa-coffee"></i> Tea
                         </a>
                     </li>
+                    {% endif %}
+                    {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('expenses') }}">
                             <i class="fas fa-money-bill"></i> Expenses
                         </a>
                     </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('suggestions') }}">
                             <i class="fas fa-lightbulb"></i> Suggestions
@@ -80,6 +84,11 @@
                         </a>
                     </li>
                     {% if current_user.role in ['admin', 'pantryHead'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('lend_borrow') }}">
+                            <i class="fas fa-handshake"></i> Lend & Borrow
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('floor_admin') }}">
                             <i class="fas fa-user-shield"></i> Floor Admin

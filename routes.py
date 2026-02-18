@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
-from models import User, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember
+from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
@@ -436,12 +436,42 @@ def dashboard():
     today = date.today()
     upcoming_until = today + timedelta(days=2)
     since_dt = datetime.utcnow() - timedelta(days=2)
+    stars_since_dt = datetime.utcnow() - timedelta(days=7)
+    
+    # Total spent: Legacy Expenses + Completed Procurement Costs
+    total_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(
+        ProcurementItem.floor == floor, 
+        ProcurementItem.status == 'completed'
+    ).scalar() or 0
+    total_spent_legacy = db.session.query(func.sum(Expense.amount)).filter(Expense.floor == floor).scalar() or 0
     
     stats = {
         'user_count': User.query.filter_by(floor=floor).count(),
         'pending_requests': Request.query.filter_by(floor=floor, status='pending').count(),
-        'weekly_expenses': sum([e.amount for e in Expense.query.filter_by(floor=floor).all()])
+        'weekly_expenses': float(total_spent_proc) + float(total_spent_legacy),
+        'stars_7d': int(
+            (
+                db.session.query(func.coalesce(func.sum(Feedback.rating), 0))
+                .filter(Feedback.floor == floor, Feedback.created_at >= stars_since_dt, Feedback.menu_id.isnot(None))
+                .scalar()
+            )
+            or 0
+        ),
     }
+
+    top_team_row = (
+        db.session.query(Menu.assigned_team_id.label('team_id'), func.sum(Feedback.rating).label('stars'))
+        .join(Feedback, Feedback.menu_id == Menu.id)
+        .filter(Menu.floor == floor, Feedback.created_at >= stars_since_dt, Menu.assigned_team_id.isnot(None))
+        .group_by(Menu.assigned_team_id)
+        .order_by(func.sum(Feedback.rating).desc())
+        .first()
+    )
+    if top_team_row and top_team_row.team_id:
+        t = Team.query.get(top_team_row.team_id)
+        stats['top_team_7d'] = f"{(t.icon or '').strip()} {(t.name or '').strip()}".strip() if t else None
+    else:
+        stats['top_team_7d'] = None
 
     upcoming_tea_duties = (
         TeaTask.query.filter_by(floor=floor, assigned_to_id=user.id)
@@ -522,12 +552,144 @@ def people():
     my_team_ids = [tm.team_id for tm in team_memberships if tm.user_id == user.id]
     my_teams = [t for t in teams if t.id in set(my_team_ids)]
 
+    leaderboard_since = datetime.utcnow() - timedelta(days=30)
+
+    team_leaderboard = []
+    team_rows = (
+        db.session.query(
+            Team.id.label('team_id'),
+            Team.name.label('team_name'),
+            Team.icon.label('team_icon'),
+            func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
+            func.count(Feedback.id).label('ratings_count'),
+            func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
+        )
+        .join(Menu, Menu.assigned_team_id == Team.id)
+        .join(Feedback, Feedback.menu_id == Menu.id)
+        .filter(Team.floor == floor, Feedback.created_at >= leaderboard_since)
+        .group_by(Team.id, Team.name, Team.icon)
+        .order_by(func.sum(Feedback.rating).desc(), func.count(Feedback.id).desc(), Team.name.asc())
+        .limit(10)
+        .all()
+    )
+    for r in team_rows:
+        team_leaderboard.append(
+            {
+                "id": r.team_id,
+                "name": r.team_name,
+                "icon": r.team_icon,
+                "stars": int(r.stars or 0),
+                "ratings_count": int(r.ratings_count or 0),
+                "avg_rating": float(r.avg_rating or 0),
+            }
+        )
+
+    individual_leaderboard = []
+    individual_rows = (
+        db.session.query(
+            User.id.label('user_id'),
+            User.full_name.label('full_name'),
+            User.username.label('username'),
+            User.email.label('email'),
+            func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
+            func.count(Feedback.id).label('ratings_count'),
+            func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
+        )
+        .join(Menu, Menu.assigned_to_id == User.id)
+        .join(Feedback, Feedback.menu_id == Menu.id)
+        .filter(User.floor == floor, Feedback.created_at >= leaderboard_since)
+        .group_by(User.id, User.full_name, User.username, User.email)
+        .order_by(func.sum(Feedback.rating).desc(), func.count(Feedback.id).desc())
+        .limit(10)
+        .all()
+    )
+    for r in individual_rows:
+        label = (r.full_name or r.username or r.email or '').strip()
+        individual_leaderboard.append(
+            {
+                "id": r.user_id,
+                "label": label,
+                "stars": int(r.stars or 0),
+                "ratings_count": int(r.ratings_count or 0),
+                "avg_rating": float(r.avg_rating or 0),
+            }
+        )
+
+    dish_name_expr = func.coalesce(Dish.name, Menu.title)
+    dish_leaderboard = []
+    dish_rows = (
+        db.session.query(
+            dish_name_expr.label('dish_name'),
+            func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
+            func.count(Feedback.id).label('ratings_count'),
+            func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
+        )
+        .join(Menu, Feedback.menu_id == Menu.id)
+        .outerjoin(Dish, Menu.dish_id == Dish.id)
+        .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
+        .group_by(dish_name_expr)
+        .order_by(func.sum(Feedback.rating).desc(), dish_name_expr.asc())
+        .limit(10)
+        .all()
+    )
+    for r in dish_rows:
+        name = (r.dish_name or '').strip()
+        if not name:
+            continue
+        dish_leaderboard.append(
+            {
+                "name": name,
+                "stars": int(r.stars or 0),
+                "ratings_count": int(r.ratings_count or 0),
+                "avg_rating": float(r.avg_rating or 0),
+            }
+        )
+
+    dish_champion_rows = (
+        db.session.query(
+            dish_name_expr.label('dish_name'),
+            Team.id.label('team_id'),
+            Team.name.label('team_name'),
+            Team.icon.label('team_icon'),
+            func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
+        )
+        .join(Menu, Feedback.menu_id == Menu.id)
+        .outerjoin(Dish, Menu.dish_id == Dish.id)
+        .join(Team, Menu.assigned_team_id == Team.id)
+        .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
+        .group_by(dish_name_expr, Team.id, Team.name, Team.icon)
+        .all()
+    )
+    champions_by_dish = {}
+    for r in dish_champion_rows:
+        dish_name = (r.dish_name or '').strip()
+        if not dish_name:
+            continue
+        stars = int(r.stars or 0)
+        current = champions_by_dish.get(dish_name)
+        if not current or stars > current["stars"]:
+            champions_by_dish[dish_name] = {
+                "dish_name": dish_name,
+                "team_id": r.team_id,
+                "team_name": r.team_name,
+                "team_icon": r.team_icon,
+                "stars": stars,
+            }
+    dish_champions = list(champions_by_dish.values())
+    dish_champions.sort(key=lambda x: (-x["stars"], (x["dish_name"] or "").lower()))
+    dish_champions = dish_champions[:10]
+
     return render_template(
         'people.html',
         users=users,
         teams=teams,
         members_by_team_id=members_by_team_id,
         my_teams=my_teams,
+        leaderboard_since=leaderboard_since,
+        team_leaderboard=team_leaderboard,
+        individual_leaderboard=individual_leaderboard,
+        dish_leaderboard=dish_leaderboard,
+        dish_champions=dish_champions,
         current_user=user,
     )
 
@@ -891,12 +1053,44 @@ def menus():
     floor = _get_active_floor(user)
     floor_users = User.query.filter_by(floor=floor).all()
     floor_teams = Team.query.filter_by(floor=floor).order_by(Team.name.asc()).all()
+    dishes = Dish.query.order_by(func.lower(Dish.name).asc()).all()
 
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         try:
             menu_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
         except Exception:
             flash('Invalid menu date', 'error')
+            return redirect(url_for('menus'))
+
+        dish = None
+        dish_id_raw = (request.form.get('dish_id') or '').strip()
+        new_dish_name = (request.form.get('new_dish_name') or '').strip()
+
+        if dish_id_raw:
+            try:
+                dish_id_val = int(dish_id_raw)
+            except Exception:
+                dish_id_val = None
+            if not dish_id_val:
+                flash('Invalid dish selected', 'error')
+                return redirect(url_for('menus'))
+            dish = Dish.query.get(dish_id_val)
+            if not dish:
+                flash('Dish not found', 'error')
+                return redirect(url_for('menus'))
+        elif new_dish_name:
+            if len(new_dish_name) > 120:
+                flash('Dish name is too long', 'error')
+                return redirect(url_for('menus'))
+            existing = Dish.query.filter(func.lower(Dish.name) == new_dish_name.lower()).first()
+            if existing:
+                dish = existing
+            else:
+                dish = Dish(name=new_dish_name, created_by_id=user.id)
+                db.session.add(dish)
+                db.session.flush()
+        else:
+            flash('Please select a dish (or create a new one)', 'error')
             return redirect(url_for('menus'))
 
         assigned_to_id = request.form.get('assigned_to_id') or None
@@ -923,12 +1117,17 @@ def menus():
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
+        menu_title = (dish.name or '').strip() if dish else (request.form.get('title') or '').strip()
+        if not menu_title:
+            menu_title = 'Menu'
+
         menu = Menu(
-            title=request.form.get('title'),
+            title=menu_title[:100],
             description=request.form.get('description'),
             date=menu_date,
             meal_type=request.form.get('meal_type'),
             dish_type=request.form.get('dish_type') or 'main',
+            dish_id=dish.id if dish else None,
             assigned_to_id=assigned_to_id,
             assigned_team_id=assigned_team_id,
             floor=floor,
@@ -939,7 +1138,7 @@ def menus():
         flash('Menu added successfully', 'success')
 
     floor_menus = Menu.query.filter_by(floor=floor).order_by(Menu.date.desc()).all()
-    return render_template('menus.html', menus=floor_menus, floor_users=floor_users, floor_teams=floor_teams, current_user=user)
+    return render_template('menus.html', menus=floor_menus, floor_users=floor_users, floor_teams=floor_teams, dishes=dishes, current_user=user)
 
 
 @app.route('/menus/<int:menu_id>/delete', methods=['POST'])
@@ -967,6 +1166,8 @@ def tea():
     user = _require_user()
     if not user:
         return redirect(url_for('login'))
+
+    _require_staff_for_floor(user)
 
     floor = _get_active_floor(user)
     floor_users = User.query.filter_by(floor=floor).all()
@@ -1080,58 +1281,100 @@ def expenses():
         return redirect(url_for('login'))
 
     floor = _get_active_floor(user)
-    if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
-        try:
-            expense_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
-        except Exception:
-            flash('Invalid expense date', 'error')
+    
+    # Permission check: Read-only for members, manage for PH/Admin
+    is_manager = user.role in ['admin', 'pantryHead']
+
+    # 1. Handle actual_cost updates for completed procurements
+    if request.method == 'POST' and is_manager:
+        action = request.form.get('action')
+        if action == 'record_cost':
+            try:
+                item_id = int(request.form.get('item_id') or 0)
+                cost = float(request.form.get('actual_cost') or 0)
+            except ValueError:
+                flash('Invalid cost value', 'error')
+                return redirect(url_for('expenses'))
+
+            item = ProcurementItem.query.get(item_id)
+            if item and (user.role == 'admin' or item.floor == user.floor):
+                if item.status != 'completed':
+                    flash('Costs can only be recorded for completed items.', 'error')
+                else:
+                    item.actual_cost = cost
+                    item.expense_recorded_at = datetime.utcnow()
+                    db.session.commit()
+                    flash(f'Cost for {item.item_name} recorded.', 'success')
             return redirect(url_for('expenses'))
 
-        exp = Expense(
-            description=request.form.get('description'),
-            amount=float(request.form.get('amount')),
-            category=request.form.get('category'),
-            date=expense_date,
-            user_id=user.id,
-            floor=floor,
-        )
-        db.session.add(exp)
-        db.session.commit()
-        flash('Expense added successfully', 'success')
-        return redirect(
-            url_for(
-                'expenses',
-                category=(request.args.get('category') or None),
-                date=(request.args.get('date') or None),
-            )
-        )
+    # 2. Financial Calculations
+    # Total Budget Allocated
+    total_budget = db.session.query(func.sum(Budget.amount_allocated)).filter(Budget.floor == floor).scalar() or 0
+    
+    # Total Spent (Current System: Completed Procurements with Costs)
+    total_spent_procurement = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(
+        ProcurementItem.floor == floor, 
+        ProcurementItem.status == 'completed'
+    ).scalar() or 0
+    
+    # Legacy Expenses (Optional: include in total spent if desired)
+    total_spent_legacy = db.session.query(func.sum(Expense.amount)).filter(Expense.floor == floor).scalar() or 0
+    
+    total_spent = float(total_spent_procurement) + float(total_spent_legacy)
+    remaining_balance = float(total_budget) - total_spent
 
-    filter_category = (request.args.get('category') or '').strip()
-    filter_date = (request.args.get('date') or '').strip()
-
-    query = Expense.query.filter_by(floor=floor)
-    if filter_category:
-        query = query.filter(Expense.category == filter_category)
-    if filter_date:
-        try:
-            query = query.filter(Expense.date == datetime.strptime(filter_date, '%Y-%m-%d').date())
-        except Exception:
-            flash('Invalid filter date', 'error')
-            filter_date = ''
-
-    floor_expenses = query.order_by(Expense.date.desc()).all()
-    total_amount = sum(e.amount for e in floor_expenses)
-    categories = Expense.query.filter_by(floor=floor).with_entities(Expense.category).distinct().all()
+    # 3. Data for Ledger
+    # Get completed procurements for this floor
+    completed_procurements = ProcurementItem.query.filter_by(floor=floor, status='completed').order_by(ProcurementItem.created_at.desc()).all()
+    
+    # Get budget history
+    budgets = Budget.query.filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
+    
+    # Legacy expenses for reference
+    legacy_expenses = Expense.query.filter_by(floor=floor).order_by(Expense.date.desc()).all()
 
     return render_template(
         'expenses.html',
-        expenses=floor_expenses,
-        total_amount=total_amount,
-        categories=categories,
-        filter_category=filter_category,
-        filter_date=filter_date,
-        current_user=user,
+        total_budget=total_budget,
+        total_spent=total_spent,
+        remaining_balance=remaining_balance,
+        completed_procurements=completed_procurements,
+        budgets=budgets,
+        legacy_expenses=legacy_expenses,
+        is_manager=is_manager,
+        today=date.today(),
+        current_user=user
     )
+
+
+@app.route('/budgets/add', methods=['POST'])
+def add_budget():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    floor = _get_active_floor(user)
+    try:
+        amount = float(request.form.get('amount') or 0)
+        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        end_date_raw = request.form.get('end_date')
+        end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date() if end_date_raw else None
+    except Exception:
+        flash('Invalid budget data', 'error')
+        return redirect(url_for('expenses'))
+
+    budget = Budget(
+        floor=floor,
+        amount_allocated=amount,
+        allocation_type=request.form.get('allocation_type'),
+        start_date=start_date,
+        end_date=end_date,
+        notes=request.form.get('notes')
+    )
+    db.session.add(budget)
+    db.session.commit()
+    flash('Budget allocation added.', 'success')
+    return redirect(url_for('expenses'))
 
 
 @app.route('/expenses/<int:expense_id>/delete', methods=['POST'])
@@ -1212,6 +1455,34 @@ def feedbacks():
         return redirect(url_for('login'))
 
     if request.method == 'POST':
+        floor = _get_active_floor(user)
+        menu_id_raw = (request.form.get('menu_id') or '').strip()
+        if not menu_id_raw:
+            flash('Please select a menu to evaluate', 'error')
+            return redirect(url_for('feedbacks'))
+
+        try:
+            menu_id_val = int(menu_id_raw)
+        except Exception:
+            menu_id_val = None
+
+        if not menu_id_val:
+            flash('Invalid menu selected', 'error')
+            return redirect(url_for('feedbacks'))
+
+        menu = Menu.query.get(menu_id_val)
+        if not menu or menu.floor != floor:
+            flash('Menu not found on this floor', 'error')
+            return redirect(url_for('feedbacks'))
+
+        if menu.date and menu.date > date.today():
+            flash('You can only evaluate menus from today or earlier', 'error')
+            return redirect(url_for('feedbacks'))
+
+        if not (menu.assigned_team_id or menu.assigned_to_id):
+            flash('This menu is not assigned to a team/person yet', 'error')
+            return redirect(url_for('feedbacks'))
+
         try:
             rating = int(request.form.get('rating') or 0)
         except ValueError:
@@ -1221,27 +1492,58 @@ def feedbacks():
             flash('Rating must be between 1 and 5', 'error')
             return redirect(url_for('feedbacks'))
 
-        feedback = Feedback(
-            title=request.form.get('title'),
-            description=request.form.get('description'),
-            rating=rating,
-            user_id=user.id,
-            floor=user.floor,
+        description = (request.form.get('description') or '').strip()
+        if not description:
+            flash('Please add a short comment', 'error')
+            return redirect(url_for('feedbacks'))
+
+        dish_label = (
+            (menu.dish.name if getattr(menu, "dish", None) else None)
+            or (menu.title or '').strip()
+            or 'Menu'
         )
-        db.session.add(feedback)
+        title = dish_label[:100]
+
+        existing = Feedback.query.filter_by(menu_id=menu.id, user_id=user.id).first()
+        if existing:
+            existing.title = title
+            existing.description = description
+            existing.rating = rating
+            existing.floor = menu.floor
+        else:
+            feedback = Feedback(
+                title=title,
+                description=description,
+                rating=rating,
+                menu_id=menu.id,
+                user_id=user.id,
+                floor=menu.floor,
+            )
+            db.session.add(feedback)
+
         db.session.commit()
-        flash('Feedback submitted successfully.', 'success')
+        flash('Evaluation saved successfully.', 'success')
         return redirect(url_for('feedbacks'))
 
     floor = _get_active_floor(user)
-    if user.role == 'admin':
-        visible_feedbacks = Feedback.query.filter_by(floor=floor).order_by(Feedback.created_at.desc()).all()
-    elif user.role == 'pantryHead':
-        visible_feedbacks = Feedback.query.filter_by(floor=user.floor).order_by(Feedback.created_at.desc()).all()
-    else:
-        visible_feedbacks = Feedback.query.filter_by(floor=user.floor).order_by(Feedback.created_at.desc()).all()
+    visible_feedbacks = Feedback.query.filter_by(floor=floor).order_by(Feedback.created_at.desc()).all()
 
-    return render_template('feedbacks.html', feedbacks=visible_feedbacks, current_user=user)
+    today = date.today()
+    menu_window_start = today - timedelta(days=14)
+    menu_options = (
+        Menu.query.filter_by(floor=floor)
+        .filter(Menu.date >= menu_window_start, Menu.date <= today)
+        .filter(or_(Menu.assigned_team_id.isnot(None), Menu.assigned_to_id.isnot(None)))
+        .order_by(Menu.date.desc())
+        .limit(80)
+        .all()
+    )
+
+    rated_menu_ids = {
+        f.menu_id for f in Feedback.query.filter_by(user_id=user.id).filter(Feedback.menu_id.isnot(None)).all()
+    }
+
+    return render_template('feedbacks.html', feedbacks=visible_feedbacks, menu_options=menu_options, rated_menu_ids=rated_menu_ids, current_user=user)
 
 
 @app.route('/feedbacks/<int:feedback_id>/delete', methods=['POST'])
@@ -1599,3 +1901,129 @@ def procurement_suggest_qty():
             break
 
     return jsonify({"quantities": quantities, "last_quantity": last_quantity})
+
+
+@app.route('/lend-borrow')
+def lend_borrow():
+    user = _require_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    if user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    floor = _get_active_floor(user)
+    
+    # Permission: Admin sees all, Pantry Head sees floor-involved
+    if user.role == 'admin':
+        pending = FloorLendBorrow.query.filter_by(status='pending').order_by(FloorLendBorrow.created_at.desc()).all()
+        returned = FloorLendBorrow.query.filter_by(status='returned').order_by(FloorLendBorrow.borrower_marked_at.desc()).all()
+        completed = FloorLendBorrow.query.filter_by(status='completed').order_by(FloorLendBorrow.lender_verified_at.desc()).limit(100).all()
+    else:
+        # User role pantryHead or others who have access
+        # Only lender_floor or borrower_floor matches current active floor
+        query = FloorLendBorrow.query.filter(or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor))
+        
+        pending = query.filter(FloorLendBorrow.status == 'pending').order_by(FloorLendBorrow.created_at.desc()).all()
+        returned = query.filter(FloorLendBorrow.status == 'returned').order_by(FloorLendBorrow.borrower_marked_at.desc()).all()
+        completed = query.filter(FloorLendBorrow.status == 'completed').order_by(FloorLendBorrow.lender_verified_at.desc()).limit(50).all()
+
+    return render_template(
+        'lend_borrow.html',
+        pending=pending,
+        returned=returned,
+        completed=completed,
+        floor_options=_get_floor_options_for_admin(),
+        current_user=user,
+        active_floor=floor
+    )
+
+
+@app.route('/lend-borrow/create', methods=['POST'])
+def create_lend_borrow():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    floor = _get_active_floor(user)
+    borrower_floor = int(request.form.get('borrower_floor'))
+    
+    if borrower_floor == floor:
+        flash('You cannot lend to your own floor.', 'error')
+        return redirect(url_for('lend_borrow'))
+
+    new_record = FloorLendBorrow(
+        lender_floor=floor,
+        borrower_floor=borrower_floor,
+        item_name=request.form.get('item_name'),
+        quantity=request.form.get('quantity'),
+        item_type=request.form.get('item_type'),
+        notes=request.form.get('notes'),
+        created_by_id=user.id,
+        status='pending'
+    )
+    db.session.add(new_record)
+    db.session.commit()
+    flash('Lend request created.', 'success')
+    return redirect(url_for('lend_borrow'))
+
+
+@app.route('/lend-borrow/<int:record_id>/mark-returned', methods=['POST'])
+def mark_returned(record_id):
+    user = _require_user()
+    if not user:
+        abort(401)
+
+    if user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    record = FloorLendBorrow.query.get_or_404(record_id)
+    floor = _get_active_floor(user)
+
+    # Only borrower can mark as returned
+    if user.role != 'admin' and record.borrower_floor != floor:
+        abort(403)
+
+    if record.status != 'pending':
+        flash('Only pending items can be marked as returned.', 'error')
+        return redirect(url_for('lend_borrow'))
+
+    record.status = 'returned'
+    record.borrower_marked_at = datetime.utcnow()
+    db.session.commit()
+    flash('Item marked as returned. Lender must now verify.', 'success')
+    return redirect(url_for('lend_borrow'))
+
+
+@app.route('/lend-borrow/<int:record_id>/verify', methods=['POST'])
+def verify_return(record_id):
+    user = _require_user()
+    if not user:
+        abort(401)
+
+    if user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    record = FloorLendBorrow.query.get_or_404(record_id)
+    floor = _get_active_floor(user)
+    action = request.form.get('action')
+
+    # Only lender can verify
+    if user.role != 'admin' and record.lender_floor != floor:
+        abort(403)
+
+    if record.status != 'returned':
+        flash('Only returned items can be verified.', 'error')
+        return redirect(url_for('lend_borrow'))
+
+    if action == 'confirm':
+        record.status = 'completed'
+        record.lender_verified_at = datetime.utcnow()
+        flash('Return verified and completed.', 'success')
+    elif action == 'reject':
+        record.status = 'pending'
+        record.borrower_marked_at = None
+        flash('Return rejected. Transaction reverted to pending.', 'warning')
+    
+    db.session.commit()
+    return redirect(url_for('lend_borrow'))

@@ -24,6 +24,14 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class Dish(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+
 class Menu(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -31,12 +39,14 @@ class Menu(db.Model):
     date = db.Column(db.Date, nullable=False)
     meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, dinner
     dish_type = db.Column(db.String(20), nullable=False, default='main')  # main, side
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'))
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    dish = db.relationship('Dish', foreign_keys=[dish_id])
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     assigned_team = db.relationship('Team', foreign_keys=[assigned_team_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
@@ -80,10 +90,13 @@ class Feedback(db.Model):
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     rating = db.Column(db.Integer)  # 1-5 rating
+    menu_id = db.Column(db.Integer, db.ForeignKey('menu.id'))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    menu = db.relationship('Menu', foreign_keys=[menu_id])
     user = db.relationship('User', backref='feedbacks')
 
 class Request(db.Model):
@@ -114,6 +127,10 @@ class ProcurementItem(db.Model):
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # New financial fields
+    actual_cost = db.Column(db.Numeric(12, 2), nullable=True)
+    expense_recorded_at = db.Column(db.DateTime, nullable=True)
+    
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
@@ -137,3 +154,32 @@ class TeamMember(db.Model):
 
     team = db.relationship('Team', foreign_keys=[team_id])
     user = db.relationship('User', foreign_keys=[user_id])
+
+
+class Budget(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    floor = db.Column(db.Integer, nullable=False, index=True)
+    amount_allocated = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    allocation_type = db.Column(db.String(20), nullable=False)  # weekly, monthly, 15days, manual
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class FloorLendBorrow(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    lender_floor = db.Column(db.Integer, nullable=False, index=True)
+    borrower_floor = db.Column(db.Integer, nullable=False, index=True)
+    item_name = db.Column(db.String(120), nullable=False)
+    quantity = db.Column(db.String(50), nullable=False)
+    item_type = db.Column(db.String(20), nullable=False, default='grocery')
+    notes = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    borrower_marked_at = db.Column(db.DateTime)
+    lender_verified_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])

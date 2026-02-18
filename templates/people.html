@@ -180,6 +180,149 @@
         </div>
 
         <div class="col-lg-5 mb-4">
+            <h4 class="mb-3 fw-bold"><i class="fas fa-chart-line me-2 text-teal"></i>Performance Hub</h4>
+            
+            <div class="card shadow-sm border-0 mb-4 overflow-hidden">
+                <div class="card-header bg-teal text-white py-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h5 class="mb-0 fw-bold"><i class="fas fa-trophy me-2 text-warning"></i>Leaderboards</h5>
+                        {% if leaderboard_since %}
+                        <span class="badge bg-white text-teal">Since {{ leaderboard_since.strftime('%b %d') }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="nav nav-tabs nav-fill" id="leaderboardTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active py-3" id="teams-tab" data-bs-toggle="tab" data-bs-target="#teams-leaderboard" type="button">Teams</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3" id="indiv-tab" data-bs-toggle="tab" data-bs-target="#indiv-leaderboard" type="button">People</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-3" id="dishes-tab" data-bs-toggle="tab" data-bs-target="#dishes-leaderboard" type="button">Dishes</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content p-3" id="leaderboardTabsContent">
+                        <!-- Teams Tab -->
+                        <div class="tab-pane fade show active" id="teams-leaderboard">
+                            {% if team_leaderboard %}
+                            <div class="list-group list-group-flush">
+                                {% for row in team_leaderboard %}
+                                <div class="list-group-item px-0 py-3 border-0 border-bottom">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0 me-3">
+                                            {% if loop.index == 1 %}
+                                                <i class="fas fa-crown text-warning fa-2x"></i>
+                                            {% elif loop.index == 2 %}
+                                                <i class="fas fa-medal text-secondary fa-xl"></i>
+                                            {% elif loop.index == 3 %}
+                                                <i class="fas fa-medal text-bronze fa-xl"></i>
+                                            {% else %}
+                                                <span class="h4 text-muted">#{{ loop.index }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="h5 mb-0 fw-bold">{% if row.icon %}{{ row.icon }} {% endif %}{{ row.name }}</div>
+                                            <div class="text-muted small">{{ row.ratings_count }} evaluations • {{ "%.2f"|format(row.avg_rating) }} avg</div>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="badge bg-warning text-dark px-3 py-2 fs-6">
+                                                {{ row.stars }} <i class="fas fa-star ms-1"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4 text-muted">No team evaluations yet.</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Individuals Tab -->
+                        <div class="tab-pane fade" id="indiv-leaderboard">
+                            {% if individual_leaderboard %}
+                            <div class="list-group list-group-flush">
+                                {% for row in individual_leaderboard %}
+                                <div class="list-group-item px-0 py-3 border-0 border-bottom">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-shrink-0 me-3">
+                                            <span class="h5 text-muted">#{{ loop.index }}</span>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <div class="fw-bold mb-0">{{ row.label }}</div>
+                                            <div class="text-muted small">{{ row.ratings_count }} ratings • {{ "%.2f"|format(row.avg_rating) }} avg</div>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-teal-light text-teal">{{ row.stars }} stars</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4 text-muted">No individual evaluations yet.</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Dishes Tab -->
+                        <div class="tab-pane fade" id="dishes-leaderboard">
+                            {% if dish_leaderboard %}
+                            <div class="list-group list-group-flush">
+                                {% for row in dish_leaderboard %}
+                                <div class="list-group-item px-0 py-3 border-0 border-bottom">
+                                    <div class="d-flex align-items-center">
+                                        <div class="flex-grow-1">
+                                            <div class="fw-bold mb-0">{{ row.name }}</div>
+                                            <div class="text-muted small">{{ row.ratings_count }} ratings</div>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge bg-teal">{{ "%.2f"|format(row.avg_rating) }} <i class="fas fa-star ms-1"></i></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-center py-4 text-muted">No dish evaluations yet.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dish Champions (Wall of Fame) -->
+            <div class="card shadow-sm border-0 mb-4 overflow-hidden">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-award me-2 text-warning"></i>Dish Champions</h5>
+                </div>
+                <div class="card-body">
+                    {% if dish_champions %}
+                    <div class="row g-2">
+                        {% for row in dish_champions %}
+                        <div class="col-12">
+                            <div class="d-flex align-items-center p-3 bg-light rounded-3 border-start border-4 border-warning shadow-sm mb-2">
+                                <div class="flex-grow-1">
+                                    <div class="small text-muted text-uppercase fw-bold mb-1">{{ row.dish_name }}</div>
+                                    <div class="h5 mb-0 fw-bold text-teal">
+                                        {% if row.team_icon %}{{ row.team_icon }}{% endif %} {{ row.team_name }}
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="badge bg-warning text-dark px-2 py-1">{{ row.stars }} pts</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-muted text-center py-3">No champions crowned yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h5 class="mb-3"><i class="fas fa-list me-2"></i>Floor People</h5>

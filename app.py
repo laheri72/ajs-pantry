@@ -69,6 +69,37 @@ with app.app_context():
         logging.critical("DATABASE CONNECTION FAILED. App will stop.")
         raise RuntimeError("Cannot connect to primary database.") from e
 
+    # Basic schema guardrails (create_all won't add missing columns in existing tables)
+    try:
+        from sqlalchemy import inspect
+
+        inspector = inspect(db.engine)
+
+        missing = []
+        if inspector.has_table("menu"):
+            menu_cols = {c["name"] for c in inspector.get_columns("menu")}
+            if "dish_id" not in menu_cols:
+                missing.append("menu.dish_id")
+        else:
+            missing.append("menu (table)")
+
+        if inspector.has_table("feedback"):
+            feedback_cols = {c["name"] for c in inspector.get_columns("feedback")}
+            if "menu_id" not in feedback_cols:
+                missing.append("feedback.menu_id")
+        else:
+            missing.append("feedback (table)")
+
+        if missing:
+            raise RuntimeError(
+                "Database schema is missing required evaluation fields: "
+                + ", ".join(missing)
+                + ". Run scripts/supabase_evaluation_migration.sql on your Supabase database."
+            )
+    except Exception as e:
+        logging.critical(str(e))
+        raise
+
 
     # Admin setup
     try:
