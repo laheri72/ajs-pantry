@@ -8,7 +8,8 @@
     <div class="row g-3 mb-3">
         <div class="col-12">
             <div class="card dashboard-hero">
-                <div class="card-body d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+                <div
+                    class="card-body d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
                     <div>
                         <div class="dashboard-hero-kicker">Dashboard</div>
                         <h1 class="dashboard-hero-title">Welcome, {{ display_name }}!</h1>
@@ -17,12 +18,16 @@
                             {% if today %}&bull; {{ today.strftime('%A, %b %d') }}{% endif %}
                         </div>
                         <div class="dashboard-hero-meta mt-2">
-                            <span class="badge rounded-pill"><i class="fas fa-layer-group me-1"></i>Floor {{ active_floor }}</span>
-                            <span class="badge rounded-pill"><i class="fas fa-user-tag me-1"></i>{{ user.role.title() }}</span>
-                            {% if upcoming_menu_assignments or upcoming_tea_duties or upcoming_procurement_assignments %}
+                            <span class="badge rounded-pill"><i class="fas fa-layer-group me-1"></i>Floor {{
+                                active_floor }}</span>
+                            <span class="badge rounded-pill"><i class="fas fa-user-tag me-1"></i>{{ user.role.title()
+                                }}</span>
+                            {% if upcoming_menu_assignments or upcoming_tea_duties or upcoming_procurement_assignments
+                            %}
                             <span class="badge rounded-pill"><i class="fas fa-bolt me-1"></i>Upcoming assignments</span>
                             {% else %}
-                            <span class="badge rounded-pill"><i class="fas fa-circle-check me-1"></i>No upcoming assignments</span>
+                            <span class="badge rounded-pill"><i class="fas fa-circle-check me-1"></i>No upcoming
+                                assignments</span>
                             {% endif %}
                         </div>
                     </div>
@@ -31,12 +36,13 @@
                         <button class="btn btn-outline-light" onclick="refreshData()">
                             <i class="fas fa-sync-alt me-1"></i>Refresh
                         </button>
-                        <button class="btn btn-outline-light" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle theme">
+                        <button class="btn btn-outline-light" onclick="toggleTheme()" aria-label="Toggle theme"
+                            title="Toggle theme">
                             <i class="fas fa-moon" id="themeIcon"></i>
                         </button>
-                        <button class="btn btn-outline-light" onclick="downloadApp()" title="Download App">
+                        <!-- <button class="btn btn-outline-light" onclick="downloadApp()" title="Download App">
                             <i class="fas fa-download me-1"></i>Download
-                        </button>
+                        </button> -->
                     </div>
                 </div>
             </div>
@@ -122,7 +128,8 @@
                                 {% for m in upcoming_menu_assignments %}
                                 <div class="list-group-item">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <div class="fw-bold">{{ m.date.strftime('%Y-%m-%d') }} &mdash; {{ m.title }}</div>
+                                        <div class="fw-bold">{{ m.date.strftime('%Y-%m-%d') }} &mdash; {{ m.title }}
+                                        </div>
                                         {% if m.assigned_team %}
                                         <span class="badge bg-secondary">
                                             {% if m.assigned_team.icon %}{{ m.assigned_team.icon }}{% endif %}
@@ -157,7 +164,8 @@
 
                         {% if upcoming_procurement_assignments %}
                         <div>
-                            <div class="fw-bold mb-2"><i class="fas fa-shopping-cart me-2 text-teal"></i>Procurement</div>
+                            <div class="fw-bold mb-2"><i class="fas fa-shopping-cart me-2 text-teal"></i>Procurement
+                            </div>
                             <div class="list-group">
                                 {% for p in upcoming_procurement_assignments %}
                                 <div class="list-group-item">
@@ -169,7 +177,8 @@
                                         <span class="badge bg-info text-white">{{ p.priority.title() }}</span>
                                     </div>
                                     <div class="small text-muted mt-1">
-                                        Assigned {{ p.created_at.strftime('%Y-%m-%d') }} &bull; Status: {{ p.status.title() }}
+                                        Assigned {{ p.created_at.strftime('%Y-%m-%d') }} &bull; Status: {{
+                                        p.status.title() }}
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -281,8 +290,10 @@
                             </div>
                             <div class="flex-grow-1">
                                 <div class="fw-bold">{{ display_name }}</div>
-                                <div class="text-muted small">{{ user.role.title() }} &bull; Floor {{ active_floor }}</div>
-                                <div class="text-muted small">Member since {{ user.created_at.strftime('%B %Y') if user.created_at else 'N/A' }}</div>
+                                <div class="text-muted small">{{ user.role.title() }} &bull; Floor {{ active_floor }}
+                                </div>
+                                <div class="text-muted small">Member since {{ user.created_at.strftime('%B %Y') if
+                                    user.created_at else 'N/A' }}</div>
                             </div>
                             <a href="{{ url_for('profile') }}" class="btn btn-teal btn-sm">
                                 <i class="fas fa-edit me-1"></i>Edit
