@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
-from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow
+from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, SuggestionVote
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
@@ -703,10 +703,12 @@ def calendar():
     floor = _get_active_floor(user)
     floor_menus = Menu.query.filter_by(floor=floor).all()
     floor_tea_tasks = TeaTask.query.filter_by(floor=floor).all()
+    floor_special_events = SpecialEvent.query.filter_by(floor=floor).all()
 
     menus = [
         {
             "id": m.id,
+            "type": "menu",
             "title": m.title,
             "description": m.description,
             "date": m.date.isoformat() if m.date else None,
@@ -730,6 +732,7 @@ def calendar():
     tea_tasks = [
         {
             "id": t.id,
+            "type": "tea",
             "title": "Tea Duty",
             "date": t.date.isoformat() if t.date else None,
             "status": t.status,
@@ -739,7 +742,47 @@ def calendar():
         for t in floor_tea_tasks
     ]
 
-    return render_template('calendar.html', menus=menus, tea_tasks=tea_tasks, current_user=user)
+    special_events = [
+        {
+            "id": s.id,
+            "type": "special",
+            "title": s.title,
+            "description": s.description,
+            "date": s.date.isoformat() if s.date else None,
+            "created_by": (s.created_by.full_name or s.created_by.username) if s.created_by else "System"
+        }
+        for s in floor_special_events
+    ]
+
+    return render_template('calendar.html', menus=menus, tea_tasks=tea_tasks, special_events=special_events, current_user=user)
+
+
+@app.route('/special-events', methods=['POST'])
+def create_special_event():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    floor = _get_active_floor(user)
+    try:
+        title = request.form.get('title')
+        description = request.form.get('description')
+        event_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+    except Exception:
+        flash('Invalid event data', 'error')
+        return redirect(url_for('calendar'))
+
+    new_event = SpecialEvent(
+        title=title,
+        description=description,
+        date=event_date,
+        floor=floor,
+        created_by_id=user.id
+    )
+    db.session.add(new_event)
+    db.session.commit()
+    flash('Special event added to calendar.', 'success')
+    return redirect(url_for('calendar'))
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
@@ -1138,7 +1181,32 @@ def menus():
         flash('Menu added successfully', 'success')
 
     floor_menus = Menu.query.filter_by(floor=floor).order_by(Menu.date.desc()).all()
-    return render_template('menus.html', menus=floor_menus, floor_users=floor_users, floor_teams=floor_teams, dishes=dishes, current_user=user)
+
+    # Prepare Weekly View Data
+    today = date.today()
+    # Find start of week (Monday)
+    start_of_week = today - timedelta(days=today.weekday())
+    
+    weekly_days = []
+    for i in range(7):
+        day_date = start_of_week + timedelta(days=i)
+        day_menus = [m for m in floor_menus if m.date == day_date]
+        weekly_days.append({
+            "date": day_date,
+            "is_today": day_date == today,
+            "menus": day_menus
+        })
+
+    return render_template(
+        'menus.html', 
+        menus=floor_menus, 
+        weekly_days=weekly_days,
+        floor_users=floor_users, 
+        floor_teams=floor_teams, 
+        dishes=dishes, 
+        current_user=user,
+        today=today
+    )
 
 
 @app.route('/menus/<int:menu_id>/delete', methods=['POST'])
@@ -1417,14 +1485,54 @@ def suggestions():
         return redirect(url_for('suggestions'))
 
     floor = _get_active_floor(user)
-    if user.role == 'admin':
-        visible_suggestions = Suggestion.query.filter_by(floor=floor).order_by(Suggestion.created_at.desc()).all()
-    elif user.role == 'pantryHead':
-        visible_suggestions = Suggestion.query.filter_by(floor=user.floor).order_by(Suggestion.created_at.desc()).all()
-    else:
-        visible_suggestions = Suggestion.query.filter_by(floor=user.floor).order_by(Suggestion.created_at.desc()).all()
+    
+    # Base query for suggestions on this floor
+    query = Suggestion.query.filter_by(floor=floor)
+    
+    # Calculate vote counts and join for sorting
+    suggestions_with_votes = (
+        db.session.query(Suggestion, func.count(SuggestionVote.id).label('vote_count'))
+        .outerjoin(SuggestionVote)
+        .filter(Suggestion.floor == floor)
+        .group_by(Suggestion.id)
+        .order_by(func.count(SuggestionVote.id).desc(), Suggestion.created_at.desc())
+        .all()
+    )
 
-    return render_template('suggestions.html', suggestions=visible_suggestions, current_user=user)
+    # Get the IDs of suggestions the current user has voted for
+    user_voted_ids = {v.suggestion_id for v in SuggestionVote.query.filter_by(user_id=user.id).all()}
+
+    return render_template(
+        'suggestions.html', 
+        suggestions_with_votes=suggestions_with_votes, 
+        user_voted_ids=user_voted_ids,
+        current_user=user
+    )
+
+
+@app.route('/suggestions/<int:suggestion_id>/vote', methods=['POST'])
+def vote_suggestion(suggestion_id):
+    user = _require_user()
+    if not user:
+        return ('', 401)
+
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    if suggestion.floor != user.floor:
+        abort(403)
+
+    existing_vote = SuggestionVote.query.filter_by(suggestion_id=suggestion_id, user_id=user.id).first()
+    
+    if existing_vote:
+        # If user already voted, remove the vote (toggle)
+        db.session.delete(existing_vote)
+        db.session.commit()
+        return jsonify({"voted": False, "votes": len(suggestion.votes)})
+    else:
+        # Add new vote
+        new_vote = SuggestionVote(suggestion_id=suggestion_id, user_id=user.id)
+        db.session.add(new_vote)
+        db.session.commit()
+        return jsonify({"voted": True, "votes": len(suggestion.votes)})
 
 
 @app.route('/suggestions/<int:suggestion_id>/delete', methods=['POST'])
