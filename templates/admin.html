@@ -7,7 +7,7 @@
     <div class="row mb-4">
         <div class="col-md-6">
             <h2>Admin Panel</h2>
-            <p class="text-muted">Manage users, roles, and system settings</p>
+            <p class="text-muted">Manage users, roles, and system settings.</p>
         </div>
     </div>
 
@@ -18,17 +18,20 @@
                 <h5>Quick Actions</h5>
                 <div class="row">
                     <div class="col-md-4">
-                        <button class="btn btn-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                        <button class="btn btn-primary w-100 mb-2" data-bs-toggle="modal"
+                            data-bs-target="#addMemberModal">
                             <i class="fas fa-user-plus"></i> Add Members (TR Number)
                         </button>
                     </div>
                     <div class="col-md-4">
-                        <button class="btn btn-success w-100 mb-2" data-bs-toggle="modal" data-bs-target="#addPantryHeadModal">
+                        <button class="btn btn-success w-100 mb-2" data-bs-toggle="modal"
+                            data-bs-target="#addPantryHeadModal">
                             <i class="fas fa-utensils"></i> Assign Pantry Head
                         </button>
                     </div>
                     <div class="col-md-4">
-                        <button class="btn btn-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#addTeaManagerModal">
+                        <button class="btn btn-info w-100 mb-2" data-bs-toggle="modal"
+                            data-bs-target="#addTeaManagerModal">
                             <i class="fas fa-coffee"></i> Assign Tea Manager
                         </button>
                     </div>
@@ -66,16 +69,18 @@
                                 <td>{{ admin_user.tr_number or '-' }}</td>
                                 <td>
                                     {% if admin_user.is_first_login %}
-                                        <span class="badge bg-warning">Yes</span>
+                                    <span class="badge bg-warning">Yes</span>
                                     {% else %}
-                                        <span class="badge bg-success">No</span>
+                                    <span class="badge bg-success">No</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <form action="{{ url_for('admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this user?')">
+                                    <form action="{{ url_for('admin') }}" method="POST" class="d-inline"
+                                        onsubmit="return confirm('Delete this user?')">
                                         <input type="hidden" name="action" value="delete_user">
                                         <input type="hidden" name="user_id" value="{{ admin_user.id }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i
+                                                class="fas fa-trash"></i></button>
                                     </form>
                                 </td>
                             </tr>
@@ -189,67 +194,67 @@
 </div>
 
 <script>
-(() => {
-    async function loadFloorMembers(floor, userSelect) {
-        userSelect.disabled = true;
-        userSelect.innerHTML = '<option value="">Loading...</option>';
+    (() => {
+        async function loadFloorMembers(floor, userSelect) {
+            userSelect.disabled = true;
+            userSelect.innerHTML = '<option value="">Loading...</option>';
 
-        try {
-            const res = await fetch(`/admin/floor-members?floor=${encodeURIComponent(floor)}`, {
-                headers: { 'Accept': 'application/json' }
-            });
+            try {
+                const res = await fetch(`/admin/floor-members?floor=${encodeURIComponent(floor)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
 
-            if (!res.ok) {
+                if (!res.ok) {
+                    userSelect.innerHTML = '<option value="">Failed to load members</option>';
+                    return;
+                }
+
+                const data = await res.json();
+                const members = (data && data.members) ? data.members : [];
+
+                if (!members.length) {
+                    userSelect.innerHTML = '<option value="">No members found on this floor</option>';
+                    return;
+                }
+
+                const options = ['<option value="" selected disabled>Select a member</option>'];
+                for (const m of members) {
+                    const label = m.label || `${m.tr_number || '-'} - ${m.name || ''}`.trim();
+                    options.push(`<option value="${m.id}">${label}</option>`);
+                }
+                userSelect.innerHTML = options.join('');
+                userSelect.disabled = false;
+            } catch (e) {
                 userSelect.innerHTML = '<option value="">Failed to load members</option>';
-                return;
             }
-
-            const data = await res.json();
-            const members = (data && data.members) ? data.members : [];
-
-            if (!members.length) {
-                userSelect.innerHTML = '<option value="">No members found on this floor</option>';
-                return;
-            }
-
-            const options = ['<option value="" selected disabled>Select a member</option>'];
-            for (const m of members) {
-                const label = m.label || `${m.tr_number || '-'} - ${m.name || ''}`.trim();
-                options.push(`<option value="${m.id}">${label}</option>`);
-            }
-            userSelect.innerHTML = options.join('');
-            userSelect.disabled = false;
-        } catch (e) {
-            userSelect.innerHTML = '<option value="">Failed to load members</option>';
         }
-    }
 
-    function wireRoleModal(floorSelectId, userSelectId, modalId) {
-        const floorSelect = document.getElementById(floorSelectId);
-        const userSelect = document.getElementById(userSelectId);
-        const modalEl = document.getElementById(modalId);
-        if (!floorSelect || !userSelect) return;
+        function wireRoleModal(floorSelectId, userSelectId, modalId) {
+            const floorSelect = document.getElementById(floorSelectId);
+            const userSelect = document.getElementById(userSelectId);
+            const modalEl = document.getElementById(modalId);
+            if (!floorSelect || !userSelect) return;
 
-        const refresh = () => {
-            const floor = floorSelect.value;
-            if (!floor) {
-                userSelect.disabled = true;
-                userSelect.innerHTML = '<option value="">Select a floor first</option>';
-                return;
+            const refresh = () => {
+                const floor = floorSelect.value;
+                if (!floor) {
+                    userSelect.disabled = true;
+                    userSelect.innerHTML = '<option value="">Select a floor first</option>';
+                    return;
+                }
+                loadFloorMembers(floor, userSelect);
+            };
+
+            floorSelect.addEventListener('change', refresh);
+            if (modalEl) {
+                modalEl.addEventListener('shown.bs.modal', refresh);
             }
-            loadFloorMembers(floor, userSelect);
-        };
-
-        floorSelect.addEventListener('change', refresh);
-        if (modalEl) {
-            modalEl.addEventListener('shown.bs.modal', refresh);
         }
-    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        wireRoleModal('pantryHeadFloorSelect', 'pantryHeadUserSelect', 'addPantryHeadModal');
-        wireRoleModal('teaManagerFloorSelect', 'teaManagerUserSelect', 'addTeaManagerModal');
-    });
-})();
+        document.addEventListener('DOMContentLoaded', () => {
+            wireRoleModal('pantryHeadFloorSelect', 'pantryHeadUserSelect', 'addPantryHeadModal');
+            wireRoleModal('teaManagerFloorSelect', 'teaManagerUserSelect', 'addTeaManagerModal');
+        });
+    })();
 </script>
 {% endblock %}
