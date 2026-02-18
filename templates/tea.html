@@ -5,12 +5,10 @@
 {% block content %}
 <div class="container-fluid">
     <div class="row mb-4">
-        <div class="col-md-6">
-            <h2>
+        <div class="col-12 text-center">
+            <h2 class="mb-3">
                 <i class="fas fa-coffee text-teal"></i> Tea Management
             </h2>
-        </div>
-        <div class="col-md-6 text-end">
             {% if current_user.role in ['admin', 'teaManager'] %}
             <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addTeaTaskModal">
                 <i class="fas fa-plus"></i> Add Tea Task

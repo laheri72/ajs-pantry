@@ -58,7 +58,7 @@
 
     <!-- Statistics -->
     <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-4">
+        <div class="col-sm-6 col-lg-3">
             <div class="stat-card bg-primary h-100">
                 <div class="stat-icon">
                     <i class="fas fa-users"></i>
@@ -69,7 +69,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-4">
+        <div class="col-sm-6 col-lg-3">
             <div class="stat-card bg-warning h-100">
                 <div class="stat-icon">
                     <i class="fas fa-bell"></i>
@@ -80,7 +80,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-sm-6 col-lg-4">
+        <div class="col-sm-6 col-lg-3">
             <div class="stat-card bg-success h-100">
                 <div class="stat-icon">
                     <i class="fas fa-rupee-sign"></i>
@@ -88,6 +88,26 @@
                 <div class="stat-content">
                     <h3>&#8377;{{ "%.2f"|format(stats.weekly_expenses) }}</h3>
                     <p>Total Expenses (INR)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="stat-card bg-teal h-100 position-relative overflow-hidden">
+                <div class="stat-icon opacity-25" style="position: absolute; right: 10px; top: 10px; font-size: 4rem;">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="stat-content position-relative" style="z-index: 1;">
+                    <p class="text-uppercase small fw-bold mb-1" style="letter-spacing: 1px;">Weekly Performance</p>
+                    <div class="d-flex align-items-baseline gap-2">
+                        <h3 class="mb-0 display-6 fw-bold">{{ stats.stars_7d }}</h3>
+                        <span class="small opacity-75"><i class="fas fa-star me-1"></i>Stars</span>
+                    </div>
+                    {% if stats.top_team_7d %}
+                    <div class="mt-2 pt-2 border-top border-light border-opacity-25">
+                        <div class="small opacity-75">Current Leader:</div>
+                        <div class="fw-bold">{{ stats.top_team_7d }}</div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
