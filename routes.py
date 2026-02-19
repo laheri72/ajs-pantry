@@ -438,17 +438,30 @@ def dashboard():
     since_dt = datetime.utcnow() - timedelta(days=2)
     stars_since_dt = datetime.utcnow() - timedelta(days=7)
     
-    # Total spent: Legacy Expenses + Completed Procurement Costs
-    total_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(
-        ProcurementItem.floor == floor, 
-        ProcurementItem.status == 'completed'
-    ).scalar() or 0
-    total_spent_legacy = db.session.query(func.sum(Expense.amount)).filter(Expense.floor == floor).scalar() or 0
-    
+    # Stats and restricted data
+    is_privileged = user.role in ['admin', 'pantryHead']
+    pending_lend_borrow_count = 0
+    weekly_expenses = 0
+
+    if is_privileged:
+        # Total spent: Legacy Expenses + Completed Procurement Costs
+        total_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(
+            ProcurementItem.floor == floor, 
+            ProcurementItem.status == 'completed'
+        ).scalar() or 0
+        total_spent_legacy = db.session.query(func.sum(Expense.amount)).filter(Expense.floor == floor).scalar() or 0
+        weekly_expenses = float(total_spent_proc) + float(total_spent_legacy)
+
+        # Pending Lend/Borrow for this floor (either as lender or borrower)
+        pending_lend_borrow_count = FloorLendBorrow.query.filter(
+            or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor),
+            FloorLendBorrow.status == 'pending'
+        ).count()
+
     stats = {
         'user_count': User.query.filter_by(floor=floor).count(),
         'pending_requests': Request.query.filter_by(floor=floor, status='pending').count(),
-        'weekly_expenses': float(total_spent_proc) + float(total_spent_legacy),
+        'weekly_expenses': weekly_expenses,
         'stars_7d': int(
             (
                 db.session.query(func.coalesce(func.sum(Feedback.rating), 0))
@@ -458,6 +471,13 @@ def dashboard():
             or 0
         ),
     }
+
+    upcoming_dish = (
+        Menu.query.filter_by(floor=floor)
+        .filter(Menu.date >= today)
+        .order_by(Menu.date.asc())
+        .first()
+    )
 
     top_team_row = (
         db.session.query(Menu.assigned_team_id.label('team_id'), func.sum(Feedback.rating).label('stars'))
@@ -512,6 +532,8 @@ def dashboard():
         'dashboard.html',
         user=user,
         stats=stats,
+        upcoming_dish=upcoming_dish,
+        pending_lend_borrow_count=pending_lend_borrow_count,
         upcoming_tea_duties=upcoming_tea_duties,
         upcoming_procurement_assignments=upcoming_procurement_assignments,
         upcoming_menu_assignments=upcoming_menu_assignments,
