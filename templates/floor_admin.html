@@ -17,6 +17,123 @@
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="shadow-sm p-4 bg-white rounded">
+                <h5>Post Floor Announcement</h5>
+                <form method="POST" class="row g-3">
+                    <input type="hidden" name="action" value="add_announcement">
+                    <div class="col-md-4">
+                        <label class="form-label">Title</label>
+                        <input type="text" name="title" class="form-control" placeholder="e.g., Breakfast Time Change" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Content</label>
+                        <textarea name="content" class="form-control" rows="1" placeholder="Detailed message..." required></textarea>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-paper-plane"></i> Post
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="shadow-sm p-4 bg-white rounded">
+                <h5>Active Announcements</h5>
+                {% if active_announcements %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Announcement</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ann in active_announcements %}
+                            <tr>
+                                <td style="width: 150px;"><small>{{ ann.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td>
+                                    <strong>{{ ann.title }}</strong><br>
+                                    <small class="text-muted">{{ ann.content }}</small>
+                                </td>
+                                <td style="width: 150px;">
+                                    <div class="d-flex gap-2">
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="action" value="archive_announcement">
+                                            <input type="hidden" name="announcement_id" value="{{ ann.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Archive">
+                                                <i class="fas fa-archive"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Delete this announcement?')">
+                                            <input type="hidden" name="action" value="delete_announcement">
+                                            <input type="hidden" name="announcement_id" value="{{ ann.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No active announcements.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if archived_announcements %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="shadow-sm p-4 bg-white rounded">
+                <h5 class="text-muted">Archived Announcements</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Announcement</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ann in archived_announcements %}
+                            <tr class="opacity-75">
+                                <td style="width: 150px;"><small>{{ ann.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td>
+                                    <strong>{{ ann.title }}</strong><br>
+                                    <small class="text-muted">{{ ann.content }}</small>
+                                </td>
+                                <td style="width: 100px;">
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Delete this archived announcement?')">
+                                        <input type="hidden" name="action" value="delete_announcement">
+                                        <input type="hidden" name="announcement_id" value="{{ ann.id }}">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Delete Permanently">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="shadow-sm p-4 bg-white rounded">
                 <h5>Assign Tea Manager</h5>
                 <form method="POST" class="row g-3 align-items-end">
                     <input type="hidden" name="action" value="assign_tea_manager">

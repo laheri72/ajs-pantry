@@ -204,3 +204,16 @@ class SpecialEvent(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class Announcement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    floor = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    is_archived = db.Column(db.Boolean, default=False)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
