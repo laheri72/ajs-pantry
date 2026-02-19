@@ -41,6 +41,9 @@ body {
     background-color: var(--light-gray);
     color: var(--black);
     transition: var(--transition);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Navigation Styles */
@@ -948,4 +951,17 @@ body {
 .dropdown-item:hover {
     background-color: var(--teal-lighter);
     color: var(--teal-dark);
+}
+
+/* Footer Styles */
+.footer {
+    transition: var(--transition);
+}
+
+.footer .text-teal:hover {
+    color: var(--teal-dark) !important;
+}
+
+main {
+    flex: 1 0 auto;
 }
