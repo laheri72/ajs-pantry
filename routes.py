@@ -2139,6 +2139,38 @@ def revoke_procurement_item(item_id):
     return ('', 204)
 
 
+@app.route('/procurement/delete/<int:item_id>', methods=['POST'])
+def delete_procurement_item(item_id):
+    user = _require_user()
+    if not user:
+        if request.accept_mimetypes.accept_html:
+            return redirect(url_for('login'))
+        return ('', 401)
+
+    if user.role not in ['admin', 'pantryHead']:
+        if request.accept_mimetypes.accept_html:
+            abort(403)
+        return ('', 403)
+
+    item = ProcurementItem.query.get(item_id)
+    if not item:
+        if request.accept_mimetypes.accept_html:
+            abort(404)
+        return ('', 404)
+    if user.role != 'admin' and item.floor != user.floor:
+        if request.accept_mimetypes.accept_html:
+            abort(404)
+        return ('', 404)
+
+    db.session.delete(item)
+    db.session.commit()
+
+    if request.accept_mimetypes.accept_html:
+        flash('Procurement item deleted successfully.', 'success')
+        return redirect(url_for('procurement'))
+    return ('', 204)
+
+
 @app.route('/procurement/suggest', methods=['GET'])
 def procurement_suggest():
     user = _require_user()
