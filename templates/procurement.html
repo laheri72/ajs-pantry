@@ -145,10 +145,17 @@
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div class="fw-semibold">{{ item.item_name }}</div>
                                             {% if current_user.role in ['admin', 'pantryHead'] %}
-                                            <a href="{{ url_for('expenses') }}" class="btn btn-sm btn-outline-teal py-0 px-2" title="Record Cost">
-                                                <i class="fas fa-money-bill-wave small"></i>
-                                                {% if item.actual_cost %}<span class="ms-1 small">₹{{ item.actual_cost }}</span>{% else %}<span class="ms-1 small">Cost</span>{% endif %}
-                                            </a>
+                                            <div class="d-flex gap-1">
+                                                <form method="POST" action="{{ url_for('revoke_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Revert this item to pending?')">
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Revert to Pending">
+                                                        <i class="fas fa-undo small"></i>
+                                                    </button>
+                                                </form>
+                                                <a href="{{ url_for('expenses') }}" class="btn btn-sm btn-outline-teal py-0 px-2" title="Record Cost">
+                                                    <i class="fas fa-money-bill-wave small"></i>
+                                                    {% if item.actual_cost %}<span class="ms-1 small">₹{{ item.actual_cost }}</span>{% else %}<span class="ms-1 small">Cost</span>{% endif %}
+                                                </a>
+                                            </div>
                                             {% endif %}
                                         </div>
                                         <div class="text-muted small mt-1">

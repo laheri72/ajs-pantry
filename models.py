@@ -217,3 +217,19 @@ class Announcement(db.Model):
     is_archived = db.Column(db.Boolean, default=False)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class Garamat(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    floor = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id])
+    team = db.relationship('Team', foreign_keys=[team_id])
+    created_by = db.relationship('User', foreign_keys=[created_by_id])

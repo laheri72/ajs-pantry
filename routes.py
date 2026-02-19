@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
-from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote
+from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote, Garamat
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
@@ -135,6 +135,7 @@ def inject_current_user():
         "needs_profile_details": bool(current_user and current_user.role == 'member' and not (current_user.username and current_user.username.strip())),
         "active_floor": active_floor,
         "floor_options": _get_floor_options_for_admin() if current_user and current_user.role == 'admin' else [],
+        "now": datetime.utcnow(),
     }
 
 @app.route('/')
@@ -1069,9 +1070,53 @@ def floor_admin():
     tea_managers = [u for u in floor_users if u.role == 'teaManager']
     active_announcements = Announcement.query.filter_by(floor=floor, is_archived=False).order_by(Announcement.created_at.desc()).all()
     archived_announcements = Announcement.query.filter_by(floor=floor, is_archived=True).order_by(Announcement.created_at.desc()).all()
+    
+    # Fetch floor teams and garamat records
+    floor_teams = Team.query.filter_by(floor=floor).order_by(Team.name.asc()).all()
+    garamat_records = Garamat.query.filter_by(floor=floor).order_by(Garamat.date.desc()).all()
 
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
+
+        if action == 'add_garamat':
+            user_id = request.form.get('user_id')
+            team_id = request.form.get('team_id')
+            amount = request.form.get('amount')
+            reason = request.form.get('reason')
+            date_val = request.form.get('date')
+
+            if not amount or not reason or not date_val:
+                flash('Amount, reason and date are required', 'error')
+                return redirect(url_for('floor_admin'))
+            
+            try:
+                dt_obj = datetime.strptime(date_val, '%Y-%m-%d').date()
+            except Exception:
+                flash('Invalid date format', 'error')
+                return redirect(url_for('floor_admin'))
+
+            new_g = Garamat(
+                user_id=int(user_id) if user_id and user_id.strip() else None,
+                team_id=int(team_id) if team_id and team_id.strip() else None,
+                amount=float(amount),
+                reason=reason,
+                date=dt_obj,
+                floor=floor,
+                created_by_id=user.id
+            )
+            db.session.add(new_g)
+            db.session.commit()
+            flash('Penalty record added successfully', 'success')
+            return redirect(url_for('floor_admin'))
+
+        if action == 'delete_garamat':
+            g_id = request.form.get('garamat_id')
+            g = Garamat.query.get(g_id)
+            if g and (g.floor == floor or user.role == 'admin'):
+                db.session.delete(g)
+                db.session.commit()
+                flash('Penalty record deleted', 'success')
+            return redirect(url_for('floor_admin'))
 
         if action == 'add_announcement':
             title = request.form.get('title')
@@ -1175,7 +1220,10 @@ def floor_admin():
         tea_managers=tea_managers,
         active_announcements=active_announcements,
         archived_announcements=archived_announcements,
+        floor_teams=floor_teams,
+        garamat_records=garamat_records,
         current_user=user,
+        today=date.today(),
     )
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -2053,6 +2101,40 @@ def complete_procurement_item(item_id):
     db.session.commit()
     if request.accept_mimetypes.accept_html:
         flash('Marked as completed', 'success')
+        return redirect(url_for('procurement'))
+    return ('', 204)
+
+
+@app.route('/procurement/revoke/<int:item_id>', methods=['POST'])
+def revoke_procurement_item(item_id):
+    user = _require_user()
+    if not user:
+        if request.accept_mimetypes.accept_html:
+            return redirect(url_for('login'))
+        return ('', 401)
+
+    if user.role not in ['admin', 'pantryHead']:
+        if request.accept_mimetypes.accept_html:
+            abort(403)
+        return ('', 403)
+
+    item = ProcurementItem.query.get(item_id)
+    if not item:
+        if request.accept_mimetypes.accept_html:
+            abort(404)
+        return ('', 404)
+    if user.role != 'admin' and item.floor != user.floor:
+        if request.accept_mimetypes.accept_html:
+            abort(404)
+        return ('', 404)
+
+    item.status = 'pending'
+    item.actual_cost = None
+    item.expense_recorded_at = None
+    db.session.commit()
+
+    if request.accept_mimetypes.accept_html:
+        flash('Item reverted to pending', 'success')
         return redirect(url_for('procurement'))
     return ('', 204)
 

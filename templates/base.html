@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Maskan Breakfast Management{% endblock %}</title>
-    
+
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
+
     {% block extra_head %}{% endblock %}
 </head>
+
 <body>
     {% if current_user %}
     <!-- Navigation -->
@@ -22,11 +24,11 @@
             <a class="navbar-brand" href="{{ url_for('dashboard') }}">
                 <i class="fas fa-utensils me-2"></i>Maskan Breakfast
             </a>
-            
+
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
@@ -107,14 +109,15 @@
                 {% if current_user.role == 'admin' %}
                 <form class="d-flex align-items-center me-3" method="POST" action="{{ url_for('set_active_floor') }}">
                     <label class="text-white small me-2 mb-0" for="activeFloorSelect">Viewing</label>
-                    <select class="form-select form-select-sm" id="activeFloorSelect" name="floor" onchange="this.form.submit()">
+                    <select class="form-select form-select-sm" id="activeFloorSelect" name="floor"
+                        onchange="this.form.submit()">
                         {% for f in floor_options %}
-                        <option value="{{ f }}" {% if f == active_floor %}selected{% endif %}>Floor {{ f }}</option>
+                        <option value="{{ f }}" {% if f==active_floor %}selected{% endif %}>Floor {{ f }}</option>
                         {% endfor %}
                     </select>
                 </form>
                 {% endif %}
-                
+
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -122,10 +125,12 @@
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="{{ url_for('profile') }}">Profile</a></li>
-                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}">
-                                <i class="fas fa-unlock"></i> Logout
-                            </a></li>
+                                    <i class="fas fa-unlock"></i> Logout
+                                </a></li>
                         </ul>
                     </li>
                 </ul>
@@ -138,20 +143,34 @@
     <main class="{% if current_user %}main-content{% endif %}">
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="container-fluid mt-3">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
+        {% if messages %}
+        <div class="container-fluid mt-3">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show"
+                role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         {% block content %}{% endblock %}
     </main>
+
+    <footer class="footer mt-auto py-3 bg-white border-top">
+        <div class="container text-center">
+            <span class="text-muted">
+                &copy; {{ now.year if now else '2026' }} <strong>Maskan1447</strong>
+                All rights Reserved <br>
+                Maintained by
+                <a href="https://github.com/laheri72/" target="_blank" class="text-teal ms-1">
+                    <i class="fab fa-github"></i> <strong>Laheri72</strong>
+                </a>
+            </span>
+        </div>
+    </footer>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -159,13 +178,14 @@
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script>
         // Initialize cooking alerts on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             if (window.initializeCookingAlerts) {
                 window.initializeCookingAlerts();
             }
         });
     </script>
-    
+
     {% block extra_scripts %}{% endblock %}
 </body>
+
 </html>
