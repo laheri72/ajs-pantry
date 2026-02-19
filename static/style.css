@@ -222,7 +222,7 @@ body {
     border: none;
     color: #ffffff;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     background: linear-gradient(135deg, var(--teal-primary), var(--teal-dark));
 }
 
@@ -235,11 +235,13 @@ body {
         radial-gradient(circle at 70% 90%, rgba(0, 0, 0, 0.15), transparent 55%);
     opacity: 0.9;
     pointer-events: none;
+    border-radius: var(--border-radius);
 }
 
 .dashboard-page .dashboard-hero .card-body {
     position: relative;
     padding: 1.75rem;
+    z-index: 1;
 }
 
 .dashboard-page .dashboard-hero-kicker {

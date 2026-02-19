@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
-from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, SuggestionVote
+from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
@@ -527,6 +527,62 @@ def dashboard():
         .order_by(Menu.date.asc())
         .all()
     )
+
+    # Notifications logic
+    notifications = []
+    
+    # 1. Announcements (last 7 days)
+    announcement_since = datetime.utcnow() - timedelta(days=7)
+    recent_announcements = Announcement.query.filter(
+        Announcement.floor == floor,
+        Announcement.created_at >= announcement_since,
+        Announcement.is_archived == False
+    ).order_by(Announcement.created_at.desc()).all()
+    
+    for ann in recent_announcements:
+        notifications.append({
+            'type': 'announcement',
+            'icon': 'fas fa-bullhorn',
+            'title': ann.title,
+            'content': ann.content,
+            'time': ann.created_at,
+            'category': 'Announcement'
+        })
+    
+    # 2. Upcoming Assignments
+    for m in upcoming_menu_assignments:
+        notifications.append({
+            'type': 'assignment',
+            'icon': 'fas fa-utensils',
+            'title': f"Menu: {m.title}",
+            'content': f"You have a menu assignment on {m.date.strftime('%Y-%m-%d')}",
+            'time': datetime.combine(m.date, datetime.min.time()),
+            'category': 'Menu Assignment'
+        })
+    
+    for t in upcoming_tea_duties:
+        notifications.append({
+            'type': 'assignment',
+            'icon': 'fas fa-coffee',
+            'title': "Tea Duty",
+            'content': f"Scheduled for {t.date.strftime('%Y-%m-%d')}",
+            'time': datetime.combine(t.date, datetime.min.time()),
+            'category': 'Tea Duty'
+        })
+
+    for p in upcoming_procurement_assignments:
+        notifications.append({
+            'type': 'assignment',
+            'icon': 'fas fa-shopping-cart',
+            'title': f"Procurement: {p.item_name}",
+            'content': f"Quantity: {p.quantity} - {p.status.title()}",
+            'time': p.created_at,
+            'category': 'Procurement'
+        })
+
+    # Sort notifications by time (newest first for announcements, soonest first for assignments if we mixed them)
+    # Actually, let's keep it simple: Announcements first, then assignments
+    notifications.sort(key=lambda x: x['time'], reverse=True)
     
     return render_template(
         'dashboard.html',
@@ -534,6 +590,7 @@ def dashboard():
         stats=stats,
         upcoming_dish=upcoming_dish,
         pending_lend_borrow_count=pending_lend_borrow_count,
+        notifications=notifications,
         upcoming_tea_duties=upcoming_tea_duties,
         upcoming_procurement_assignments=upcoming_procurement_assignments,
         upcoming_menu_assignments=upcoming_menu_assignments,
@@ -1010,9 +1067,47 @@ def floor_admin():
     floor = _get_active_floor(user)
     floor_users = User.query.filter_by(floor=floor).order_by(User.role.asc(), User.email.asc()).all()
     tea_managers = [u for u in floor_users if u.role == 'teaManager']
+    active_announcements = Announcement.query.filter_by(floor=floor, is_archived=False).order_by(Announcement.created_at.desc()).all()
+    archived_announcements = Announcement.query.filter_by(floor=floor, is_archived=True).order_by(Announcement.created_at.desc()).all()
 
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
+
+        if action == 'add_announcement':
+            title = request.form.get('title')
+            content = request.form.get('content')
+            if not title or not content:
+                flash('Title and content are required', 'error')
+                return redirect(url_for('floor_admin'))
+            
+            new_ann = Announcement(
+                title=title,
+                content=content,
+                floor=floor,
+                created_by_id=user.id
+            )
+            db.session.add(new_ann)
+            db.session.commit()
+            flash('Announcement posted successfully', 'success')
+            return redirect(url_for('floor_admin'))
+
+        if action == 'archive_announcement':
+            ann_id = request.form.get('announcement_id')
+            ann = Announcement.query.get(ann_id)
+            if ann and (ann.floor == floor or user.role == 'admin'):
+                ann.is_archived = True
+                db.session.commit()
+                flash('Announcement archived', 'success')
+            return redirect(url_for('floor_admin'))
+
+        if action == 'delete_announcement':
+            ann_id = request.form.get('announcement_id')
+            ann = Announcement.query.get(ann_id)
+            if ann and (ann.floor == floor or user.role == 'admin'):
+                db.session.delete(ann)
+                db.session.commit()
+                flash('Announcement deleted', 'success')
+            return redirect(url_for('floor_admin'))
 
         if action == 'assign_tea_manager':
             try:
@@ -1078,6 +1173,8 @@ def floor_admin():
         floor=floor,
         floor_users=floor_users,
         tea_managers=tea_managers,
+        active_announcements=active_announcements,
+        archived_announcements=archived_announcements,
         current_user=user,
     )
 
