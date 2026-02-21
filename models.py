@@ -131,6 +131,8 @@ class Bill(db.Model):
     shop_name = db.Column(db.String(100), nullable=True)
     total_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     floor = db.Column(db.Integer, nullable=False)
+    source = db.Column(db.String(50), default='manual')
+    original_filename = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationship to items

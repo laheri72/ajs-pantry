@@ -15,6 +15,10 @@
                 <i class="fas fa-print"></i> Print Report
             </button>
             {% if is_manager %}
+            <button type="button" class="btn btn-outline-primary me-2" onclick="document.getElementById('pdfImportInput').click()">
+                <i class="fas fa-file-pdf"></i> Import D-Mart PDF
+            </button>
+            <input type="file" id="pdfImportInput" class="d-none" accept=".pdf" onchange="handlePDFUpload(this)">
             <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addBudgetModal">
                 <i class="fas fa-plus"></i> Allocate Budget
             </button>
@@ -331,6 +335,64 @@
     </div>
 </div>
 {% endif %}
+
+<!-- PDF Review Modal -->
+<div class="modal fade" id="reviewImportModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Review Imported Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="import-loader" class="text-center py-5 d-none">
+                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                    <p class="text-muted">Parsing D-Mart Invoice... Please wait.</p>
+                </div>
+                <div id="import-content">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">BILL NO.</label>
+                            <input type="text" id="review-bill-no" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">DATE</label>
+                            <input type="date" id="review-bill-date" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">VENDOR</label>
+                            <input type="text" id="review-shop-name" class="form-control">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Item Name</th>
+                                    <th>Quantity</th>
+                                    <th class="text-end">Cost (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="review-items-body"></tbody>
+                            <tfoot>
+                                <tr class="table-light fw-bold">
+                                    <td colspan="2">Total Amount</td>
+                                    <td class="text-end">₹<span id="review-total-amount">0.00</span></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Discard</button>
+                <button type="button" class="btn btn-primary px-4" id="save-imported-btn" onclick="saveImportedBill()">
+                    <i class="fas fa-save me-1"></i> Confirm & Save Bill
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Record Bill Modal -->
 <div class="modal fade" id="recordBillModal" tabindex="-1">
@@ -700,15 +762,25 @@
         var rowsHtml = '';
         for (var j = 0; j < selectedItems.length; j++) {
             var item = selectedItems[j];
+            
+            // Format Date: Shorten YYYY-MM-DD to DD/MM/YY
+            var shortDate = item.date;
+            if (item.date && item.date.length >= 10) {
+                var parts = item.date.split('-');
+                if (parts.length === 3) {
+                    shortDate = parts[2] + '/' + parts[1] + '/' + parts[0].substring(2);
+                }
+            }
+
             var itemDesc = item.desc;
             if (item.qty && item.qty !== '-') {
                 itemDesc += ' (' + item.qty + ')';
             }
             rowsHtml += '<tr>' +
-                '<td>' + item.date + '</td>' +
-                '<td>' + (item.bill !== 'N/A' ? '#' + item.bill : '-') + '</td>' +
-                '<td>' + itemDesc + '</td>' +
-                '<td class="text-end">₹' + item.amount.toFixed(2) + '</td>' +
+                '<td style="white-space: nowrap;">' + shortDate + '</td>' +
+                '<td style="white-space: nowrap;">' + (item.bill !== 'N/A' ? '#' + item.bill : '-') + '</td>' +
+                '<td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + itemDesc + '</td>' +
+                '<td class="text-end" style="white-space: nowrap;">₹' + item.amount.toFixed(2) + '</td>' +
                 '</tr>';
         }
         var footerHtml = '<tr class="table-secondary fw-bold">' +
@@ -735,7 +807,9 @@
         w.document.open();
         w.document.write('<!doctype html><html><head><meta charset="utf-8">' +
             '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">' +
-            '<style>body { padding: 30px; font-family: sans-serif; } .table th { background-color: #f8f9fa !important; color: #00695c !important; }' +
+            '<style>body { padding: 30px; font-family: sans-serif; font-size: 12px; } ' +
+            '.table th, .table td { padding: 4px 8px !important; line-height: 1 !important; vertical-align: middle !important; }' +
+            '.table th { background-color: #f8f9fa !important; color: #00695c !important; }' +
             '@media print {.table-secondary { background-color: #e2e3e5 !important; -webkit-print-color-adjust: exact; }' +
             '.table-warning { background-color: #fff3cd !important; -webkit-print-color-adjust: exact; }' +
             '.table-success { background-color: #d4edda !important; -webkit-print-color-adjust: exact; }' +
@@ -772,6 +846,101 @@
             input.value = '';
             input.focus();
         }
+    }
+
+    // PDF Import Logic
+    var currentImportedData = null;
+
+    function handlePDFUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        
+        var file = input.files[0];
+        var formData = new FormData();
+        formData.append('file', file);
+
+        // Show modal and loader
+        var reviewModal = new bootstrap.Modal(document.getElementById('reviewImportModal'));
+        document.getElementById('import-loader').classList.remove('d-none');
+        document.getElementById('import-content').classList.add('d-none');
+        document.getElementById('save-imported-btn').disabled = true;
+        reviewModal.show();
+
+        fetch('/expenses/import-pdf', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                reviewModal.hide();
+                return;
+            }
+
+            currentImportedData = data;
+            
+            // Populate review modal
+            document.getElementById('review-bill-no').value = data.bill_no || '';
+            document.getElementById('review-bill-date').value = data.bill_date || '';
+            document.getElementById('review-shop-name').value = data.shop_name || 'D-Mart';
+            document.getElementById('review-total-amount').innerText = data.total_amount.toFixed(2);
+
+            var tbody = document.getElementById('review-items-body');
+            tbody.innerHTML = '';
+            data.items.forEach(function(item) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + item.name + '</td>' +
+                               '<td>' + item.quantity + '</td>' +
+                               '<td class="text-end fw-bold text-teal">₹' + item.cost.toFixed(2) + '</td>';
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('import-loader').classList.add('d-none');
+            document.getElementById('import-content').classList.remove('d-none');
+            document.getElementById('save-imported-btn').disabled = false;
+        })
+        .catch(error => {
+            alert('Upload failed: ' + error);
+            reviewModal.hide();
+        })
+        .finally(() => {
+            input.value = ''; // Reset file input
+        });
+    }
+
+    function saveImportedBill() {
+        if (!currentImportedData) return;
+
+        // Update data with any manual edits from modal
+        currentImportedData.bill_no = document.getElementById('review-bill-no').value;
+        currentImportedData.bill_date = document.getElementById('review-bill-date').value;
+        currentImportedData.shop_name = document.getElementById('review-shop-name').value;
+
+        var btn = document.getElementById('save-imported-btn');
+        var originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        fetch('/expenses/save-imported-bill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentImportedData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // Refresh to see new bill
+            } else {
+                alert('Save failed: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        })
+        .catch(error => {
+            alert('Error saving bill: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
     }
 </script>
 
