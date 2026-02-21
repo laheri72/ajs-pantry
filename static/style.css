@@ -1,37 +1,46 @@
 /* Maskan Breakfast Management - Custom Styles */
 
 :root {
+    /* Primary Colors */
     --teal-primary: #26A69A;
     --teal-dark: #00695C;
     --teal-light: #4DB6AC;
     --teal-lighter: #B2DFDB;
+    
+    /* Semantic Colors - Light (Default) */
+    --bg-body: #F5F5F5;
+    --bg-surface: #FFFFFF;
+    --bg-surface-light: #F8F9FA;
+    --bg-surface-alt: #E8F5E9;
+    
+    --text-main: #212121;
+    --text-muted: #6C757D;
+    --text-on-teal: #FFFFFF;
+    
+    --border-color: #DEE2E6;
+    --border-teal: #26A69A;
+    
     --white: #FFFFFF;
     --light-gray: #F5F5F5;
     --gray: #9E9E9E;
     --dark-gray: #424242;
     --black: #212121;
+    
+    --fixed-white: #FFFFFF;
+    --fixed-black: #212121;
+    
     --success: #4CAF50;
     --warning: #FF9800;
     --danger: #F44336;
     --info: #2196F3;
+    
     --shadow: 0 2px 10px rgba(0,0,0,0.1);
     --shadow-hover: 0 4px 20px rgba(0,0,0,0.15);
     --border-radius: 8px;
     --transition: all 0.3s ease;
 }
 
-/* Dark Theme Variables */
-body.dark-theme {
-    --white: #1E1E1E;
-    --light-gray: #2D2D2D;
-    --gray: #757575;
-    --dark-gray: #E0E0E0;
-    --black: #FFFFFF;
-    --shadow: 0 2px 10px rgba(255,255,255,0.1);
-    --shadow-hover: 0 4px 20px rgba(255,255,255,0.15);
-}
-
-/* Global Styles */
+/* Animations */
 * {
     box-sizing: border-box;
 }
