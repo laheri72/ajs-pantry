@@ -2,6 +2,7 @@ from flask import render_template, request, redirect, url_for, session, flash, j
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
 from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote, Garamat, Bill
+from pdf_service import PDFParserService
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
@@ -2558,3 +2559,81 @@ def verify_return(record_id):
     
     db.session.commit()
     return redirect(url_for('lend_borrow'))
+
+
+@app.route('/expenses/import-pdf', methods=['POST'])
+def import_pdf():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    try:
+        data = PDFParserService.parse_dmart_invoice(file.stream)
+        data['filename'] = file.filename
+        return jsonify(data)
+    except Exception as e:
+        logging.error(f"PDF Import Error: {str(e)}")
+        return jsonify({'error': f"Failed to parse PDF: {str(e)}"}), 500
+
+
+@app.route('/expenses/save-imported-bill', methods=['POST'])
+def save_imported_bill():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    floor = _get_active_floor(user)
+
+    try:
+        # 1. Create the Bill
+        date_str = data.get('bill_date')
+        if date_str:
+            bill_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        else:
+            bill_date = date.today() # Fallback to today if parsing failed
+
+        bill = Bill(
+            bill_no=data.get('bill_no') or f"DM-{int(datetime.utcnow().timestamp())}",
+            bill_date=bill_date,
+            shop_name=data.get('shop_name') or 'D-Mart',
+            total_amount=data.get('total_amount', 0),
+            floor=floor,
+            source='pdf_import',
+            original_filename=data.get('filename')
+        )
+        db.session.add(bill)
+        db.session.flush() # Get bill.id
+
+        # 2. Add items
+        for item_data in data.get('items', []):
+            item = ProcurementItem(
+                item_name=item_data.get('name'),
+                quantity=item_data.get('quantity'),
+                category='other', # Default for imports
+                priority='medium',
+                status='completed', # Already purchased
+                floor=floor,
+                created_by_id=user.id,
+                actual_cost=item_data.get('cost'),
+                expense_recorded_at=datetime.utcnow(),
+                bill_id=bill.id
+            )
+            db.session.add(item)
+
+        db.session.commit()
+        return jsonify({'success': True, 'bill_id': bill.id})
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Save Imported Bill Error: {str(e)}")
+        return jsonify({'error': f"Failed to save bill: {str(e)}"}), 500
