@@ -1,0 +1,491 @@
+/* Maskan Breakfast Management - Dark Theme Configuration */
+
+body.dark-theme {
+    /* Semantic Variables */
+    --bg-body: #121212;
+    --bg-surface: #1E1E1E;
+    --bg-surface-light: #2D2D2D;
+    --bg-surface-alt: #1B2E2C; 
+    
+    --text-main: #E0E0E0;
+    --text-muted: #A0A0A0;
+    --text-on-teal: #FFFFFF;
+    
+    --border-color: #333333;
+    --border-teal: #4DB6AC;
+    
+    --teal-primary: #26A69A;
+    --teal-dark: #80CBC4; /* Lighter teal for dark mode text/visibility */
+    --teal-light: #4DB6AC;
+    --teal-lighter: rgba(38, 166, 154, 0.15);
+    
+    /* Legacy / Compatibility Variables */
+    --white: #1E1E1E;
+    --light-gray: #2D2D2D;
+    --gray: #757575;
+    --dark-gray: #E0E0E0;
+    --black: #FFFFFF;
+    
+    --shadow: 0 4px 12px rgba(0,0,0,0.5);
+    --shadow-hover: 0 8px 24px rgba(0,0,0,0.7);
+
+    /* Primary Overrides */
+    background-color: var(--bg-body) !important;
+    color: var(--text-main) !important;
+}
+
+/* Base Elements */
+body.dark-theme h1, 
+body.dark-theme h2, 
+body.dark-theme h3, 
+body.dark-theme h4, 
+body.dark-theme h5, 
+body.dark-theme h6 {
+    color: var(--text-main);
+}
+
+body.dark-theme p, 
+body.dark-theme div, 
+body.dark-theme span, 
+body.dark-theme label {
+    color: var(--text-main);
+}
+
+/* Override common Bootstrap utility classes that prevent dark mode */
+/* Only override if not paired with a specific color class */
+body.dark-theme .bg-white,
+body.dark-theme .bg-light,
+body.dark-theme .bg-body {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-main) !important;
+}
+
+/* Allow colorful backgrounds to persist but look good in dark mode */
+body.dark-theme .bg-teal,
+body.dark-theme .bg-primary,
+body.dark-theme .bg-success,
+body.dark-theme .bg-danger,
+body.dark-theme .bg-info {
+    color: var(--fixed-white) !important;
+}
+
+body.dark-theme .text-dark,
+body.dark-theme .text-black {
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .text-muted {
+    color: var(--text-muted) !important;
+}
+
+body.dark-theme .border,
+body.dark-theme .border-bottom,
+body.dark-theme .border-top,
+body.dark-theme .border-start,
+body.dark-theme .border-end {
+    border-color: var(--border-color) !important;
+}
+
+/* Card Overrides */
+body.dark-theme .card {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+    box-shadow: var(--shadow) !important;
+}
+
+body.dark-theme .card-header,
+body.dark-theme .card-footer {
+    background-color: var(--bg-surface-light) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+/* Table Overrides */
+body.dark-theme .table {
+    --bs-table-color: var(--text-main) !important;
+    --bs-table-bg: var(--bg-surface) !important;
+    --bs-table-border-color: var(--border-color) !important;
+    --bs-table-striped-color: var(--text-main) !important;
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.05) !important;
+    --bs-table-active-color: var(--text-main) !important;
+    --bs-table-active-bg: rgba(255, 255, 255, 0.1) !important;
+    --bs-table-hover-color: var(--text-main) !important;
+    --bs-table-hover-bg: rgba(255, 255, 255, 0.07) !important;
+    
+    color: var(--text-main) !important;
+    border-color: var(--border-color) !important;
+    background-color: var(--bg-surface) !important;
+}
+
+body.dark-theme .table thead,
+body.dark-theme .table thead th,
+body.dark-theme .table thead tr {
+    background-color: var(--bg-surface-light) !important;
+    color: var(--teal-light) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Contextual Table Classes */
+body.dark-theme .table-light { --bs-table-bg: var(--bg-surface-light) !important; --bs-table-color: var(--text-main) !important; }
+body.dark-theme .table-secondary { --bs-table-bg: #2c3034 !important; --bs-table-color: #e9ecef !important; }
+body.dark-theme .table-success { --bs-table-bg: #051b11 !important; --bs-table-color: #75b798 !important; }
+body.dark-theme .table-info { --bs-table-bg: #032830 !important; --bs-table-color: #6edff6 !important; }
+body.dark-theme .table-warning { --bs-table-bg: #332701 !important; --bs-table-color: #ffda6a !important; }
+body.dark-theme .table-danger { --bs-table-bg: #2c0b0e !important; --bs-table-color: #ea868f !important; }
+
+body.dark-theme .table td, 
+body.dark-theme .table th {
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+    background-color: transparent !important; /* Allow the table/row bg to show through */
+}
+
+/* Ensure nested elements in tables like small, span, div also use main text color */
+body.dark-theme .table td *,
+body.dark-theme .table th * {
+    color: inherit !important;
+}
+
+/* Specific fix for elements that might have their own bg-light/bg-white inside tables */
+body.dark-theme .table .bg-light,
+body.dark-theme .table .bg-white {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+body.dark-theme .table thead th {
+    color: var(--teal-light) !important;
+    background-color: var(--bg-surface-light) !important;
+}
+
+body.dark-theme .table-light,
+body.dark-theme .table-light th,
+body.dark-theme .table-light td {
+    background-color: var(--bg-surface-light) !important;
+    color: var(--text-main) !important;
+}
+
+/* Modal Overrides */
+body.dark-theme .modal-content {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .modal-header {
+    background-color: var(--bg-surface-light) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .modal-header .modal-title {
+    color: var(--teal-light) !important;
+}
+
+body.dark-theme .modal-footer {
+    background-color: var(--bg-surface-light) !important;
+    border-top: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .btn-light {
+    background-color: var(--bg-surface-light) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Form Overrides */
+body.dark-theme .form-control,
+body.dark-theme .form-select {
+    background-color: var(--bg-surface-light) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .form-control:focus,
+body.dark-theme .form-select:focus {
+    border-color: var(--teal-primary) !important;
+    background-color: var(--bg-surface-light) !important;
+}
+
+body.dark-theme .form-control::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* Dropdown Overrides */
+body.dark-theme .dropdown-menu {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: var(--shadow-hover) !important;
+}
+
+body.dark-theme .dropdown-item {
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .dropdown-item:hover {
+    background-color: var(--bg-surface-light) !important;
+}
+
+body.dark-theme .dropdown-divider {
+    border-color: var(--border-color) !important;
+}
+
+/* Accordion Overrides */
+body.dark-theme .accordion-item {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-theme .accordion-button {
+    background-color: var(--bg-surface-light) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .accordion-button:not(.collapsed) {
+    background-color: var(--bg-surface-alt) !important;
+    color: var(--teal-light) !important;
+    box-shadow: inset 0 -1px 0 var(--border-color);
+}
+
+body.dark-theme .accordion-button::after {
+    filter: invert(1);
+}
+
+/* List Group Overrides */
+body.dark-theme .list-group-item {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .list-group-item-action:hover {
+    background-color: var(--bg-surface-light) !important;
+}
+
+/* Alert Overrides */
+body.dark-theme .alert-light {
+    background-color: var(--bg-surface-light) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .alert-info {
+    background-color: rgba(33, 150, 243, 0.1) !important;
+    color: #90CAF9 !important;
+    border: 1px solid rgba(33, 150, 243, 0.3) !important;
+}
+
+/* Badge Overrides */
+body.dark-theme .badge.bg-light {
+    background-color: var(--bg-surface-light) !important;
+    color: var(--text-main) !important;
+}
+
+/* Navigation Specifics */
+body.dark-theme .navbar-dark .navbar-nav .nav-link {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* Profile Section Specifics */
+body.dark-theme .profile-card,
+body.dark-theme .profile-container,
+body.dark-theme .activity-card {
+    background-color: var(--bg-surface) !important;
+}
+
+/* Calendar Specifics */
+body.dark-theme .calendar-day {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-theme .calendar-day:hover {
+    background-color: var(--bg-surface-light) !important;
+}
+
+body.dark-theme .calendar-day.other-month {
+    opacity: 0.2;
+}
+
+body.dark-theme .day-number {
+    color: var(--text-muted);
+}
+
+/* Weekly Board Overrides */
+body.dark-theme .weekly-day-card {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-theme .weekly-day-card .day-header {
+    background-color: var(--bg-surface-light) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .weekly-day-card.today-highlight {
+    border-color: var(--teal-primary) !important;
+}
+
+body.dark-theme .menu-item-mini {
+    color: var(--black) !important; /* Keep text dark on pastel backgrounds of menu items if they are light-colored */
+}
+
+/* Feedback & Suggestions specific overrides */
+body.dark-theme .italic-quote {
+    color: var(--text-muted) !important;
+}
+
+body.dark-theme .evaluation-pending-card {
+    border-color: var(--border-color) !important;
+}
+
+body.dark-theme .rating-input label {
+    color: var(--gray) !important;
+}
+
+/* Stat Cards - Ensure text readability */
+body.dark-theme .stat-card h3,
+body.dark-theme .stat-card p {
+    color: var(--fixed-white) !important; /* Stat cards use gradients that usually look good with white text */
+}
+
+body.dark-theme .stat-card.bg-warning {
+    color: var(--fixed-black) !important; /* Warning yellow often needs dark text */
+}
+
+body.dark-theme .stat-card.bg-warning h3,
+body.dark-theme .stat-card.bg-warning p {
+    color: var(--fixed-black) !important;
+}
+
+/* Custom Component Overrides */
+body.dark-theme .bg-teal-lighter-subtle {
+    background-color: rgba(38, 166, 154, 0.1) !important;
+    color: var(--teal-light) !important;
+}
+
+body.dark-theme .text-teal-dark {
+    color: var(--teal-light) !important;
+}
+
+body.dark-theme .bg-teal-light {
+    background-color: var(--bg-surface-alt) !important;
+    color: var(--teal-light) !important;
+}
+
+body.dark-theme .badge.bg-teal-light {
+    background-color: var(--bg-surface-alt) !important;
+    color: var(--teal-light) !important;
+}
+
+body.dark-theme .bg-success-light { background-color: rgba(76, 175, 80, 0.1) !important; color: #81C784 !important; }
+body.dark-theme .bg-warning-light { background-color: rgba(255, 152, 0, 0.1) !important; color: #FFB74D !important; }
+body.dark-theme .bg-danger-light { background-color: rgba(244, 67, 54, 0.1) !important; color: #E57373 !important; }
+
+/* Dashboard specifics */
+body.dark-theme .action-card {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .action-card:hover {
+    background: var(--bg-surface-light) !important;
+    border-color: var(--teal-primary) !important;
+}
+
+/* Footer override */
+body.dark-theme .login-container {
+    background: linear-gradient(135deg, #004D40 0%, #121212 100%) !important;
+}
+
+body.dark-theme .login-card {
+    box-shadow: 0 15px 35px rgba(0,0,0,0.8) !important;
+}
+
+body.dark-theme .input-group-text {
+    background-color: var(--bg-surface-light) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-muted) !important;
+}
+
+body.dark-theme .form-control::placeholder {
+    color: #666666 !important;
+}
+
+/* Tooltips & Popovers */
+body.dark-theme .popover {
+    background-color: var(--bg-surface-light) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .popover-header {
+    background-color: var(--bg-surface-alt) !important;
+    color: var(--teal-light) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .popover-body {
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .bs-popover-auto[data-popper-placement^=top]>.popover-arrow::after, 
+body.dark-theme .bs-popover-top>.popover-arrow::after {
+    border-top-color: var(--bg-surface-light) !important;
+}
+
+body.dark-theme .bs-popover-auto[data-popper-placement^=bottom]>.popover-arrow::after, 
+body.dark-theme .bs-popover-bottom>.popover-arrow::after {
+    border-bottom-color: var(--bg-surface-light) !important;
+}
+
+/* Specific Page Overrides */
+body.dark-theme .evaluation-pending-card:hover {
+    border-color: var(--teal-primary) !important;
+    box-shadow: var(--shadow-hover) !important;
+}
+
+body.dark-theme .card-header.bg-white {
+    background-color: var(--bg-surface-light) !important;
+}
+
+/* Fix for icons in light backgrounds that become dark */
+body.dark-theme .text-teal-lighter {
+    color: var(--teal-light) !important;
+}
+
+/* Sticky top table headers background fix */
+body.dark-theme .sticky-top.bg-light {
+    background-color: var(--bg-surface-light) !important;
+}
+
+/* Navigation & Tabs Overrides */
+body.dark-theme .nav-tabs {
+    border-bottom-color: var(--border-color) !important;
+}
+
+body.dark-theme .nav-tabs .nav-link {
+    color: var(--text-main) !important;
+    border-color: transparent !important;
+}
+
+body.dark-theme .nav-tabs .nav-link:hover {
+    border-color: var(--border-color) var(--border-color) transparent !important;
+    background-color: var(--bg-surface-light) !important;
+}
+
+body.dark-theme .nav-tabs .nav-link.active {
+    background-color: var(--bg-surface) !important;
+    color: var(--teal-light) !important;
+    border-color: var(--border-color) var(--border-color) var(--bg-surface) !important;
+}
+
+body.dark-theme .nav-pills .nav-link {
+    color: var(--text-main);
+}
+
+body.dark-theme .nav-pills .nav-link.active {
+    background-color: var(--teal-primary) !important;
+    color: var(--fixed-white) !important;
+}
