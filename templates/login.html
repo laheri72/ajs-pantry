@@ -1,33 +1,205 @@
 {% extends "base.html" %}
+
+{% block title %}Login - Maskan Breakfast Management{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 col-lg-4">
-        <div class="card shadow-lg border-0 rounded-lg">
-            <div class="card-header bg-primary text-white text-center py-4">
-                <h3 class="font-weight-light my-1">Member Login</h3>
+<div class="login-container">
+    <div class="login-card shadow-lg animate-fade-in">
+        <div class="card-header bg-teal text-white text-center py-5 position-relative">
+            <div class="login-logo mb-3">
+                <i class="fas fa-utensils fa-3x shadow-sm p-3 rounded-circle bg-white text-teal"></i>
             </div>
-            <div class="card-body p-4">
-                <form method="POST">
-                    <div class="form-group mb-3">
-                        <label class="small mb-1" for="email">Email</label>
-                        <input class="form-control" name="email" type="email" placeholder="Enter email address" required />
+            <h2 class="fw-bold mb-0 mt-2">Member Login</h2>
+            <p class="small opacity-75 mb-0 mt-1">Maskan Al Rahat's Pantry</p>
+            <div class="header-shape"></div>
+        </div>
+
+        <div class="card-body p-4 p-md-5">
+            <form method="POST" class="needs-validation">
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-uppercase tracking-wider text-muted" for="email">
+                        <i class="fas fa-id-card me-1"></i> TR Number
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i
+                                class="fas fa-user text-teal-light"></i></span>
+                        <input class="form-control bg-light border-start-0 ps-0" id="email" name="email" type="text"
+                            placeholder="e.g. 25687" required autofocus />
+                        <span
+                            class="input-group-text bg-white border-start-0 small text-muted">@jameasaifiyah.edu</span>
                     </div>
-                    <div class="form-group mb-3">
-                        <label class="small mb-1" for="password">Password</label>
-                        <input class="form-control" name="password" type="password" placeholder="Enter password" required />
-                    </div>
-                    <div class="form-group d-flex align-items-center justify-content-between mt-4 mb-0">
-                        <button type="submit" class="btn btn-primary btn-block w-100 py-2">Login</button>
-                    </div>
-                </form>
-            </div>
-            <div class="card-footer text-center py-3">
-                <div class="small text-muted">First login password: <b>maskan1447</b></div>
-                <div class="small text-muted mt-2">
-                    Staff? <a href="{{ url_for('staff_login') }}">Login here</a>
                 </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-uppercase tracking-wider text-muted mb-0"
+                            for="password">
+                            <i class="fas fa-lock me-1"></i> Password
+                        </label>
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i
+                                class="fas fa-key text-teal-light"></i></span>
+                        <input class="form-control bg-light border-start-0 ps-0" id="password" name="password"
+                            type="password" placeholder="Enter your password" required />
+                        <button class="btn btn-outline-light border bg-light text-muted border-start-0" type="button"
+                            id="togglePassword">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-0 mt-5">
+                    <button type="submit" class="btn btn-teal w-100 py-3 fw-bold shadow-sm hover-scale">
+                        Sign In <i class="fas fa-sign-in-alt ms-2"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card-footer bg-light border-0 text-center py-4">
+            <div class="p-3 rounded bg-teal-lighter-subtle mb-3">
+                <div class="small text-teal-dark fw-bold">
+                    <i class="fas fa-info-circle me-1"></i> First time?
+                </div>
+                <div class="small text-teal-dark opacity-75">
+                    Your temporary password is: <code
+                        class="bg-white px-2 py-1 rounded shadow-sm border border-teal-lighter">maskan1447</code>
+                </div>
+            </div>
+
+            <div class="pt-2 border-top mt-3">
+                <span class="small text-muted">Are you Staff?</span>
+                <a href="{{ url_for('staff_login') }}" class="small fw-bold text-teal text-decoration-none hover-link">
+                    Staff Login <i class="fas fa-arrow-right ms-1"></i>
+                </a>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .login-container {
+        min-height: calc(100vh - 120px);
+        /* Adjust for footer height */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--teal-primary) 0%, var(--teal-dark) 100%);
+        padding: 40px 20px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Hide navigation elements for focused login */
+    .navbar {
+        display: none !important;
+    }
+
+    .main-content {
+        margin-top: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* .footer { display: block !important; } - Keep it visible */
+
+    .login-card {
+        width: 100%;
+        max-width: 450px;
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        border: none;
+        z-index: 10;
+    }
+
+    .bg-teal {
+        background-color: var(--teal-primary) !important;
+    }
+
+    .text-teal {
+        color: var(--teal-primary) !important;
+    }
+
+    .text-teal-dark {
+        color: var(--teal-dark) !important;
+    }
+
+    .text-teal-light {
+        color: var(--teal-light) !important;
+    }
+
+    .bg-teal-lighter-subtle {
+        background-color: rgba(178, 223, 219, 0.3);
+    }
+
+    .header-shape {
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 100%;
+        height: 40px;
+        background: white;
+        clip-path: ellipse(60% 100% at 50% 100%);
+    }
+
+    .input-group-text {
+        border-color: #eee;
+    }
+
+    .form-control {
+        border-color: #eee;
+    }
+
+    .form-control:focus {
+        border-color: var(--teal-primary);
+        box-shadow: none;
+        background-color: white !important;
+    }
+
+    .tracking-wider {
+        letter-spacing: 0.05em;
+    }
+
+    .animate-fade-in {
+        animation: fadeInScale 0.6s ease-out forwards;
+    }
+
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.95) translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+
+    .hover-link:hover {
+        text-decoration: underline !important;
+        color: var(--teal-dark) !important;
+    }
+
+    #togglePassword {
+        cursor: pointer;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const togglePassword = document.querySelector('#togglePassword');
+        const password = document.querySelector('#password');
+
+        if (togglePassword && password) {
+            togglePassword.addEventListener('click', function (e) {
+                const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+                password.setAttribute('type', type);
+                this.querySelector('i').classList.toggle('fa-eye');
+                this.querySelector('i').classList.toggle('fa-eye-slash');
+            });
+        }
+    });
+</script>
 {% endblock %}

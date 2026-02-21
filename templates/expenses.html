@@ -10,7 +10,8 @@
             <div class="text-muted">Track floor budget allocations and spending against procurement.</div>
         </div>
         <div class="col-md-6 text-end">
-            <button type="button" class="btn btn-outline-teal me-2" data-bs-toggle="modal" data-bs-target="#printConfigModal">
+            <button type="button" class="btn btn-outline-teal me-2" data-bs-toggle="modal"
+                data-bs-target="#printConfigModal">
                 <i class="fas fa-print"></i> Print Report
             </button>
             {% if is_manager %}
@@ -40,188 +41,240 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="stat-card {% if remaining_balance < 0 %}bg-danger{% else %}bg-success{% endif %} h-100 position-relative">
+            <div
+                class="stat-card {% if remaining_balance < 0 %}bg-danger{% else %}bg-success{% endif %} h-100 position-relative">
                 <div class="stat-content">
                     <p class="text-uppercase small fw-bold mb-1 opacity-75">Remaining Balance</p>
                     <h3 class="fw-bold mb-0">&#8377;{{ "%.2f"|format(remaining_balance) }}</h3>
                 </div>
-                {% if remaining_balance < 0 %}
-                <div class="position-absolute top-0 end-0 p-2">
+                {% if remaining_balance < 0 %} <div class="position-absolute top-0 end-0 p-2">
                     <i class="fas fa-exclamation-triangle text-white animate-pulse"></i>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="row d-print-none">
-        <!-- Procurement Ledger -->
-        <div class="col-lg-8">
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 fw-bold text-teal"><i class="fas fa-shopping-cart me-2"></i>Procurement Expense Ledger</h5>
-                    <div>
-                        <ul class="nav nav-pills nav-sm" id="ledgerTabs" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active py-1" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending-pane" type="button" role="tab">Pending</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link py-1" id="recorded-tab" data-bs-toggle="tab" data-bs-target="#recorded-pane" type="button" role="tab">Recorded</button>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="tab-content">
-                        <!-- Pending Costs Tab -->
-                        <div class="tab-pane fade show active" id="pending-pane" role="tabpanel">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="bg-light">
-                                        <tr>
-                                            <th>Item & Qty</th>
-                                            <th>Date Completed</th>
-                                            <th class="text-end">Actual Cost (&#8377;)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% set pending_count = namespace(value=0) %}
-                                        {% for item in completed_procurements %}
-                                            {% if not item.actual_cost or item.actual_cost == 0 %}
-                                                {% set pending_count.value = pending_count.value + 1 %}
-                                                <tr>
-                                                    <td>
-                                                        <div class="fw-bold">{{ item.item_name }}</div>
-                                                        <div class="small text-muted">{{ item.quantity }} &bull; {{ item.category }}</div>
-                                                    </td>
-                                                    <td>{{ item.created_at.strftime('%b %d, %Y') }}</td>
-                                                    <td class="text-end">
-                                                        {% if is_manager %}
-                                                        <form method="POST" action="{{ url_for('expenses') }}" class="d-flex justify-content-end gap-2">
-                                                            <input type="hidden" name="action" value="record_cost">
-                                                            <input type="hidden" name="item_id" value="{{ item.id }}">
-                                                            <input type="number" step="0.01" name="actual_cost" class="form-control form-control-sm text-end" placeholder="0.00" style="width: 100px;" required>
-                                                            <button type="submit" class="btn btn-sm btn-teal"><i class="fas fa-save"></i></button>
-                                                        </form>
-                                                        {% else %}
-                                                        <span class="text-muted italic">Not recorded</span>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                            {% endif %}
-                                        {% endfor %}
-                                        {% if pending_count.value == 0 %}
-                                        <tr>
-                                            <td colspan="3" class="text-center py-4 text-muted">No pending costs to record.</td>
-                                        </tr>
-                                        {% endif %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Recorded Costs Tab -->
-                        <div class="tab-pane fade" id="recorded-pane" role="tabpanel">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="bg-light">
-                                        <tr>
-                                            <th>Item & Qty</th>
-                                            <th>Date Completed</th>
-                                            <th class="text-end">Actual Cost (&#8377;)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% set recorded_count = namespace(value=0) %}
-                                        {% for item in completed_procurements %}
-                                            {% if item.actual_cost and item.actual_cost > 0 %}
-                                                {% set recorded_count.value = recorded_count.value + 1 %}
-                                                <tr>
-                                                    <td>
-                                                        <div class="fw-bold">{{ item.item_name }}</div>
-                                                        <div class="small text-muted">{{ item.quantity }} &bull; {{ item.category }}</div>
-                                                    </td>
-                                                    <td>{{ item.created_at.strftime('%b %d, %Y') }}</td>
-                                                    <td class="text-end fw-bold text-teal">
-                                                        {% if is_manager %}
-                                                        <div class="d-flex justify-content-end align-items-center gap-2">
-                                                            <span>&#8377;{{ "%.2f"|format(item.actual_cost) }}</span>
-                                                            <button class="btn btn-sm btn-link p-0 text-muted" onclick="enableEditCost(this, {{ item.id }}, '{{ item.actual_cost }}')">
-                                                                <i class="fas fa-edit"></i>
-                                                            </button>
-                                                        </div>
-                                                        {% else %}
-                                                        &#8377;{{ "%.2f"|format(item.actual_cost) }}
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                            {% endif %}
-                                        {% endfor %}
-                                        {% if recorded_count.value == 0 %}
-                                        <tr>
-                                            <td colspan="3" class="text-center py-4 text-muted">No recorded costs yet.</td>
-                                        </tr>
-                                        {% endif %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar: Budget History & Legacy -->
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-teal"></i>Budget Timeline</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        {% for b in budgets %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="badge bg-teal-light text-teal">{{ b.allocation_type.title() }}</span>
-                                <span class="fw-bold text-success">+&#8377;{{ b.amount_allocated }}</span>
-                            </div>
-                            <div class="small text-muted">
-                                From {{ b.start_date.strftime('%b %d') }} {% if b.end_date %}to {{ b.end_date.strftime('%b %d') }}{% endif %}
-                            </div>
-                            {% if b.notes %}
-                            <div class="small italic text-muted mt-1">"{{ b.notes }}"</div>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                        {% if not budgets %}
-                        <div class="p-3 text-center text-muted">No budget history yet.</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            {% if legacy_expenses %}
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-light py-2">
-                    <div class="small fw-bold text-muted text-uppercase">Legacy Expenses (History)</div>
-                </div>
-                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
-                    <div class="list-group list-group-flush">
-                        {% for e in legacy_expenses %}
-                        <div class="list-group-item small">
-                            <div class="d-flex justify-content-between">
-                                <span>{{ e.description }}</span>
-                                <span class="text-danger">-&#8377;{{ e.amount }}</span>
-                            </div>
-                            <div class="text-muted">{{ e.date.strftime('%Y-%m-%d') }}</div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
             </div>
             {% endif %}
         </div>
     </div>
+</div>
+
+<div class="row d-print-none">
+    <!-- Procurement Ledger -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-teal"><i class="fas fa-shopping-cart me-2"></i>Procurement Expense Ledger
+                </h5>
+                <div class="d-flex align-items-center gap-3">
+                    <ul class="nav nav-pills nav-sm" id="ledgerTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-1" id="pending-tab" data-bs-toggle="tab"
+                                data-bs-target="#pending-pane" type="button" role="tab">Pending Costs</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1" id="recorded-tab" data-bs-toggle="tab"
+                                data-bs-target="#recorded-pane" type="button" role="tab">Bills History</button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="tab-content">
+                    <!-- Pending Costs Tab -->
+                    <div class="tab-pane fade show active" id="pending-pane" role="tabpanel">
+                        <div class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center">
+                            <div class="small text-muted"><span id="selected-count">0</span> items selected</div>
+                            {% if is_manager %}
+                            <button type="button" class="btn btn-sm btn-teal" id="record-bill-btn" disabled
+                                onclick="openRecordBillModal()">
+                                <i class="fas fa-file-invoice me-1"></i> Record as Bill
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" class="form-check-input" id="select-all-pending"
+                                                onclick="toggleAllPending(this)">
+                                        </th>
+                                        <th>Item & Qty</th>
+                                        <th>Date Completed</th>
+                                        <th class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in pending_procurements %}
+                                    <tr class="pending-row" onclick="togglePendingRow(this, event)">
+                                        <td>
+                                            <input type="checkbox" class="form-check-input pending-check"
+                                                data-id="{{ item.id }}" data-name="{{ item.item_name }}"
+                                                data-qty="{{ item.quantity }}"
+                                                onclick="event.stopPropagation(); updateSelectedCount()">
+                                        </td>
+                                        <td>
+                                            <div class="fw-bold">{{ item.item_name }}</div>
+                                            <div class="small text-muted">{{ item.quantity }} &bull; {{ item.category }}
+                                            </div>
+                                        </td>
+                                        <td>{{ item.created_at.strftime('%b %d, %Y') }}</td>
+                                        <td class="text-end">
+                                            {% if is_manager %}
+                                            <button class="btn btn-sm btn-outline-teal" data-id="{{ item.id }}"
+                                                data-name="{{ item.item_name }}"
+                                                onclick="recordSingleCost(this.dataset.id, this.dataset.name, event)">
+                                                Record Cost
+                                            </button>
+                                            {% else %}
+                                            <span class="text-muted italic small">Waiting for PH</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if not pending_procurements %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted">No pending costs to record.
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Recorded Bills Tab -->
+                    <div class="tab-pane fade" id="recorded-pane" role="tabpanel">
+                        <div class="accordion accordion-flush" id="billsAccordion">
+                            {% for bill in bills %}
+                            <div class="accordion-item border-bottom">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-3" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#bill-{{ bill.id }}">
+                                        <div class="d-flex justify-content-between w-100 align-items-center me-3">
+                                            <div>
+                                                <span class="fw-bold text-teal">#{{ bill.bill_no }}</span>
+                                                <span class="mx-2 text-muted">|</span>
+                                                <span>{{ bill.bill_date.strftime('%b %d, %Y') }}</span>
+                                                {% if bill.shop_name %}
+                                                <span class="mx-2 text-muted">&bull;</span>
+                                                <span class="small text-muted">{{ bill.shop_name }}</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="fw-bold">&#8377;{{ "%.2f"|format(bill.total_amount) }}</div>
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div id="bill-{{ bill.id }}" class="accordion-collapse collapse"
+                                    data-bs-parent="#billsAccordion">
+                                    <div class="accordion-body p-0">
+                                        <table class="table table-sm table-borderless bg-light mb-0">
+                                            <thead>
+                                                <tr class="small text-muted">
+                                                    <th class="ps-4">Item</th>
+                                                    <th>Qty</th>
+                                                    <th class="text-end pe-4">Cost</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for item in bill.items %}
+                                                <tr>
+                                                    <td class="ps-4">{{ item.item_name }}</td>
+                                                    <td>{{ item.quantity }}</td>
+                                                    <td class="text-end pe-4 fw-bold text-teal">
+                                                        &#8377;{{ "%.2f"|format(item.actual_cost or 0) }}
+                                                        {% if is_manager %}
+                                                        <button class="btn btn-sm btn-link p-0 ms-1 text-muted"
+                                                            data-item-id="{{ item.id }}"
+                                                            data-cost="{{ item.actual_cost or 0 }}"
+                                                            onclick="enableEditCost(this, this.dataset.itemId, this.dataset.cost)">
+                                                            <i class="fas fa-edit small"></i>
+                                                        </button>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                            {% if is_manager %}
+                                            <tfoot>
+                                                <tr>
+                                                    <td colspan="3" class="text-end p-2 border-top">
+                                                        <form action="{{ url_for('delete_bill', bill_id=bill.id) }}"
+                                                            method="POST"
+                                                            onsubmit="return confirm('Delete this bill? Items will return to pending list.')">
+                                                            <button type="submit"
+                                                                class="btn btn-sm btn-link text-danger text-decoration-none">
+                                                                <i class="fas fa-trash-alt me-1"></i> Delete Bill record
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                            {% endif %}
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% if not bills %}
+                            <div class="p-4 text-center text-muted">No recorded bills yet.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar: Budget History & Legacy -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-teal"></i>Budget Timeline</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for b in budgets %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-teal-light text-teal">{{ b.allocation_type.title() }}</span>
+                            <span class="fw-bold text-success">+&#8377;{{ b.amount_allocated }}</span>
+                        </div>
+                        <div class="small text-muted">
+                            From {{ b.start_date.strftime('%b %d') }} {% if b.end_date %}to {{ b.end_date.strftime('%b
+                            %d') }}{% endif %}
+                        </div>
+                        {% if b.notes %}
+                        <div class="small italic text-muted mt-1">"{{ b.notes }}"</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% if not budgets %}
+                    <div class="p-3 text-center text-muted">No budget history yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if legacy_expenses %}
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-light py-2">
+                <div class="small fw-bold text-muted text-uppercase">Legacy Expenses (History)</div>
+            </div>
+            <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                <div class="list-group list-group-flush">
+                    {% for e in legacy_expenses %}
+                    <div class="list-group-item small">
+                        <div class="d-flex justify-content-between">
+                            <span>{{ e.description }}</span>
+                            <span class="text-danger">-&#8377;{{ e.amount }}</span>
+                        </div>
+                        <div class="text-muted">{{ e.date.strftime('%Y-%m-%d') }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
 </div>
 
 {% if is_manager %}
@@ -254,7 +307,8 @@
                         <div class="col-6">
                             <div class="mb-3">
                                 <label class="form-label">Start Date</label>
-                                <input type="date" name="start_date" class="form-control" value="{{ today.strftime('%Y-%m-%d') if today else '' }}" required>
+                                <input type="date" name="start_date" class="form-control"
+                                    value="{{ today.strftime('%Y-%m-%d') if today else '' }}" required>
                             </div>
                         </div>
                     </div>
@@ -264,7 +318,8 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Notes</label>
-                        <textarea name="notes" class="form-control" rows="2" placeholder="e.g. Funding for upcoming event..."></textarea>
+                        <textarea name="notes" class="form-control" rows="2"
+                            placeholder="e.g. Funding for upcoming event..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -276,6 +331,73 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Record Bill Modal -->
+<div class="modal fade" id="recordBillModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-teal text-white">
+                <h5 class="modal-title fw-bold">Record New Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('expenses') }}" method="POST">
+                <input type="hidden" name="action" value="record_bill">
+                <div class="modal-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Bill No. / Receipt #</label>
+                            <input type="text" name="bill_no" class="form-control" required placeholder="e.g. INV-101">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Bill Date</label>
+                            <input type="date" name="bill_date" class="form-control"
+                                value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Shop / Vendor</label>
+                            <div class="input-group">
+                                <input type="text" name="shop_name" id="shop_name_input" class="form-control"
+                                    placeholder="e.g. D-Mart" required>
+                                <button class="btn btn-outline-teal dropdown-toggle" type="button"
+                                    data-bs-toggle="dropdown" aria-expanded="false"></button>
+                                <ul class="dropdown-menu dropdown-menu-end" id="shopSuggestions">
+                                    {% for shop in unique_shops %}
+                                    <li><a class="dropdown-item" href="javascript:void(0)" data-shop="{{ shop }}"
+                                            onclick="selectShop(this.dataset.shop)">{{ shop }}</a></li>
+                                    {% endfor %}
+                                    {% if not unique_shops %}
+                                    <li><span class="dropdown-item-text text-muted small">No previous vendors</span>
+                                    </li>
+                                    {% endif %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li><a class="dropdown-item small" href="javascript:void(0)"
+                                            onclick="resetShopInput()">+
+                                            Add New Vendor</a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <h6 class="fw-bold border-bottom pb-2 mb-3">Itemized Costs</h6>
+                    <div id="bill-items-container">
+                        <!-- Dynamic items will be inserted here -->
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-3">
+                        <div class="h5 mb-0">Total: &#8377;<span id="bill-running-total">0.00</span></div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-teal px-4">Save Bill & Expenses</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Print Configuration Modal -->
 <div class="modal fade" id="printConfigModal" tabindex="-1">
@@ -290,16 +412,19 @@
                     <label class="form-label fw-bold">1. Adjust Budget for this Report</label>
                     <div class="input-group">
                         <span class="input-group-text">&#8377;</span>
-                        <input type="number" step="0.01" class="form-control" id="printBudgetInput" value="{{ "%.2f"|format(total_budget) }}">
+                        <input type="number" step="0.01" class="form-control" id="printBudgetInput"
+                            value="{{ '%.2f'|format(total_budget) }}">
                     </div>
                     <div class="form-text">This will only affect the printed PDF, not the database.</div>
                 </div>
 
                 <div class="mb-3 d-flex justify-content-between align-items-center">
-                    <label class="form-label fw-bold mb-0">2. Select Recorded Expenses to Include</label>
+                    <label class="form-label fw-bold mb-0">2. Select Bills to Include</label>
                     <div class="btn-group btn-group-sm">
-                        <button type="button" class="btn btn-outline-secondary" onclick="selectAllPrintItems(true)">Select All</button>
-                        <button type="button" class="btn btn-outline-secondary" onclick="selectAllPrintItems(false)">Deselect All</button>
+                        <button type="button" class="btn btn-outline-secondary"
+                            onclick="selectAllPrintItems(true)">Select All</button>
+                        <button type="button" class="btn btn-outline-secondary"
+                            onclick="selectAllPrintItems(false)">Deselect All</button>
                     </div>
                 </div>
 
@@ -309,47 +434,60 @@
                             <tr>
                                 <th style="width: 40px;"></th>
                                 <th>Date</th>
+                                <th>Bill #</th>
                                 <th>Item / Description</th>
-                                <th>Qty</th>
                                 <th class="text-end">Amount (₹)</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Procurement Items -->
-                            {% for item in completed_procurements %}
-                                {% if item.actual_cost and item.actual_cost > 0 %}
-                                <tr onclick="toggleRowCheck(this)">
-                                    <td class="text-center">
-                                        <input type="checkbox" class="print-item-check" checked 
-                                               data-date="{{ item.created_at.strftime('%Y-%m-%d') }}"
-                                               data-desc="{{ item.item_name }}"
-                                               data-qty="{{ item.quantity }}"
-                                               data-amount="{{ item.actual_cost }}">
-                                    </td>
-                                    <td>{{ item.created_at.strftime('%Y-%m-%d') }}</td>
-                                    <td>{{ item.item_name }}</td>
-                                    <td>{{ item.quantity }}</td>
-                                    <td class="text-end fw-bold text-teal">{{ "%.2f"|format(item.actual_cost) }}</td>
-                                </tr>
-                                {% endif %}
+                            <!-- Bills and their items -->
+                            {% for bill in bills %}
+                            <tr class="table-secondary small fw-bold">
+                                <td class="text-center">
+                                    <input type="checkbox" class="bill-group-check" checked data-bill-id="{{ bill.id }}"
+                                        onchange="toggleBillGroup(this, this.dataset.billId)">
+                                </td>
+                                <td>{{ bill.bill_date.strftime('%Y-%m-%d') }}</td>
+                                <td>#{{ bill.bill_no }}</td>
+                                <td>{{ bill.shop_name or 'N/A' }}</td>
+                                <td class="text-end">&#8377;{{ "%.2f"|format(bill.total_amount) }}</td>
+                            </tr>
+                            {% for item in bill.items %}
+                            <tr onclick="toggleRowCheck(this)" class="bill-item-row-{{ bill.id }}">
+                                <td class="text-center">
+                                    <input type="checkbox" class="print-item-check item-of-bill-{{ bill.id }}" checked
+                                        data-date="{{ bill.bill_date.strftime('%Y-%m-%d') }}"
+                                        data-bill="{{ bill.bill_no }}" data-desc="{{ item.item_name }}"
+                                        data-qty="{{ item.quantity }}" data-amount="{{ item.actual_cost }}">
+                                </td>
+                                <td class="ps-3 text-muted small">{{ bill.bill_date.strftime('%Y-%m-%d') }}</td>
+                                <td class="text-muted small">#{{ bill.bill_no }}</td>
+                                <td>{{ item.item_name }} <span class="text-muted small">({{ item.quantity }})</span>
+                                </td>
+                                <td class="text-end fw-bold text-teal">{{ "%.2f"|format(item.actual_cost or 0) }}</td>
+                            </tr>
                             {% endfor %}
-                            
+                            {% endfor %}
+
                             <!-- Legacy Expenses -->
+                            {% if legacy_expenses %}
+                            <tr class="table-light small fw-bold">
+                                <td colspan="5">Manual / Legacy Expenses</td>
+                            </tr>
                             {% for e in legacy_expenses %}
                             <tr onclick="toggleRowCheck(this)">
                                 <td class="text-center">
-                                    <input type="checkbox" class="print-item-check" checked 
-                                           data-date="{{ e.date.strftime('%Y-%m-%d') }}"
-                                           data-desc="{{ e.description }}"
-                                           data-qty="-"
-                                           data-amount="{{ e.amount }}">
+                                    <input type="checkbox" class="print-item-check" checked
+                                        data-date="{{ e.date.strftime('%Y-%m-%d') }}" data-bill="N/A"
+                                        data-desc="{{ e.description }}" data-qty="-" data-amount="{{ e.amount }}">
                                 </td>
                                 <td>{{ e.date.strftime('%Y-%m-%d') }}</td>
-                                <td>{{ e.description }}</td>
                                 <td>-</td>
+                                <td>{{ e.description }}</td>
                                 <td class="text-end fw-bold text-danger">{{ "%.2f"|format(e.amount) }}</td>
                             </tr>
                             {% endfor %}
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -372,7 +510,8 @@
 <!-- Original Printable Report (Hidden) -->
 <div id="printableReportTemplate" style="display: none;">
     <div class="print-header text-center mb-4">
-        <h2 class="fw-bold" style="color: #00695c;">AJS Pantry - Floor <span id="printFloorVal">{{ active_floor }}</span></h2>
+        <h2 class="fw-bold" style="color: #00695c;">AJS Pantry - Floor <span id="printFloorVal">{{ active_floor
+                }}</span></h2>
         <h3>Monthly Expense Report</h3>
         <p>Generated on: {{ today.strftime('%Y-%m-%d') if today else '' }}</p>
     </div>
@@ -380,8 +519,8 @@
         <thead>
             <tr>
                 <th>Date</th>
+                <th>Bill No.</th>
                 <th>Item / Description</th>
-                <th>Quantity</th>
                 <th class="text-end">Amount (₹)</th>
             </tr>
         </thead>
@@ -398,149 +537,242 @@
 </div>
 
 <script>
-function selectAllPrintItems(checked) {
-    document.querySelectorAll('.print-item-check').forEach(cb => {
-        cb.checked = checked;
-    });
-    updatePrintSummary();
-}
+    function toggleAllPending(master) {
+        var cbs = document.querySelectorAll('.pending-check');
+        for (var i = 0; i < cbs.length; i++) {
+            cbs[i].checked = master.checked;
+        }
+        updateSelectedCount();
+    }
 
-function toggleRowCheck(row) {
-    const cb = row.querySelector('.print-item-check');
-    if (cb) {
-        cb.checked = !cb.checked;
+    function togglePendingRow(row, event) {
+        if (event.target.type === 'checkbox' || event.target.tagName === 'BUTTON') return;
+        var cb = row.querySelector('.pending-check');
+        if (cb) {
+            cb.checked = !cb.checked;
+            updateSelectedCount();
+        }
+    }
+
+    function updateSelectedCount() {
+        var checked = document.querySelectorAll('.pending-check:checked');
+        var elCount = document.getElementById('selected-count');
+        var elBtn = document.getElementById('record-bill-btn');
+        if (elCount) elCount.innerText = checked.length;
+        if (elBtn) elBtn.disabled = (checked.length === 0);
+
+        var all = document.querySelectorAll('.pending-check');
+        var elSelectAll = document.getElementById('select-all-pending');
+        if (elSelectAll) elSelectAll.checked = (checked.length === all.length && all.length > 0);
+    }
+
+    function openRecordBillModal() {
+        var checked = document.querySelectorAll('.pending-check:checked');
+        var container = document.getElementById('bill-items-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        for (var i = 0; i < checked.length; i++) {
+            var cb = checked[i];
+            var id = cb.getAttribute('data-id');
+            var name = cb.getAttribute('data-name');
+            var qty = cb.getAttribute('data-qty');
+
+            var div = document.createElement('div');
+            div.className = 'row g-2 mb-2 align-items-center bg-light p-2 rounded';
+            div.innerHTML = '<div class="col-6">' +
+                '<input type="hidden" name="item_ids[]" value="' + id + '">' +
+                '<div class="fw-bold small">' + name + '</div>' +
+                '<div class="text-muted" style="font-size: 0.75rem;">' + qty + '</div>' +
+                '</div>' +
+                '<div class="col-6">' +
+                '<div class="input-group input-group-sm">' +
+                '<span class="input-group-text">₹</span>' +
+                '<input type="number" step="0.01" name="costs[]" class="form-control text-end bill-item-cost" ' +
+                'placeholder="Cost" required oninput="calculateBillTotal()">' +
+                '</div>' +
+                '</div>';
+            container.appendChild(div);
+        }
+
+        calculateBillTotal();
+        var modalEl = document.getElementById('recordBillModal');
+        if (modalEl) {
+            var modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+    }
+
+    function recordSingleCost(id, name, event) {
+        if (event) event.stopPropagation();
+        var cbs = document.querySelectorAll('.pending-check');
+        for (var i = 0; i < cbs.length; i++) {
+            cbs[i].checked = (cbs[i].getAttribute('data-id') == id);
+        }
+        updateSelectedCount();
+        openRecordBillModal();
+    }
+
+    function calculateBillTotal() {
+        var total = 0;
+        var inputs = document.querySelectorAll('.bill-item-cost');
+        for (var i = 0; i < inputs.length; i++) {
+            total += parseFloat(inputs[i].value || 0);
+        }
+        var el = document.getElementById('bill-running-total');
+        if (el) el.innerText = total.toFixed(2);
+    }
+
+    function toggleBillGroup(master, billId) {
+        var cbs = document.querySelectorAll('.item-of-bill-' + billId);
+        for (var i = 0; i < cbs.length; i++) {
+            cbs[i].checked = master.checked;
+        }
         updatePrintSummary();
     }
-}
 
-function updatePrintSummary() {
-    let count = 0;
-    let total = 0;
-    document.querySelectorAll('.print-item-check:checked').forEach(cb => {
-        count++;
-        total += parseFloat(cb.getAttribute('data-amount') || 0);
-    });
-    document.getElementById('printSummaryPreview').innerText = `Selected: ${count} items | Total: ₹${total.toFixed(2)}`;
-}
-
-// Initial summary call
-document.addEventListener('DOMContentLoaded', () => {
-    updatePrintSummary();
-    // Prevent row toggle when clicking checkbox directly
-    document.querySelectorAll('.print-item-check').forEach(cb => {
-        cb.onclick = (e) => e.stopPropagation();
-        cb.onchange = updatePrintSummary;
-    });
-});
-
-function generateCustomPrintReport() {
-    const customBudget = parseFloat(document.getElementById('printBudgetInput').value || 0);
-    const selectedItems = [];
-    let totalSpent = 0;
-
-    document.querySelectorAll('.print-item-check:checked').forEach(cb => {
-        const amt = parseFloat(cb.getAttribute('data-amount') || 0);
-        selectedItems.push({
-            date: cb.getAttribute('data-date'),
-            desc: cb.getAttribute('data-desc'),
-            qty: cb.getAttribute('data-qty'),
-            amount: amt
-        });
-        totalSpent += amt;
-    });
-
-    if (selectedItems.length === 0) {
-        alert('Please select at least one record to print.');
-        return;
+    function selectAllPrintItems(checked) {
+        var cbs = document.querySelectorAll('.print-item-check, .bill-group-check');
+        for (var i = 0; i < cbs.length; i++) {
+            cbs[i].checked = checked;
+        }
+        updatePrintSummary();
     }
 
-    const remaining = customBudget - totalSpent;
-    
-    // Build the table rows
-    let rowsHtml = '';
-    selectedItems.forEach(item => {
-        rowsHtml += `
-            <tr>
-                <td>${item.date}</td>
-                <td>${item.desc}</td>
-                <td>${item.qty}</td>
-                <td class="text-end">₹${item.amount.toFixed(2)}</td>
-            </tr>
-        `;
+    function toggleRowCheck(row) {
+        var cb = row.querySelector('.print-item-check');
+        if (cb) {
+            cb.checked = !cb.checked;
+            updatePrintSummary();
+        }
+    }
+
+    function updatePrintSummary() {
+        var count = 0;
+        var total = 0;
+        var checked = document.querySelectorAll('.print-item-check:checked');
+        for (var i = 0; i < checked.length; i++) {
+            count++;
+            total += parseFloat(checked[i].getAttribute('data-amount') || 0);
+        }
+        var el = document.getElementById('printSummaryPreview');
+        if (el) el.innerText = 'Selected: ' + count + ' items | Total: ₹' + total.toFixed(2);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        updatePrintSummary();
+        var printCbs = document.querySelectorAll('.print-item-check');
+        for (var i = 0; i < printCbs.length; i++) {
+            printCbs[i].onclick = function (e) { e.stopPropagation(); };
+            printCbs[i].onchange = updatePrintSummary;
+        }
+        var groupCbs = document.querySelectorAll('.bill-group-check');
+        for (var j = 0; j < groupCbs.length; j++) {
+            groupCbs[j].onclick = function (e) { e.stopPropagation(); };
+        }
     });
 
-    // Build the footer
-    const footerHtml = `
-        <tr class="table-secondary fw-bold">
-            <td colspan="3">Report Budget Allocation</td>
-            <td class="text-end">₹${customBudget.toFixed(2)}</td>
-        </tr>
-        <tr class="table-warning fw-bold">
-            <td colspan="3">Total Spent (Selected)</td>
-            <td class="text-end">₹${totalSpent.toFixed(2)}</td>
-        </tr>
-        <tr class="${remaining < 0 ? 'table-danger' : 'table-success'} fw-bold">
-            <td colspan="3">Balance</td>
-            <td class="text-end">₹${remaining.toFixed(2)}</td>
-        </tr>
-    `;
+    function generateCustomPrintReport() {
+        var customBudget = parseFloat(document.getElementById('printBudgetInput').value || 0);
+        var selectedItems = [];
+        var totalSpent = 0;
+        var checked = document.querySelectorAll('.print-item-check:checked');
 
-    // Populate the template
-    const printTemplate = document.getElementById('printableReportTemplate').cloneNode(true);
-    printTemplate.style.display = 'block';
-    printTemplate.querySelector('#printReportBody').innerHTML = rowsHtml;
-    printTemplate.querySelector('#printReportFooter').innerHTML = footerHtml;
+        for (var i = 0; i < checked.length; i++) {
+            var cb = checked[i];
+            var amt = parseFloat(cb.getAttribute('data-amount') || 0);
+            selectedItems.push({
+                date: cb.getAttribute('data-date'),
+                bill: cb.getAttribute('data-bill'),
+                desc: cb.getAttribute('data-desc'),
+                qty: cb.getAttribute('data-qty'),
+                amount: amt
+            });
+            totalSpent += amt;
+        }
 
-    // Open print window
-    const w = window.open('', '_blank', 'width=900,height=750');
-    if (!w) return;
+        if (selectedItems.length === 0) {
+            alert('Please select at least one record to print.');
+            return;
+        }
 
-    w.document.open();
-    w.document.write(`
-        <!doctype html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>AJS Pantry Expense Report</title>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-            <style>
-                body { padding: 30px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-                .table th { background-color: #f8f9fa !important; color: #00695c !important; }
-                .print-header h2 { color: #00695c; }
-                @media print {
-                    .table-secondary { background-color: #e2e3e5 !important; -webkit-print-color-adjust: exact; }
-                    .table-warning { background-color: #fff3cd !important; -webkit-print-color-adjust: exact; }
-                    .table-success { background-color: #d4edda !important; -webkit-print-color-adjust: exact; }
-                    .table-danger { background-color: #f8d7da !important; -webkit-print-color-adjust: exact; }
-                }
-            </style>
-        </head>
-        <body>
-            ${printTemplate.innerHTML}
-        </body>
-        </html>
-    `);
-    w.document.close();
+        var remaining = customBudget - totalSpent;
+        var rowsHtml = '';
+        for (var j = 0; j < selectedItems.length; j++) {
+            var item = selectedItems[j];
+            var itemDesc = item.desc;
+            if (item.qty && item.qty !== '-') {
+                itemDesc += ' (' + item.qty + ')';
+            }
+            rowsHtml += '<tr>' +
+                '<td>' + item.date + '</td>' +
+                '<td>' + (item.bill !== 'N/A' ? '#' + item.bill : '-') + '</td>' +
+                '<td>' + itemDesc + '</td>' +
+                '<td class="text-end">₹' + item.amount.toFixed(2) + '</td>' +
+                '</tr>';
+        }
+        var footerHtml = '<tr class="table-secondary fw-bold">' +
+            '<td colspan="3">Report Budget Allocation</td>' +
+            '<td class="text-end">₹' + customBudget.toFixed(2) + '</td>' +
+            '</tr>' +
+            '<tr class="table-warning fw-bold">' +
+            '<td colspan="3">Total Spent (Selected)</td>' +
+            '<td class="text-end">₹' + totalSpent.toFixed(2) + '</td>' +
+            '</tr>' +
+            '<tr class="' + (remaining < 0 ? 'table-danger' : 'table-success') + ' fw-bold">' +
+            '<td colspan="3">Balance</td>' +
+            '<td class="text-end">₹' + remaining.toFixed(2) + '</td>' +
+            '</tr>';
 
-    w.focus();
-    setTimeout(() => {
-        w.print();
-        w.close();
-    }, 500);
-}
+        var printTemplate = document.getElementById('printableReportTemplate').cloneNode(true);
+        printTemplate.style.display = 'block';
+        printTemplate.querySelector('#printReportBody').innerHTML = rowsHtml;
+        printTemplate.querySelector('#printReportFooter').innerHTML = footerHtml;
 
-function enableEditCost(btn, itemId, currentCost) {
-    const td = btn.closest('td');
-    td.innerHTML = `
-        <form method="POST" action="{{ url_for('expenses') }}" class="d-flex justify-content-end gap-2">
-            <input type="hidden" name="action" value="record_cost">
-            <input type="hidden" name="item_id" value="${itemId}">
-            <input type="number" step="0.01" name="actual_cost" class="form-control form-control-sm text-end" value="${currentCost}" style="width: 100px;" required>
-            <button type="submit" class="btn btn-sm btn-teal"><i class="fas fa-save"></i></button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="location.reload()"><i class="fas fa-times"></i></button>
-        </form>
-    `;
-}
+        var w = window.open('', '_blank', 'width=900,height=750');
+        if (!w) return;
+
+        w.document.open();
+        w.document.write('<!doctype html><html><head><meta charset="utf-8">' +
+            '<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">' +
+            '<style>body { padding: 30px; font-family: sans-serif; } .table th { background-color: #f8f9fa !important; color: #00695c !important; }' +
+            '@media print {.table-secondary { background-color: #e2e3e5 !important; -webkit-print-color-adjust: exact; }' +
+            '.table-warning { background-color: #fff3cd !important; -webkit-print-color-adjust: exact; }' +
+            '.table-success { background-color: #d4edda !important; -webkit-print-color-adjust: exact; }' +
+            '.table-danger { background-color: #f8d7da !important; -webkit-print-color-adjust: exact; }' +
+            '}</style></head><body>' + printTemplate.innerHTML + '</body></html>');
+        w.document.close();
+
+        w.focus();
+        setTimeout(function () { w.print(); w.close(); }, 500);
+    }
+
+    function enableEditCost(btn, itemId, currentCost) {
+        var td = btn.closest('td');
+        var originalContent = td.innerHTML;
+        td.innerHTML = '<form method="POST" action="{{ url_for("expenses") }}" class="d-flex justify-content-end gap-2">' +
+            '<input type="hidden" name="action" value="record_cost">' +
+            '<input type="hidden" name="item_id" value="' + itemId + '">' +
+            '<input type="number" step="0.01" name="actual_cost" class="form-control form-control-sm text-end" value="' + currentCost + '" style="width: 80px;" required>' +
+            '<button type="submit" class="btn btn-sm btn-teal p-1"><i class="fas fa-save"></i></button>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary p-1" onclick="this.closest(\'td\').innerHTML = \'' + originalContent.replace(/'/g, "\\'").replace(/"/g, "&quot;") + '\'"><i class="fas fa-times"></i></button>' +
+            '</form>';
+    }
+
+    function selectShop(val) {
+        var input = document.getElementById('shop_name_input');
+        if (input) {
+            input.value = val;
+        }
+    }
+
+    function resetShopInput() {
+        var input = document.getElementById('shop_name_input');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+    }
 </script>
+
 {% endblock %}

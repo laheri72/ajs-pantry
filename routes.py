@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
-from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote, Garamat
+from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote, Garamat, Bill
 from datetime import datetime, date, timedelta
 import logging
 from sqlalchemy import or_, func
@@ -149,6 +149,11 @@ def login():
     if request.method == 'POST':
         role = 'member'
         email = request.form.get('email', '').strip()
+        
+        # Auto-append domain if only TR number is provided
+        if email and '@' not in email:
+            email = f"{email}@jameasaifiyah.edu"
+            
         password = request.form.get('password', '').strip()
         
         user = None
@@ -187,8 +192,12 @@ def staff_login():
             flash('Admin login requires a username (not email).', 'error')
             return render_template('staff_login.html')
         if role != 'admin' and not email:
-            flash('Please enter your email address.', 'error')
+            flash('Please enter your TR Number.', 'error')
             return render_template('staff_login.html')
+
+        # Auto-append domain for staff if only TR number is provided
+        if email and '@' not in email:
+            email = f"{email}@jameasaifiyah.edu"
 
         user = None
         if role == 'admin':
@@ -912,6 +921,49 @@ def admin():
             flash('Member added successfully', 'success')
             return redirect(url_for('admin'))
 
+        if action == 'bulk_add_users':
+            try:
+                floor = int(request.form.get('floor') or '')
+                tr_input = (request.form.get('tr_list') or '').strip()
+                if not tr_input:
+                    flash('No TR numbers provided', 'error')
+                    return redirect(url_for('admin'))
+                
+                # Split by commas or newlines
+                import re
+                tr_numbers = re.split(r'[,\n\r]+', tr_input)
+                tr_numbers = [t.strip() for t in tr_numbers if t.strip()]
+                
+                if not tr_numbers:
+                    flash('No valid TR numbers found', 'error')
+                    return redirect(url_for('admin'))
+
+                added_count = 0
+                skipped_count = 0
+                
+                for tr in tr_numbers:
+                    email = f"{tr}@jameasaifiyah.edu"
+                    if User.query.filter(or_(User.email == email, User.tr_number == tr)).first():
+                        skipped_count += 1
+                        continue
+                    
+                    new_user = User()
+                    new_user.role = 'member'
+                    new_user.floor = floor
+                    new_user.tr_number = tr
+                    new_user.email = email
+                    new_user.password_hash = generate_password_hash('maskan1447')
+                    new_user.is_first_login = True
+                    db.session.add(new_user)
+                    added_count += 1
+                
+                db.session.commit()
+                flash(f'Successfully added {added_count} members to Floor {floor}. {skipped_count} skipped (already exist).', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error during bulk add: {str(e)}', 'error')
+            return redirect(url_for('admin'))
+
         if action == 'assign_role':
             role = (request.form.get('role') or '').strip()
             if role not in {'pantryHead', 'teaManager'}:
@@ -1009,7 +1061,50 @@ def admin():
             return redirect(url_for('admin'))
             
     all_users = User.query.all()
-    return render_template('admin.html', user=user, all_users=all_users, current_user=user)
+    
+    # Holistic Analytics
+    total_users = User.query.count()
+    total_budget_all = float(db.session.query(func.sum(Budget.amount_allocated)).scalar() or 0)
+    
+    # Spent across all floors (Procurements + Legacy)
+    total_spent_proc = float(db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.status == 'completed').scalar() or 0)
+    total_spent_legacy = float(db.session.query(func.sum(Expense.amount)).scalar() or 0)
+    total_spent_all = total_spent_proc + total_spent_legacy
+    
+    system_avg_rating = db.session.query(func.avg(Feedback.rating)).scalar() or 0
+    
+    # Floor-wise Breakdown
+    floor_data = []
+    for f in range(FLOOR_MIN, FLOOR_MAX + 1):
+        ph = User.query.filter_by(floor=f, role='pantryHead').first()
+        f_user_count = User.query.filter_by(floor=f).count()
+        f_budget = float(db.session.query(func.sum(Budget.amount_allocated)).filter(Budget.floor == f).scalar() or 0)
+        f_spent_proc = float(db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.floor == f, ProcurementItem.status == 'completed').scalar() or 0)
+        f_spent_legacy = float(db.session.query(func.sum(Expense.amount)).filter(Expense.floor == f).scalar() or 0)
+        f_spent = f_spent_proc + f_spent_legacy
+        f_rating = db.session.query(func.avg(Feedback.rating)).filter(Feedback.floor == f).scalar() or 0
+        
+        floor_data.append({
+            'floor': f,
+            'user_count': f_user_count,
+            'pantry_head': ph.full_name if ph and ph.full_name else (ph.username if ph else 'Not Assigned'),
+            'budget': f_budget,
+            'spent': f_spent,
+            'remaining': f_budget - f_spent,
+            'avg_rating': round(float(f_rating), 1)
+        })
+
+    return render_template(
+        'admin.html', 
+        user=user, 
+        all_users=all_users, 
+        total_users=total_users,
+        total_budget_all=total_budget_all,
+        total_spent_all=total_spent_all,
+        system_avg_rating=round(float(system_avg_rating), 1),
+        floor_data=floor_data,
+        current_user=user
+    )
 
 
 @app.route('/admin/floor-members', methods=['GET'])
@@ -1520,7 +1615,7 @@ def expenses():
     # Permission check: Read-only for members, manage for PH/Admin
     is_manager = user.role in ['admin', 'pantryHead']
 
-    # 1. Handle actual_cost updates for completed procurements
+    # 1. Handle actual_cost updates and Bills
     if request.method == 'POST' and is_manager:
         action = request.form.get('action')
         if action == 'record_cost':
@@ -1538,8 +1633,66 @@ def expenses():
                 else:
                     item.actual_cost = cost
                     item.expense_recorded_at = datetime.utcnow()
+                    
+                    # If item belongs to a bill, update bill total
+                    if item.bill_id:
+                        bill = Bill.query.get(item.bill_id)
+                        if bill:
+                            # Recalculate total amount from all items in this bill
+                            bill_total = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
+                            bill.total_amount = bill_total
+
                     db.session.commit()
                     flash(f'Cost for {item.item_name} recorded.', 'success')
+            return redirect(url_for('expenses'))
+
+        if action == 'record_bill':
+            try:
+                item_ids = request.form.getlist('item_ids[]')
+                costs = request.form.getlist('costs[]')
+                bill_no = (request.form.get('bill_no') or '').strip()
+                bill_date_str = request.form.get('bill_date')
+                shop_name = (request.form.get('shop_name') or '').strip()
+                
+                if not bill_no or not bill_date_str:
+                    flash('Bill number and date are required', 'error')
+                    return redirect(url_for('expenses'))
+                
+                if not item_ids:
+                    flash('Please select at least one item to include in the bill.', 'error')
+                    return redirect(url_for('expenses'))
+
+                bill_date = datetime.strptime(bill_date_str, '%Y-%m-%d').date()
+                
+                # Create the bill
+                bill = Bill(
+                    bill_no=bill_no,
+                    bill_date=bill_date,
+                    shop_name=shop_name,
+                    floor=floor,
+                    total_amount=0
+                )
+                db.session.add(bill)
+                db.session.flush() # Get bill.id
+                
+                total_amount = 0
+                for i in range(len(item_ids)):
+                    item_id = int(item_ids[i])
+                    cost = float(costs[i] or 0)
+                    
+                    item = ProcurementItem.query.get(item_id)
+                    if item and (user.role == 'admin' or item.floor == floor):
+                        item.actual_cost = cost
+                        item.bill_id = bill.id
+                        item.expense_recorded_at = datetime.utcnow()
+                        total_amount += cost
+                
+                bill.total_amount = total_amount
+                db.session.commit()
+                flash(f'Bill {bill_no} recorded successfully with {len(item_ids)} items.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error recording bill: {str(e)}', 'error')
             return redirect(url_for('expenses'))
 
     # 2. Financial Calculations
@@ -1559,8 +1712,13 @@ def expenses():
     remaining_balance = float(total_budget) - total_spent
 
     # 3. Data for Ledger
-    # Get completed procurements for this floor
-    completed_procurements = ProcurementItem.query.filter_by(floor=floor, status='completed').order_by(ProcurementItem.created_at.desc()).all()
+    # Get completed procurements for this floor that are NOT yet in a bill
+    pending_procurements = ProcurementItem.query.filter_by(
+        floor=floor, status='completed', bill_id=None
+    ).order_by(ProcurementItem.created_at.desc()).all()
+    
+    # Get all bills for this floor
+    bills = Bill.query.filter_by(floor=floor).order_by(Bill.bill_date.desc()).all()
     
     # Get budget history
     budgets = Budget.query.filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
@@ -1568,18 +1726,50 @@ def expenses():
     # Legacy expenses for reference
     legacy_expenses = Expense.query.filter_by(floor=floor).order_by(Expense.date.desc()).all()
 
+    # Get unique shop names for suggestions
+    unique_shops = db.session.query(Bill.shop_name).filter(
+        Bill.floor == floor, Bill.shop_name.isnot(None), Bill.shop_name != ''
+    ).distinct().order_by(Bill.shop_name).all()
+    unique_shops = [s[0] for s in unique_shops]
+
     return render_template(
         'expenses.html',
         total_budget=total_budget,
         total_spent=total_spent,
         remaining_balance=remaining_balance,
-        completed_procurements=completed_procurements,
+        pending_procurements=pending_procurements,
+        bills=bills,
         budgets=budgets,
         legacy_expenses=legacy_expenses,
+        unique_shops=unique_shops,
         is_manager=is_manager,
         today=date.today(),
         current_user=user
     )
+
+
+@app.route('/bills/<int:bill_id>/delete', methods=['POST'])
+def delete_bill(bill_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    bill = Bill.query.get_or_404(bill_id)
+    if user.role != 'admin' and bill.floor != user.floor:
+        abort(403)
+
+    # Detach items from bill and reset their costs if needed?
+    # User probably wants to keep costs but remove bill grouping
+    # Or maybe delete everything? Let's just detach and reset costs to 0 for pending re-recording
+    for item in bill.items:
+        item.bill_id = None
+        # Should we reset actual_cost? If the bill is deleted, the cost is no longer verified by that bill.
+        # Let's keep the cost but move it back to pending.
+    
+    db.session.delete(bill)
+    db.session.commit()
+    flash('Bill deleted and items moved back to pending costs.', 'success')
+    return redirect(url_for('expenses'))
 
 
 @app.route('/budgets/add', methods=['POST'])

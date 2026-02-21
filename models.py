@@ -124,6 +124,18 @@ class Request(db.Model):
     user = db.relationship('User', foreign_keys=[user_id])
     approved_by = db.relationship('User', foreign_keys=[approved_by_id])
 
+class Bill(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bill_no = db.Column(db.String(100), nullable=False)
+    bill_date = db.Column(db.Date, nullable=False)
+    shop_name = db.Column(db.String(100), nullable=True)
+    total_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    floor = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship to items
+    items = db.relationship('ProcurementItem', backref='bill', lazy=True)
+
 class ProcurementItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     item_name = db.Column(db.String(100), nullable=False)
@@ -139,6 +151,7 @@ class ProcurementItem(db.Model):
     # New financial fields
     actual_cost = db.Column(db.Numeric(12, 2), nullable=True)
     expense_recorded_at = db.Column(db.DateTime, nullable=True)
+    bill_id = db.Column(db.Integer, db.ForeignKey('bill.id'), nullable=True)
     
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
