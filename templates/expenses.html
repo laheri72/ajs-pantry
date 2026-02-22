@@ -200,7 +200,7 @@
                                             <tfoot>
                                                 <tr>
                                                     <td colspan="3" class="text-end p-2 border-top">
-                                                        <form action="{{ url_for('delete_bill', bill_id=bill.id) }}"
+                                                        <form action="{{ url_for('finance.delete_bill', bill_id=bill.id) }}"
                                                             method="POST"
                                                             onsubmit="return confirm('Delete this bill? Items will return to pending list.')">
                                                             <button type="submit"
@@ -290,7 +290,7 @@
                 <h5 class="modal-title fw-bold">Allocate Budget (Floor {{ active_floor }})</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ url_for('add_budget') }}" method="POST">
+            <form action="{{ url_for('finance.add_budget') }}" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Amount Allocated (&#8377;)</label>
@@ -402,7 +402,7 @@
                 <h5 class="modal-title fw-bold">Record New Bill</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ url_for('expenses') }}" method="POST">
+            <form action="{{ url_for('finance.expenses') }}" method="POST">
                 <input type="hidden" name="action" value="record_bill">
                 <div class="modal-body">
                     <div class="row g-3 mb-4">
@@ -824,7 +824,7 @@
     function enableEditCost(btn, itemId, currentCost) {
         var td = btn.closest('td');
         var originalContent = td.innerHTML;
-        td.innerHTML = '<form method="POST" action="{{ url_for("expenses") }}" class="d-flex justify-content-end gap-2">' +
+        td.innerHTML = '<form method="POST" action="{{ url_for("finance.expenses") }}" class="d-flex justify-content-end gap-2">' +
             '<input type="hidden" name="action" value="record_cost">' +
             '<input type="hidden" name="item_id" value="' + itemId + '">' +
             '<input type="number" step="0.01" name="actual_cost" class="form-control form-control-sm text-end" value="' + currentCost + '" style="width: 80px;" required>' +

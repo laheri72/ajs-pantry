@@ -138,7 +138,35 @@ with app.app_context():
     except Exception as e:
         logging.warning(f"Admin management failed: {e}")
 
-from routes import *
+from blueprints.utils import _get_current_user, _get_active_floor, _display_name_for, _get_floor_options_for_admin
+from datetime import datetime
+
+@app.context_processor
+def inject_current_user():
+    current_user = _get_current_user()
+    active_floor = _get_active_floor(current_user)
+    return {
+        "current_user": current_user,
+        "display_name": _display_name_for(current_user),
+        "needs_profile_details": bool(current_user and current_user.role == 'member' and not (current_user.username and current_user.username.strip())),
+        "active_floor": active_floor,
+        "floor_options": _get_floor_options_for_admin() if current_user and current_user.role == 'admin' else [],
+        "now": datetime.utcnow(),
+    }
+
+from blueprints.auth import auth_bp
+from blueprints.pantry import pantry_bp
+from blueprints.finance import finance_bp
+from blueprints.ops import ops_bp
+from blueprints.admin import admin_bp
+from blueprints.main import main_bp
+app.register_blueprint(auth_bp)
+app.register_blueprint(pantry_bp)
+app.register_blueprint(finance_bp)
+app.register_blueprint(ops_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(main_bp)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

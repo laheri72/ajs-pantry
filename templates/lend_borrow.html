@@ -67,7 +67,7 @@
                             <div class="border-top pt-3 d-flex justify-content-between align-items-center">
                                 <span class="small text-muted"><i class="fas fa-clock me-1"></i>{{ item.created_at.strftime('%b %d') }}</span>
                                 {% if item.borrower_floor == active_floor %}
-                                <form action="{{ url_for('mark_returned', record_id=item.id) }}" method="POST">
+                                <form action="{{ url_for('finance.mark_returned', record_id=item.id) }}" method="POST">
                                     <button type="submit" class="btn btn-sm btn-outline-warning text-dark fw-bold">
                                         <i class="fas fa-undo me-1"></i> Mark Returned
                                     </button>
@@ -109,13 +109,13 @@
 
                             {% if item.lender_floor == active_floor %}
                             <div class="d-flex gap-2">
-                                <form action="{{ url_for('verify_return', record_id=item.id) }}" method="POST" class="flex-grow-1">
+                                <form action="{{ url_for('finance.verify_return', record_id=item.id) }}" method="POST" class="flex-grow-1">
                                     <input type="hidden" name="action" value="confirm">
                                     <button type="submit" class="btn btn-sm btn-success w-100 fw-bold">
                                         <i class="fas fa-check me-1"></i> Confirm
                                     </button>
                                 </form>
-                                <form action="{{ url_for('verify_return', record_id=item.id) }}" method="POST" class="flex-grow-1">
+                                <form action="{{ url_for('finance.verify_return', record_id=item.id) }}" method="POST" class="flex-grow-1">
                                     <input type="hidden" name="action" value="reject">
                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100 fw-bold">
                                         <i class="fas fa-times me-1"></i> Reject
@@ -188,7 +188,7 @@
                 <h5 class="modal-title fw-bold">Record Inter-Floor Lending</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ url_for('create_lend_borrow') }}" method="POST">
+            <form action="{{ url_for('finance.create_lend_borrow') }}" method="POST">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Borrowing Floor</label>

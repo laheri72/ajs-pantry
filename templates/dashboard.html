@@ -94,7 +94,7 @@
                 <div>
                     <strong>Complete your profile</strong> &mdash; add your name so others can recognize you.
                 </div>
-                <a class="btn btn-sm btn-outline-dark" href="{{ url_for('profile') }}">Update Profile</a>
+                <a class="btn btn-sm btn-outline-dark" href="{{ url_for('auth.profile') }}">Update Profile</a>
             </div>
         </div>
     </div>
@@ -265,7 +265,7 @@
                         <div class="row g-3">
                             {% if user.role in ['admin', 'pantryHead'] %}
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('menus') }}" class="action-card">
+                                <a href="{{ url_for('pantry.menus') }}" class="action-card">
                                     <i class="fas fa-utensils"></i>
                                     <h5>Manage Menus</h5>
                                     <p>Create and edit meal plans</p>
@@ -275,7 +275,7 @@
 
                             {% if user.role in ['admin', 'teaManager'] %}
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('tea') }}" class="action-card">
+                                <a href="{{ url_for('ops.tea') }}" class="action-card">
                                     <i class="fas fa-coffee"></i>
                                     <h5>Tea Management</h5>
                                     <p>Schedule tea tasks</p>
@@ -285,7 +285,7 @@
 
                             {% if user.role in ['admin', 'pantryHead'] %}
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('expenses') }}" class="action-card">
+                                <a href="{{ url_for('finance.expenses') }}" class="action-card">
                                     <i class="fas fa-money-bill"></i>
                                     <h5>Track Expenses</h5>
                                     <p>Manage floor expenses</p>
@@ -294,7 +294,7 @@
                             {% endif %}
 
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('suggestions') }}" class="action-card">
+                                <a href="{{ url_for('pantry.suggestions') }}" class="action-card">
                                     <i class="fas fa-lightbulb"></i>
                                     <h5>Suggestions</h5>
                                     <p>Share your ideas</p>
@@ -302,7 +302,7 @@
                             </div>
 
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('feedbacks') }}" class="action-card">
+                                <a href="{{ url_for('pantry.feedbacks') }}" class="action-card">
                                     <i class="fas fa-comment"></i>
                                     <h5>Feedbacks</h5>
                                     <p>Rate and review</p>
@@ -310,7 +310,7 @@
                             </div>
 
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('requests') }}" class="action-card">
+                                <a href="{{ url_for('ops.requests') }}" class="action-card">
                                     <i class="fas fa-bell"></i>
                                     <h5>Requests</h5>
                                     <p>Submit or manage requests</p>
@@ -319,7 +319,7 @@
 
                             {% if user.role in ['admin', 'pantryHead'] %}
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('procurement') }}" class="action-card">
+                                <a href="{{ url_for('ops.procurement') }}" class="action-card">
                                     <i class="fas fa-shopping-cart"></i>
                                     <h5>Procurement</h5>
                                     <p>Manage shopping lists</p>
@@ -329,7 +329,7 @@
 
                             {% if user.role == 'admin' %}
                             <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('admin') }}" class="action-card">
+                                <a href="{{ url_for('admin_panel.admin') }}" class="action-card">
                                     <i class="fas fa-cog"></i>
                                     <h5>Admin Panel</h5>
                                     <p>Manage users and settings</p>
@@ -360,7 +360,7 @@
                                 <div class="text-muted small">Member since {{ user.created_at.strftime('%B %Y') if
                                     user.created_at else 'N/A' }}</div>
                             </div>
-                            <a href="{{ url_for('profile') }}" class="btn btn-teal btn-sm">
+                            <a href="{{ url_for('auth.profile') }}" class="btn btn-teal btn-sm">
                                 <i class="fas fa-edit me-1"></i>Edit
                             </a>
                         </div>

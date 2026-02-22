@@ -30,7 +30,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-teal fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+            <a class="navbar-brand" href="{{ url_for('pantry.dashboard') }}">
                 <i class="fas fa-utensils me-2"></i>Maskan Breakfast
             </a>
 
@@ -41,74 +41,74 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                        <a class="nav-link" href="{{ url_for('pantry.dashboard') }}">
                             <i class="fas fa-home"></i> Home
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('people') }}">
+                        <a class="nav-link" href="{{ url_for('pantry.people') }}">
                             <i class="fas fa-users"></i> People
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('calendar') }}">
+                        <a class="nav-link" href="{{ url_for('pantry.calendar') }}">
                             <i class="fas fa-calendar"></i> Calendar
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('menus') }}">
+                        <a class="nav-link" href="{{ url_for('pantry.menus') }}">
                             <i class="fas fa-utensils"></i> Menus
                         </a>
                     </li>
                     {% if current_user.role in ['admin', 'pantryHead', 'teaManager'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('tea') }}">
+                        <a class="nav-link" href="{{ url_for('ops.tea') }}">
                             <i class="fas fa-coffee"></i> Tea
                         </a>
                     </li>
                     {% endif %}
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('expenses') }}">
+                        <a class="nav-link" href="{{ url_for('finance.expenses') }}">
                             <i class="fas fa-money-bill"></i> Expenses
                         </a>
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('suggestions') }}">
+                        <a class="nav-link" href="{{ url_for('pantry.suggestions') }}">
                             <i class="fas fa-lightbulb"></i> Suggestions
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('feedbacks') }}">
+                        <a class="nav-link" href="{{ url_for('pantry.feedbacks') }}">
                             <i class="fas fa-comment"></i> Feedbacks
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('requests') }}">
+                        <a class="nav-link" href="{{ url_for('ops.requests') }}">
                             <i class="fas fa-bell"></i> Requests
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('procurement') }}">
+                        <a class="nav-link" href="{{ url_for('ops.procurement') }}">
                             <i class="fas fa-shopping-cart"></i> Procurement
                         </a>
                     </li>
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('lend_borrow') }}">
+                        <a class="nav-link" href="{{ url_for('finance.lend_borrow') }}">
                             <i class="fas fa-handshake"></i> Lend & Borrow
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('floor_admin') }}">
+                        <a class="nav-link" href="{{ url_for('admin_panel.floor_admin') }}">
                             <i class="fas fa-user-shield"></i> Floor Admin
                         </a>
                     </li>
                     {% endif %}
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin') }}">
+                        <a class="nav-link" href="{{ url_for('admin_panel.admin') }}">
                             <i class="fas fa-cog"></i> Admin
                         </a>
                     </li>
@@ -116,7 +116,7 @@
                 </ul>
 
                 {% if current_user.role == 'admin' %}
-                <form class="d-flex align-items-center me-3" method="POST" action="{{ url_for('set_active_floor') }}">
+                <form class="d-flex align-items-center me-3" method="POST" action="{{ url_for('admin_panel.set_active_floor') }}">
                     <label class="text-white small me-2 mb-0" for="activeFloorSelect">Viewing</label>
                     <select class="form-select form-select-sm" id="activeFloorSelect" name="floor"
                         onchange="this.form.submit()">
@@ -133,11 +133,11 @@
                             <i class="fas fa-user-circle"></i> {{ display_name }}
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('profile') }}">Profile</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
-                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
                                     <i class="fas fa-unlock"></i> Logout
                                 </a></li>
                         </ul>
