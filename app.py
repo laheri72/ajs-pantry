@@ -12,9 +12,15 @@ class Base(DeclarativeBase):
 
 db = SQLAlchemy(model_class=Base)
 
+from datetime import timedelta
+
 # Create the app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "maskan-breakfast-management-secret-key")
+
+# Session Security for Shared PCs
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
+app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 
 def get_db_url():
     # Read both possible env names

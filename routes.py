@@ -170,6 +170,7 @@ def login():
             session['user_id'] = user.id
             session['role'] = user.role
             session['floor'] = user.floor
+            session.permanent = True
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid credentials', 'error')
@@ -223,6 +224,7 @@ def staff_login():
             session['user_id'] = user.id
             session['role'] = user.role
             session['floor'] = user.floor
+            session.permanent = True
             if user.role == 'admin':
                 session['active_floor'] = user.floor
             return redirect(url_for('dashboard'))

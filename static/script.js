@@ -19,6 +19,9 @@ function initializeApp() {
     
     // Initialize tooltips
     initializeTooltips();
+
+    // Initialize inactivity logout
+    initializeInactivityLogout();
     
     // Save last page for return navigation
     saveCurrentPage();
@@ -719,3 +722,38 @@ window.handleProfilePicUpload = handleProfilePicUpload;
 window.editUser = editUser;
 window.filterByFloor = filterByFloor;
 window.initializeCookingAlerts = initializeCookingAlerts;
+
+// Inactivity Logout for Shared PCs
+function initializeInactivityLogout() {
+    // Only run if the user is logged in (check for logout link in navbar)
+    const logoutLink = document.querySelector('a[href*="logout"]');
+    if (!logoutLink) return;
+
+    let inactivityTimer;
+    const INACTIVITY_LIMIT = 15 * 60 * 1000; // 15 minutes
+    const WARNING_TIME = 2 * 60 * 1000; // 2 minute warning
+
+    function resetTimer() {
+        clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(showInactivityWarning, INACTIVITY_LIMIT - WARNING_TIME);
+    }
+
+    function showInactivityWarning() {
+        showNotification('You will be logged out in 2 minutes due to inactivity.', 'warning', 10000);
+        inactivityTimer = setTimeout(logoutUser, WARNING_TIME);
+    }
+
+    function logoutUser() {
+        showNotification('Logging out due to inactivity...', 'info');
+        window.location.href = '/logout';
+    }
+
+    // Events that reset the timer
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    activityEvents.forEach(event => {
+        document.addEventListener(event, resetTimer, true);
+    });
+
+    // Initial start
+    resetTimer();
+}
