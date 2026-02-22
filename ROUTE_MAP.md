@@ -53,7 +53,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/lend-borrow/create` | `create_lend_borrow` | POST | Log a new lending transaction |
 | `/lend-borrow/<id>/mark-returned` | `mark_returned` | POST | Borrower signals item return |
 | `/lend-borrow/<id>/verify`| `verify_return` | POST | Lender confirms or rejects return |
-| `/expenses/import-pdf` | `import_pdf` | POST | Parse D-Mart invoices via PDF service |
+| `/expenses/import-receipt` | `import_receipt` | POST | Scan PDF/Image receipts |
 | `/expenses/save-imported-bill` | `save_imported_bill`| POST | Persist parsed PDF data to DB |
 
 ---

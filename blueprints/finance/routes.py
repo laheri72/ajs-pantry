@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort
 from app import db
 from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill
-from pdf_service import PDFParserService
+from .services.parser_factory import ParserFactory
 from datetime import datetime, date
 from sqlalchemy import or_, func
 import logging
@@ -339,8 +339,8 @@ def verify_return(record_id):
     db.session.commit()
     return redirect(url_for('finance.lend_borrow'))
 
-@finance_bp.route('/expenses/import-pdf', methods=['POST'])
-def import_pdf():
+@finance_bp.route('/expenses/import-receipt', methods=['POST'])
+def import_receipt():
     user = _require_user()
     if not user or user.role not in ['admin', 'pantryHead']:
         return jsonify({'error': 'Unauthorized'}), 403
@@ -352,13 +352,31 @@ def import_pdf():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
+    # 1. Size Guard: Max 5MB
+    file.seek(0, 2)  # Seek to end
+    file_size = file.tell()
+    file.seek(0)     # Reset to beginning
+    if file_size > 5 * 1024 * 1024:
+        return jsonify({'error': 'File size exceeds 5MB limit.'}), 400
+
+    # 2. MIME Validation
+    mime_type = file.content_type
+    allowed_mimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+    if mime_type not in allowed_mimes:
+        return jsonify({'error': f"Unsupported file type: {mime_type}"}), 400
+
     try:
-        data = PDFParserService.parse_dmart_invoice(file.stream)
+        # Use Factory to process (Full pipeline: Extract Text -> Detect Parser -> Parse Data)
+        receipt_data = ParserFactory.process_receipt(file.stream, mime_type)
+        if not receipt_data:
+            return jsonify({'error': 'Failed to extract text from receipt.'}), 500
+            
+        data = receipt_data.to_dict()
         data['filename'] = file.filename
         return jsonify(data)
     except Exception as e:
-        logging.error(f"PDF Import Error: {str(e)}")
-        return jsonify({'error': f"Failed to parse PDF: {str(e)}"}), 500
+        logging.error(f"Receipt Import Error: {str(e)}")
+        return jsonify({'error': f"Failed to parse receipt: {str(e)}"}), 500
 
 @finance_bp.route('/expenses/save-imported-bill', methods=['POST'])
 def save_imported_bill():
@@ -380,12 +398,12 @@ def save_imported_bill():
             bill_date = date.today()
 
         bill = Bill(
-            bill_no=data.get('bill_no') or f"DM-{int(datetime.utcnow().timestamp())}",
+            bill_no=data.get('bill_no') or f"REC-{int(datetime.utcnow().timestamp())}",
             bill_date=bill_date,
-            shop_name=data.get('shop_name') or 'D-Mart',
+            shop_name=data.get('shop_name') or 'Generic Vendor',
             total_amount=data.get('total_amount', 0),
             floor=floor,
-            source='pdf_import',
+            source='receipt_scan',
             original_filename=data.get('filename')
         )
         db.session.add(bill)
