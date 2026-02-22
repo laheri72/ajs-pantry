@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort
+from flask import render_template, request, redirect, url_for, session, flash, jsonify, abort, make_response
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import app, db
 from models import User, Dish, Menu, Expense, TeaTask, Suggestion, Feedback, Request, ProcurementItem, Team, TeamMember, Budget, FloorLendBorrow, SpecialEvent, Announcement, SuggestionVote, Garamat, Bill
@@ -2637,3 +2637,21 @@ def save_imported_bill():
         db.session.rollback()
         logging.error(f"Save Imported Bill Error: {str(e)}")
         return jsonify({'error': f"Failed to save bill: {str(e)}"}), 500
+
+# --- PWA Routes ---
+@app.route('/service-worker.js')
+def service_worker():
+    response = make_response(app.send_static_file('service-worker.js'))
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
+
+@app.route('/manifest.json')
+def manifest():
+    response = make_response(app.send_static_file('manifest.json'))
+    response.headers['Content-Type'] = 'application/manifest+json'
+    return response
+
+@app.route('/offline')
+def offline():
+    return render_template('offline.html')
