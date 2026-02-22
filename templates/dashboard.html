@@ -22,8 +22,7 @@
                                 active_floor }}</span>
                             <span class="badge rounded-pill"><i class="fas fa-user-tag me-1"></i>{{ user.role.title()
                                 }}</span>
-                            {% if upcoming_menu_assignments or upcoming_tea_duties or upcoming_procurement_assignments
-                            %}
+                            {% if upcoming_menu_assignments or upcoming_tea_duties or upcoming_procurement_assignments or upcoming_events %}
                             <span class="badge rounded-pill"><i class="fas fa-bolt me-1"></i>Upcoming assignments</span>
                             {% else %}
                             <span class="badge rounded-pill"><i class="fas fa-circle-check me-1"></i>No upcoming
@@ -79,9 +78,9 @@
                             title="Toggle theme">
                             <i class="fas fa-moon" id="themeIcon"></i>
                         </button>
-                        <!-- <button class="btn btn-outline-light" onclick="downloadApp()" title="Download App">
+                        <button class="btn btn-outline-light" id="installAppBtn" style="display: none;" onclick="downloadApp()" title="Download App">
                             <i class="fas fa-download me-1"></i>Download
-                        </button> -->
+                        </button>
                     </div>
                 </div>
             </div>
@@ -218,17 +217,17 @@
                     <div class="card-body p-0">
                         <div class="list-group list-group-flush">
                             {% for n in notifications %}
-                            <div class="list-group-item px-4 py-3 border-start border-4 {{ 'border-primary' if n.type == 'announcement' else 'border-success' }} mb-1">
+                            <div class="list-group-item px-4 py-3 border-start border-4 {{ 'border-primary' if n.type == 'announcement' else ('border-info' if n.type == 'event' else 'border-success') }} mb-1">
                                 <div class="d-flex align-items-start gap-3">
                                     <div class="flex-shrink-0 mt-1">
                                         <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                            <i class="{{ n.icon }} {{ 'text-primary' if n.type == 'announcement' else 'text-success' }}"></i>
+                                            <i class="{{ n.icon }} {{ 'text-primary' if n.type == 'announcement' else ('text-info' if n.type == 'event' else 'text-success') }}"></i>
                                         </div>
                                     </div>
                                     <div class="flex-grow-1">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <h6 class="mb-0 fw-bold">{{ n.title }}</h6>
-                                            <span class="badge {{ 'bg-primary' if n.type == 'announcement' else 'bg-success' }} opacity-75 small px-2 py-1">
+                                            <span class="badge {{ 'bg-primary' if n.type == 'announcement' else ('bg-info' if n.type == 'event' else 'bg-success') }} opacity-75 small px-2 py-1">
                                                 {{ n.category }}
                                             </span>
                                         </div>

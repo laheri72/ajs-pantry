@@ -265,16 +265,53 @@ body.dark-theme .list-group-item-action:hover {
 }
 
 /* Alert Overrides */
+body.dark-theme .alert {
+    background-color: var(--bg-surface-light) !important;
+    color: var(--text-main) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+body.dark-theme .alert-success {
+    background-color: rgba(76, 175, 80, 0.15) !important;
+    color: #81C784 !important;
+    border: 1px solid rgba(76, 175, 80, 0.3) !important;
+}
+
+body.dark-theme .alert-danger {
+    background-color: rgba(244, 67, 54, 0.15) !important;
+    color: #E57373 !important;
+    border: 1px solid rgba(244, 67, 54, 0.3) !important;
+}
+
+body.dark-theme .alert-warning {
+    background-color: rgba(255, 152, 0, 0.15) !important;
+    color: #FFB74D !important;
+    border: 1px solid rgba(255, 152, 0, 0.3) !important;
+}
+
+body.dark-theme .alert-info {
+    background-color: rgba(33, 150, 243, 0.15) !important;
+    color: #90CAF9 !important;
+    border: 1px solid rgba(33, 150, 243, 0.3) !important;
+}
+
 body.dark-theme .alert-light {
     background-color: var(--bg-surface-light) !important;
     border-color: var(--border-color) !important;
     color: var(--text-main) !important;
 }
 
-body.dark-theme .alert-info {
-    background-color: rgba(33, 150, 243, 0.1) !important;
-    color: #90CAF9 !important;
-    border: 1px solid rgba(33, 150, 243, 0.3) !important;
+/* Ensure text inside alerts doesn't get overridden by general body rules */
+body.dark-theme .alert h1, 
+body.dark-theme .alert h2, 
+body.dark-theme .alert h3, 
+body.dark-theme .alert h4, 
+body.dark-theme .alert h5, 
+body.dark-theme .alert h6,
+body.dark-theme .alert p,
+body.dark-theme .alert span,
+body.dark-theme .alert div {
+    color: inherit !important;
 }
 
 /* Badge Overrides */
@@ -342,7 +379,17 @@ body.dark-theme .evaluation-pending-card {
 }
 
 body.dark-theme .rating-input label {
-    color: var(--gray) !important;
+    color: rgba(255, 255, 255, 0.25) !important;
+}
+
+body.dark-theme .rating-input label.text-warning,
+body.dark-theme .rating .text-warning,
+body.dark-theme .text-warning {
+    color: #FFD54F !important;
+}
+
+body.dark-theme .rating .text-muted {
+    color: rgba(255, 255, 255, 0.25) !important;
 }
 
 /* Stat Cards - Ensure text readability */
