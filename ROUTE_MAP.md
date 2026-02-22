@@ -28,6 +28,8 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/people` | `people` | GET | Member directory & Performance leaderboards |
 | `/calendar` | `calendar` | GET | Monthly view of all floor activities |
 | `/special-events` | `create_special_event` | POST | Add events to the calendar |
+| `/special-events/<id>/update`| `update_special_event` | POST | Edit a special event |
+| `/special-events/<id>/delete`| `delete_special_event` | POST | Remove a special event |
 | `/menus` | `menus` | GET, POST | View/Manage daily breakfast plans |
 | `/menus/<id>/delete` | `delete_menu` | POST | Remove a menu entry |
 | `/suggestions` | `suggestions` | GET, POST | Community idea board |

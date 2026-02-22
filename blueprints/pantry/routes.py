@@ -465,6 +465,47 @@ def create_special_event():
     flash('Special event added to calendar.', 'success')
     return redirect(url_for('pantry.calendar'))
 
+@pantry_bp.route('/special-events/<int:event_id>/delete', methods=['POST'])
+def delete_special_event(event_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    event = SpecialEvent.query.get_or_404(event_id)
+    
+    # Ensure the event belongs to the user's floor (optional but recommended)
+    floor = _get_active_floor(user)
+    if event.floor != floor:
+        abort(403)
+
+    db.session.delete(event)
+    db.session.commit()
+    flash('Special event deleted.', 'success')
+    return redirect(url_for('pantry.calendar'))
+
+@pantry_bp.route('/special-events/<int:event_id>/update', methods=['POST'])
+def update_special_event(event_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    event = SpecialEvent.query.get_or_404(event_id)
+    
+    floor = _get_active_floor(user)
+    if event.floor != floor:
+        abort(403)
+
+    try:
+        event.title = request.form.get('title')
+        event.description = request.form.get('description')
+        event.date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+        db.session.commit()
+        flash('Special event updated.', 'success')
+    except Exception:
+        flash('Invalid event data', 'error')
+
+    return redirect(url_for('pantry.calendar'))
+
 @pantry_bp.route('/menus', methods=['GET', 'POST'])
 def menus():
     user = _require_user()
