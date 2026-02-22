@@ -72,7 +72,7 @@
                     <p class="text-muted">Member since {{ user.created_at.strftime('%B %Y') if user.created_at else 'N/A' }}</p>
                 </div>
                 <div class="profile-actions">
-                    <a href="{{ url_for('profile') }}" class="btn btn-teal">
+                    <a href="{{ url_for('auth.profile') }}" class="btn btn-teal">
                         <i class="fas fa-edit"></i> Edit Profile
                     </a>
                 </div>

@@ -81,12 +81,12 @@
                                         <div class="pt-1">
                                             {% if current_user.role in ['admin', 'pantryHead'] %}
                                             <div class="d-flex flex-column gap-1">
-                                                <form method="POST" action="{{ url_for('complete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Mark this item as completed?')">
+                                                <form method="POST" action="{{ url_for('ops.complete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Mark this item as completed?')">
                                                     <button type="submit" class="btn btn-sm btn-outline-success" title="Mark completed">
                                                         <i class="fas fa-check"></i>
                                                     </button>
                                                 </form>
-                                                <form method="POST" action="{{ url_for('delete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Delete this item from database?')">
+                                                <form method="POST" action="{{ url_for('ops.delete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Delete this item from database?')">
                                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Item">
                                                         <i class="fas fa-trash small"></i>
                                                     </button>
@@ -153,12 +153,12 @@
                                             <div class="fw-semibold">{{ item.item_name }}</div>
                                             {% if current_user.role in ['admin', 'pantryHead'] %}
                                             <div class="d-flex gap-1">
-                                                <form method="POST" action="{{ url_for('revoke_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Revert this item to pending?')">
+                                                <form method="POST" action="{{ url_for('ops.revoke_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Revert this item to pending?')">
                                                     <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-2" title="Revert to Pending">
                                                         <i class="fas fa-undo small"></i>
                                                     </button>
                                                 </form>
-                                                <a href="{{ url_for('expenses') }}" class="btn btn-sm btn-outline-teal py-0 px-2" title="Record Cost">
+                                                <a href="{{ url_for('finance.expenses') }}" class="btn btn-sm btn-outline-teal py-0 px-2" title="Record Cost">
                                                     <i class="fas fa-money-bill-wave small"></i>
                                                     {% if item.actual_cost %}<span class="ms-1 small">₹{{ item.actual_cost }}</span>{% else %}<span class="ms-1 small">Cost</span>{% endif %}
                                                 </a>
