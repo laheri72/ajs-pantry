@@ -169,11 +169,6 @@ function initializeOfflineSupport() {
     window.addEventListener('online', handleOnlineStatus);
     window.addEventListener('offline', handleOfflineStatus);
     
-    // Initialize service worker for offline functionality
-    if ('serviceWorker' in navigator) {
-        registerServiceWorker();
-    }
-    
     // Initialize IndexedDB for offline storage
     initializeOfflineStorage();
 }
@@ -219,16 +214,6 @@ function updateOnlineIndicator(isOnline) {
         indicator.textContent = 'Offline';
         indicator.style.display = 'block';
     }
-}
-
-function registerServiceWorker() {
-    navigator.serviceWorker.register('/static/sw.js')
-        .then(registration => {
-            console.log('Service Worker registered successfully');
-        })
-        .catch(error => {
-            console.log('Service Worker registration failed');
-        });
 }
 
 function initializeOfflineStorage() {
@@ -384,14 +369,49 @@ function refreshData() {
     }, 500);
 }
 
+// PWA Installation Logic
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    // Update UI notify the user they can install the PWA
+    const installBtn = document.getElementById('installAppBtn');
+    if (installBtn) {
+        installBtn.style.display = 'inline-block';
+    }
+    console.log('PWA: beforeinstallprompt event fired');
+});
+
+window.addEventListener('appinstalled', (evt) => {
+    // Log install to analytics
+    console.log('PWA: App installed');
+    // Hide the install button
+    const installBtn = document.getElementById('installAppBtn');
+    if (installBtn) {
+        installBtn.style.display = 'none';
+    }
+});
+
 function downloadApp() {
-    // Create downloadable HTML file
-    showNotification('Preparing app download...', 'info');
-    
-    // This would create a static HTML version of the app
-    setTimeout(() => {
-        showNotification('Download feature will be available soon!', 'warning');
-    }, 1000);
+    if (!deferredPrompt) {
+        showNotification('App is already installed or not ready for installation.', 'info');
+        return;
+    }
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+            console.log('PWA: User accepted the install prompt');
+            showNotification('Thank you for installing the app!', 'success');
+        } else {
+            console.log('PWA: User dismissed the install prompt');
+        }
+        deferredPrompt = null;
+    });
 }
 
 // Profile Picture Management

@@ -8,7 +8,7 @@
         <div class="col-md-8">
             <h2>Floor Admin Panel</h2>
             <p class="text-muted">
-                Manage Tea Managers for Floor {{ floor }}
+                Manage Tea Managers , Announcements and Garamat for Floor {{ floor }}
                 {% if current_user.role == 'admin' %}(Admin view){% else %}(Pantry Head view){% endif %}
             </p>
         </div>
@@ -22,11 +22,13 @@
                     <input type="hidden" name="action" value="add_announcement">
                     <div class="col-md-4">
                         <label class="form-label">Title</label>
-                        <input type="text" name="title" class="form-control" placeholder="e.g., Breakfast Time Change" required>
+                        <input type="text" name="title" class="form-control" placeholder="e.g., Breakfast Time Change"
+                            required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Content</label>
-                        <textarea name="content" class="form-control" rows="1" placeholder="Detailed message..." required></textarea>
+                        <textarea name="content" class="form-control" rows="1" placeholder="Detailed message..."
+                            required></textarea>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary w-100">
@@ -55,7 +57,8 @@
                         <tbody>
                             {% for ann in active_announcements %}
                             <tr>
-                                <td style="width: 150px;"><small>{{ ann.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td style="width: 150px;"><small>{{ ann.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
                                 <td>
                                     <strong>{{ ann.title }}</strong><br>
                                     <small class="text-muted">{{ ann.content }}</small>
@@ -65,11 +68,13 @@
                                         <form method="POST" class="d-inline">
                                             <input type="hidden" name="action" value="archive_announcement">
                                             <input type="hidden" name="announcement_id" value="{{ ann.id }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Archive">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning"
+                                                title="Archive">
                                                 <i class="fas fa-archive"></i>
                                             </button>
                                         </form>
-                                        <form method="POST" class="d-inline" onsubmit="return confirm('Delete this announcement?')">
+                                        <form method="POST" class="d-inline"
+                                            onsubmit="return confirm('Delete this announcement?')">
                                             <input type="hidden" name="action" value="delete_announcement">
                                             <input type="hidden" name="announcement_id" value="{{ ann.id }}">
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
@@ -107,16 +112,19 @@
                         <tbody>
                             {% for ann in archived_announcements %}
                             <tr class="opacity-75">
-                                <td style="width: 150px;"><small>{{ ann.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                                <td style="width: 150px;"><small>{{ ann.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
                                 <td>
                                     <strong>{{ ann.title }}</strong><br>
                                     <small class="text-muted">{{ ann.content }}</small>
                                 </td>
                                 <td style="width: 100px;">
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Delete this archived announcement?')">
+                                    <form method="POST" class="d-inline"
+                                        onsubmit="return confirm('Delete this archived announcement?')">
                                         <input type="hidden" name="action" value="delete_announcement">
                                         <input type="hidden" name="announcement_id" value="{{ ann.id }}">
-                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Delete Permanently">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0"
+                                            title="Delete Permanently">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
@@ -136,11 +144,12 @@
             <div class="shadow-sm p-4 bg-white rounded">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0 text-danger"><i class="fas fa-gavel me-2"></i>Garamat (Penalty Records)</h5>
-                    <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="collapse" data-bs-target="#addGaramatForm">
+                    <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#addGaramatForm">
                         <i class="fas fa-plus me-1"></i> Record New Fine
                     </button>
                 </div>
-                
+
                 <div class="collapse mb-4" id="addGaramatForm">
                     <div class="card card-body border-danger">
                         <form method="POST" class="row g-3">
@@ -176,11 +185,13 @@
                             </div>
                             <div class="col-md-2">
                                 <label class="form-label">Date</label>
-                                <input type="date" name="date" class="form-control" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                                <input type="date" name="date" class="form-control"
+                                    value="{{ today.strftime('%Y-%m-%d') }}" required>
                             </div>
                             <div class="col-md-10">
                                 <label class="form-label">Reason</label>
-                                <input type="text" name="reason" class="form-control" placeholder="e.g. Missed cooking breakfast duty" required>
+                                <input type="text" name="reason" class="form-control"
+                                    placeholder="e.g. Missed cooking breakfast duty" required>
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
                                 <button type="submit" class="btn btn-danger w-100">Save</button>
@@ -206,11 +217,13 @@
                                 <td>{{ g.date.strftime('%Y-%m-%d') }}</td>
                                 <td>
                                     {% if g.user %}
-                                        <span class="badge bg-light text-dark border"><i class="fas fa-user me-1"></i>{{ g.user.full_name or g.user.username or g.user.email }}</span>
+                                    <span class="badge bg-light text-dark border"><i class="fas fa-user me-1"></i>{{
+                                        g.user.full_name or g.user.username or g.user.email }}</span>
                                     {% elif g.team %}
-                                        <span class="badge bg-teal-light text-teal border"><i class="fas fa-users me-1"></i>{{ g.team.name }}</span>
+                                    <span class="badge bg-teal-light text-teal border"><i
+                                            class="fas fa-users me-1"></i>{{ g.team.name }}</span>
                                     {% else %}
-                                        <span class="text-muted">N/A</span>
+                                    <span class="text-muted">N/A</span>
                                     {% endif %}
                                 </td>
                                 <td><small>{{ g.reason }}</small></td>
@@ -219,7 +232,8 @@
                                     <form method="POST" onsubmit="return confirm('Remove this record?')">
                                         <input type="hidden" name="action" value="delete_garamat">
                                         <input type="hidden" name="garamat_id" value="{{ g.id }}">
-                                        <button type="submit" class="btn btn-sm btn-link text-muted p-0"><i class="fas fa-times"></i></button>
+                                        <button type="submit" class="btn btn-sm btn-link text-muted p-0"><i
+                                                class="fas fa-times"></i></button>
                                     </form>
                                 </td>
                             </tr>
@@ -247,11 +261,11 @@
                         <select class="form-select" name="user_id" required>
                             <option value="" selected disabled>Select a user</option>
                             {% for u in floor_users %}
-                                {% if u.role == 'member' %}
-                                <option value="{{ u.id }}">
-                                    {{ u.full_name or u.username or u.email }} — {{ u.role }}
-                                </option>
-                                {% endif %}
+                            {% if u.role == 'member' %}
+                            <option value="{{ u.id }}">
+                                {{ u.full_name or u.username or u.email }} — {{ u.role }}
+                            </option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                         <small class="text-muted">This promotes an existing user on this floor to Tea Manager.</small>
@@ -289,7 +303,8 @@
                                 </td>
                                 <td><span class="badge bg-info text-white">{{ u.role }}</span></td>
                                 <td>
-                                    <form method="POST" class="d-inline" onsubmit="return confirm('Remove Tea Manager role for this user?')">
+                                    <form method="POST" class="d-inline"
+                                        onsubmit="return confirm('Remove Tea Manager role for this user?')">
                                         <input type="hidden" name="action" value="remove_tea_manager">
                                         <input type="hidden" name="user_id" value="{{ u.id }}">
                                         <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -312,23 +327,23 @@
 
 {% block extra_scripts %}
 <script>
-function toggleGaramatTarget() {
-    const type = document.getElementById('garamatType').value || 'individual';
-    const individualDiv = document.getElementById('garamatIndividualSelect');
-    const teamDiv = document.getElementById('garamatTeamSelect');
-    
-    if (type === 'individual') {
-        individualDiv.classList.remove('d-none');
-        teamDiv.classList.add('d-none');
-        const teamSelect = teamDiv.querySelector('select');
-        if (teamSelect) teamSelect.value = '';
-    } else {
-        individualDiv.classList.add('d-none');
-        teamDiv.classList.remove('d-none');
-        const individualSelect = individualDiv.querySelector('select');
-        if (individualSelect) individualSelect.value = '';
+    function toggleGaramatTarget() {
+        const type = document.getElementById('garamatType').value || 'individual';
+        const individualDiv = document.getElementById('garamatIndividualSelect');
+        const teamDiv = document.getElementById('garamatTeamSelect');
+
+        if (type === 'individual') {
+            individualDiv.classList.remove('d-none');
+            teamDiv.classList.add('d-none');
+            const teamSelect = teamDiv.querySelector('select');
+            if (teamSelect) teamSelect.value = '';
+        } else {
+            individualDiv.classList.add('d-none');
+            teamDiv.classList.remove('d-none');
+            const individualSelect = individualDiv.querySelector('select');
+            if (individualSelect) individualSelect.value = '';
+        }
     }
-}
 </script>
 {% endblock %}
 {% endblock %}

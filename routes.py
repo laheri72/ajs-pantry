@@ -593,6 +593,24 @@ def dashboard():
             'category': 'Procurement'
         })
 
+    # 3. Special Events (upcoming 7 days)
+    event_until = today + timedelta(days=7)
+    upcoming_events = SpecialEvent.query.filter(
+        SpecialEvent.floor == floor,
+        SpecialEvent.date >= today,
+        SpecialEvent.date <= event_until
+    ).order_by(SpecialEvent.date.asc()).all()
+    
+    for event in upcoming_events:
+        notifications.append({
+            'type': 'event',
+            'icon': 'fas fa-calendar-day',
+            'title': event.title,
+            'content': event.description or "Special floor event scheduled.",
+            'time': datetime.combine(event.date, datetime.min.time()),
+            'category': 'Special Event'
+        })
+
     # Sort notifications by time (newest first for announcements, soonest first for assignments if we mixed them)
     # Actually, let's keep it simple: Announcements first, then assignments
     notifications.sort(key=lambda x: x['time'], reverse=True)
@@ -607,6 +625,7 @@ def dashboard():
         upcoming_tea_duties=upcoming_tea_duties,
         upcoming_procurement_assignments=upcoming_procurement_assignments,
         upcoming_menu_assignments=upcoming_menu_assignments,
+        upcoming_events=upcoming_events,
         today=today,
         upcoming_until=upcoming_until,
         current_user=user,
