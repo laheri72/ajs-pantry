@@ -115,7 +115,7 @@ def complete_tea_task(task_id):
     if user.role not in ['admin', 'teaManager']:
         return ('', 403)
 
-    task = tenant_filter(TeaTask.query).get(task_id)
+    task = tenant_filter(TeaTask.query).filter_by(id=task_id).first()
     if not task:
         return ('', 404)
     if user.role != 'admin' and task.floor != user.floor:
@@ -186,7 +186,7 @@ def update_request_status(request_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    req = tenant_filter(Request.query).get(request_id)
+    req = tenant_filter(Request.query).filter_by(id=request_id).first()
     if not req:
         return ('', 404)
 
@@ -216,7 +216,7 @@ def delete_request(request_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    req = tenant_filter(Request.query).get(request_id)
+    req = tenant_filter(Request.query).filter_by(id=request_id).first()
     if not req:
         return ('', 404)
 
@@ -368,7 +368,7 @@ def complete_procurement_item(item_id):
             abort(403)
         return ('', 403)
 
-    item = tenant_filter(ProcurementItem.query).get(item_id)
+    item = tenant_filter(ProcurementItem.query).filter_by(id=item_id).first()
     if not item:
         if request.accept_mimetypes.accept_html:
             abort(404)
@@ -398,7 +398,7 @@ def revoke_procurement_item(item_id):
             abort(403)
         return ('', 403)
 
-    item = tenant_filter(ProcurementItem.query).get(item_id)
+    item = tenant_filter(ProcurementItem.query).filter_by(id=item_id).first()
     if not item:
         if request.accept_mimetypes.accept_html:
             abort(404)
@@ -431,7 +431,7 @@ def delete_procurement_item(item_id):
             abort(403)
         return ('', 403)
 
-    item = tenant_filter(ProcurementItem.query).get(item_id)
+    item = tenant_filter(ProcurementItem.query).filter_by(id=item_id).first()
     if not item:
         if request.accept_mimetypes.accept_html:
             abort(404)

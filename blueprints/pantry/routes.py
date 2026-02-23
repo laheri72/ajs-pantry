@@ -76,7 +76,7 @@ def dashboard():
         .first()
     )
     if top_team_row and top_team_row.team_id:
-        t = tenant_filter(Team.query).get(top_team_row.team_id)
+        t = tenant_filter(Team.query).filter_by(id=top_team_row.team_id).first()
         stats['top_team_7d'] = f"{(t.icon or '').strip()} {(t.name or '').strip()}".strip() if t else None
     else:
         stats['top_team_7d'] = None
@@ -538,7 +538,7 @@ def menus():
             if not dish_id_val:
                 flash('Invalid dish selected', 'error')
                 return redirect(url_for('pantry.menus'))
-            dish = tenant_filter(Dish.query).get(dish_id_val)
+            dish = tenant_filter(Dish.query).filter_by(id=dish_id_val).first()
             if not dish:
                 flash('Dish not found', 'error')
                 return redirect(url_for('pantry.menus'))
@@ -640,7 +640,7 @@ def delete_menu(menu_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    menu = tenant_filter(Menu.query).get(menu_id)
+    menu = tenant_filter(Menu.query).filter_by(id=menu_id).first()
     if not menu:
         abort(404)
     if user.role == 'pantryHead' and menu.floor != user.floor:
@@ -726,7 +726,7 @@ def delete_suggestion(suggestion_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    suggestion = tenant_filter(Suggestion.query).get(suggestion_id)
+    suggestion = tenant_filter(Suggestion.query).filter_by(id=suggestion_id).first()
     if not suggestion:
         return ('', 404)
 
@@ -759,7 +759,7 @@ def feedbacks():
             flash('Invalid menu selected', 'error')
             return redirect(url_for('pantry.feedbacks'))
 
-        menu = tenant_filter(Menu.query).get(menu_id_val)
+        menu = tenant_filter(Menu.query).filter_by(id=menu_id_val).first()
         if not menu or menu.floor != floor:
             flash('Menu not found on this floor', 'error')
             return redirect(url_for('pantry.feedbacks'))
@@ -844,7 +844,7 @@ def delete_feedback(feedback_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    feedback = tenant_filter(Feedback.query).get(feedback_id)
+    feedback = tenant_filter(Feedback.query).filter_by(id=feedback_id).first()
     if not feedback:
         return ('', 404)
 
