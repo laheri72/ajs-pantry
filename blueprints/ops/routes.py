@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, jsonify, abort
+from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g
 from app import db
 from models import User, TeaTask, Request, ProcurementItem
 from datetime import datetime, date

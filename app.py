@@ -114,7 +114,7 @@ from blueprints.utils import _get_current_user, _get_active_floor, _display_name
 @app.before_request
 def enforce_tenancy():
     # Public routes and Platform Admin portal
-    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login']
+    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login', 'send_email']
     if request.endpoint in public_endpoints or (request.endpoint and request.endpoint.startswith('static')) or request.path.startswith('/platform-admin'):
         return
 
@@ -175,6 +175,46 @@ app.register_blueprint(ops_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(main_bp)
 app.register_blueprint(super_admin_bp)
+
+@app.route("/internal/send-email", methods=["POST"])
+def send_email():
+    secret = request.headers.get("X-SECRET")
+
+    # Simple protection so nobody abuses your endpoint
+    if secret != "PANTRY_SECRET_123":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.json
+    to_email = data.get("email")
+    subject = data.get("subject")
+    html_content = data.get("html")
+
+    if not to_email:
+        return jsonify({"error": "Missing email"}), 400
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = os.environ.get("GMAIL_USER")
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html_content, "html"))
+
+    try:
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(
+            os.environ.get("GMAIL_USER"),
+            os.environ.get("GMAIL_PASS")
+        )
+        server.sendmail(
+            os.environ.get("GMAIL_USER"),
+            to_email,
+            msg.as_string()
+        )
+        server.quit()
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
