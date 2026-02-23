@@ -35,7 +35,7 @@ def expenses():
                 flash('Invalid cost value', 'error')
                 return redirect(url_for('finance.expenses'))
 
-            item = tenant_filter(ProcurementItem.query).get(item_id)
+            item = tenant_filter(ProcurementItem.query).filter_by(id=item_id).first()
             if item and (user.role == 'admin' or item.floor == user.floor):
                 if item.status != 'completed':
                     flash('Costs can only be recorded for completed items.', 'error')
@@ -45,7 +45,7 @@ def expenses():
                     
                     # If item belongs to a bill, update bill total
                     if item.bill_id:
-                        bill = tenant_filter(Bill.query).get(item.bill_id)
+                        bill = tenant_filter(Bill.query).filter_by(id=item.bill_id).first()
                         if bill:
                             # Recalculate total amount from all items in this bill
                             bill_total = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
@@ -90,7 +90,7 @@ def expenses():
                     item_id = int(item_ids[i])
                     cost = float(costs[i] or 0)
                     
-                    item = tenant_filter(ProcurementItem.query).get(item_id)
+                    item = tenant_filter(ProcurementItem.query).filter_by(id=item_id).first()
                     if item and (user.role == 'admin' or item.floor == floor):
                         item.actual_cost = cost
                         item.bill_id = bill.id
@@ -214,7 +214,7 @@ def delete_expense(expense_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    expense = tenant_filter(Expense.query).get(expense_id)
+    expense = tenant_filter(Expense.query).filter_by(id=expense_id).first()
     if not expense:
         abort(404)
     if user.role == 'pantryHead' and expense.floor != user.floor:

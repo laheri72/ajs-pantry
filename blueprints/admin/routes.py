@@ -152,7 +152,7 @@ def admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            target = tenant_filter(User.query).get(target_user_id)
+            target = tenant_filter(User.query).filter_by(id=target_user_id).first()
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.admin'))
@@ -181,7 +181,7 @@ def admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            target = tenant_filter(User.query).get(target_user_id)
+            target = tenant_filter(User.query).filter_by(id=target_user_id).first()
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.admin'))
@@ -366,7 +366,7 @@ def floor_admin():
 
         if action == 'delete_garamat':
             g_id = request.form.get('garamat_id')
-            g_rec = tenant_filter(Garamat.query).get(g_id)
+            g_rec = tenant_filter(Garamat.query).filter_by(id=g_id).first()
             if g_rec and (g_rec.floor == floor or user.role == 'admin'):
                 db.session.delete(g_rec)
                 db.session.commit()
@@ -394,7 +394,7 @@ def floor_admin():
 
         if action == 'archive_announcement':
             ann_id = request.form.get('announcement_id')
-            ann = tenant_filter(Announcement.query).get(ann_id)
+            ann = tenant_filter(Announcement.query).filter_by(id=ann_id).first()
             if ann and (ann.floor == floor or user.role == 'admin'):
                 ann.is_archived = True
                 db.session.commit()
@@ -403,7 +403,7 @@ def floor_admin():
 
         if action == 'delete_announcement':
             ann_id = request.form.get('announcement_id')
-            ann = tenant_filter(Announcement.query).get(ann_id)
+            ann = tenant_filter(Announcement.query).filter_by(id=ann_id).first()
             if ann and (ann.floor == floor or user.role == 'admin'):
                 db.session.delete(ann)
                 db.session.commit()
@@ -417,7 +417,7 @@ def floor_admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
 
-            target = tenant_filter(User.query).get(target_user_id)
+            target = tenant_filter(User.query).filter_by(id=target_user_id).first()
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
@@ -445,7 +445,7 @@ def floor_admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
 
-            target = tenant_filter(User.query).get(target_user_id)
+            target = tenant_filter(User.query).filter_by(id=target_user_id).first()
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
@@ -521,7 +521,7 @@ def update_team(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = tenant_filter(Team.query).get(team_id)
+    team = tenant_filter(Team.query).filter_by(id=team_id).first()
     if not team:
         abort(404)
 
@@ -552,7 +552,7 @@ def delete_team(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = tenant_filter(Team.query).get(team_id)
+    team = tenant_filter(Team.query).filter_by(id=team_id).first()
     if not team:
         abort(404)
 
@@ -574,7 +574,7 @@ def add_team_member(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = tenant_filter(Team.query).get(team_id)
+    team = tenant_filter(Team.query).filter_by(id=team_id).first()
     if not team:
         abort(404)
 
@@ -586,7 +586,7 @@ def add_team_member(team_id):
         flash('Invalid user selected', 'error')
         return redirect(url_for('pantry.people'))
 
-    member = tenant_filter(User.query).get(member_id)
+    member = tenant_filter(User.query).filter_by(id=member_id).first()
     if not member or member.floor != team.floor or member.role == 'admin':
         flash('User must be on this floor', 'error')
         return redirect(url_for('pantry.people'))
@@ -609,7 +609,7 @@ def remove_team_member(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = tenant_filter(Team.query).get(team_id)
+    team = tenant_filter(Team.query).filter_by(id=team_id).first()
     if not team:
         abort(404)
 
