@@ -1,8 +1,9 @@
 import os
 import logging
-from flask import Flask
+from flask import Flask, session, g, redirect, url_for, request, abort
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from datetime import datetime, timedelta
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -11,8 +12,6 @@ class Base(DeclarativeBase):
     pass
 
 db = SQLAlchemy(model_class=Base)
-
-from datetime import timedelta
 
 # Create the app
 app = Flask(__name__)
@@ -75,52 +74,24 @@ with app.app_context():
         logging.critical("DATABASE CONNECTION FAILED. App will stop.")
         raise RuntimeError("Cannot connect to primary database.") from e
 
-    # Basic schema guardrails (create_all won't add missing columns in existing tables)
+    # Basic schema guardrails
     try:
         from sqlalchemy import inspect
-
         inspector = inspect(db.engine)
-
-        missing = []
-        if inspector.has_table("menu"):
-            menu_cols = {c["name"] for c in inspector.get_columns("menu")}
-            if "dish_id" not in menu_cols:
-                missing.append("menu.dish_id")
-        else:
-            missing.append("menu (table)")
-
-        if inspector.has_table("feedback"):
-            feedback_cols = {c["name"] for c in inspector.get_columns("feedback")}
-            if "menu_id" not in feedback_cols:
-                missing.append("feedback.menu_id")
-        else:
-            missing.append("feedback (table)")
-
-        if missing:
-            raise RuntimeError(
-                "Database schema is missing required evaluation fields: "
-                + ", ".join(missing)
-                + ". Run scripts/supabase_evaluation_migration.sql on your Supabase database."
-            )
+        if not inspector.has_table("tenants"):
+            logging.warning("Multi-tenant tables not found. Run scripts/multi_tenant_migration.sql")
     except Exception as e:
         logging.critical(str(e))
-        raise
 
 
     # Admin setup
     try:
-        # Use a fresh engine if primary failed
         query_engine = db.engine
-        if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite"):
-            from sqlalchemy import create_engine
-            query_engine = create_engine(app.config["SQLALCHEMY_DATABASE_URI"])
-        
         from models import User
-        # Check if admin exists using the engine directly to avoid session issues
         from sqlalchemy.orm import sessionmaker
         Session = sessionmaker(bind=query_engine)
-        session = Session()
-        admin = session.query(User).filter_by(username='Administrator').first()
+        session_db = Session()
+        admin = session_db.query(User).filter_by(username='Administrator').first()
         if not admin:
             from werkzeug.security import generate_password_hash
             admin_user = User()
@@ -131,15 +102,48 @@ with app.app_context():
             admin_user.floor=1
             admin_user.is_verified=True
             admin_user.is_first_login=False
-            session.add(admin_user)
-            session.commit()
+            session_db.add(admin_user)
+            session_db.commit()
             logging.info("Default admin user created.")
-        session.close()
+        session_db.close()
     except Exception as e:
         logging.warning(f"Admin management failed: {e}")
 
 from blueprints.utils import _get_current_user, _get_active_floor, _display_name_for, _get_floor_options_for_admin
-from datetime import datetime
+
+@app.before_request
+def enforce_tenancy():
+    # Public routes and Platform Admin portal
+    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login']
+    if request.endpoint in public_endpoints or (request.endpoint and request.endpoint.startswith('static')) or request.path.startswith('/platform-admin'):
+        return
+
+    user_id = session.get("user_id")
+    if user_id:
+        from models import User, Tenant
+        user = User.query.get(user_id)
+        
+        if not user:
+            session.clear()
+            return redirect(url_for('auth.login'))
+
+        # Super Admin Bypass (tenant_id is NULL)
+        if user.role == 'super_admin' or user.tenant_id is None:
+            g.tenant_id = None
+            g.is_super_admin = True
+            return
+
+        # Tenant Status Check
+        tenant = Tenant.query.get(user.tenant_id)
+        if not tenant or not tenant.is_active:
+            session.clear()
+            return "Your tenant account is suspended or does not exist. Please contact support.", 403
+
+        # Bind tenant context
+        g.tenant_id = user.tenant_id
+        g.tenant_name = tenant.name
+        g.is_super_admin = False
+        session['tenant_id'] = str(user.tenant_id)
 
 @app.context_processor
 def inject_current_user():
@@ -150,8 +154,10 @@ def inject_current_user():
         "display_name": _display_name_for(current_user),
         "needs_profile_details": bool(current_user and current_user.role == 'member' and not (current_user.username and current_user.username.strip())),
         "active_floor": active_floor,
-        "floor_options": _get_floor_options_for_admin() if current_user and current_user.role == 'admin' else [],
+        "floor_options": _get_floor_options_for_admin() if current_user and current_user.role in ['admin', 'super_admin'] else [],
         "now": datetime.utcnow(),
+        "tenant_name": getattr(g, 'tenant_name', None),
+        "is_super_admin": getattr(g, 'is_super_admin', False)
     }
 
 from blueprints.auth import auth_bp
@@ -160,13 +166,15 @@ from blueprints.finance import finance_bp
 from blueprints.ops import ops_bp
 from blueprints.admin import admin_bp
 from blueprints.main import main_bp
+from blueprints.super_admin import super_admin_bp
+
 app.register_blueprint(auth_bp)
 app.register_blueprint(pantry_bp)
 app.register_blueprint(finance_bp)
 app.register_blueprint(ops_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(main_bp)
-
+app.register_blueprint(super_admin_bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -11,6 +11,7 @@ from ..utils import (
     _get_active_floor,
     _require_team_access,
     _get_floor_options_for_admin,
+    tenant_filter,
     FLOOR_MIN,
     FLOOR_MAX
 )
@@ -21,7 +22,7 @@ def set_active_floor():
     if not user:
         return redirect(url_for('auth.login'))
 
-    if user.role != 'admin':
+    if user.role != 'admin' and user.role != 'super_admin':
         abort(403)
 
     try:
@@ -68,7 +69,7 @@ def admin():
                 return redirect(url_for('admin_panel.admin'))
 
             email = f"{tr_number}@jameasaifiyah.edu"
-            if User.query.filter(or_(User.email == email, User.tr_number == tr_number)).first():
+            if tenant_filter(User.query).filter(or_(User.email == email, User.tr_number == tr_number)).first():
                 flash('A user with this TR number/email already exists', 'error')
                 return redirect(url_for('admin_panel.admin'))
             
@@ -77,9 +78,9 @@ def admin():
             new_user.floor = floor
             new_user.password_hash = generate_password_hash('maskan1447')
             new_user.is_first_login = True
-            
             new_user.tr_number = tr_number
             new_user.email = email
+            new_user.tenant_id = getattr(g, 'tenant_id', None)
                 
             db.session.add(new_user)
             db.session.commit()
@@ -107,7 +108,7 @@ def admin():
                 
                 for tr in tr_numbers:
                     email = f"{tr}@jameasaifiyah.edu"
-                    if User.query.filter(or_(User.email == email, User.tr_number == tr)).first():
+                    if tenant_filter(User.query).filter(or_(User.email == email, User.tr_number == tr)).first():
                         skipped_count += 1
                         continue
                     
@@ -118,6 +119,7 @@ def admin():
                     new_user.email = email
                     new_user.password_hash = generate_password_hash('maskan1447')
                     new_user.is_first_login = True
+                    new_user.tenant_id = getattr(g, 'tenant_id', None)
                     db.session.add(new_user)
                     added_count += 1
                 
@@ -150,7 +152,7 @@ def admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            target = User.query.get(target_user_id)
+            target = tenant_filter(User.query).get(target_user_id)
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.admin'))
@@ -179,7 +181,7 @@ def admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            target = User.query.get(target_user_id)
+            target = tenant_filter(User.query).get(target_user_id)
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.admin'))
@@ -192,25 +194,25 @@ def admin():
                 flash('Admin users cannot be deleted from this panel.', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            TeamMember.query.filter_by(user_id=target.id).delete(synchronize_session=False)
+            tenant_filter(TeamMember.query).filter_by(user_id=target.id).delete(synchronize_session=False)
 
-            Menu.query.filter_by(assigned_to_id=target.id).update({Menu.assigned_to_id: None}, synchronize_session=False)
-            Menu.query.filter_by(created_by_id=target.id).update({Menu.created_by_id: None}, synchronize_session=False)
+            tenant_filter(Menu.query).filter_by(assigned_to_id=target.id).update({Menu.assigned_to_id: None}, synchronize_session=False)
+            tenant_filter(Menu.query).filter_by(created_by_id=target.id).update({Menu.created_by_id: None}, synchronize_session=False)
 
-            TeaTask.query.filter_by(assigned_to_id=target.id).update({TeaTask.assigned_to_id: None}, synchronize_session=False)
-            TeaTask.query.filter_by(created_by_id=target.id).update({TeaTask.created_by_id: None}, synchronize_session=False)
+            tenant_filter(TeaTask.query).filter_by(assigned_to_id=target.id).update({TeaTask.assigned_to_id: None}, synchronize_session=False)
+            tenant_filter(TeaTask.query).filter_by(created_by_id=target.id).update({TeaTask.created_by_id: None}, synchronize_session=False)
 
-            ProcurementItem.query.filter_by(assigned_to_id=target.id).update({ProcurementItem.assigned_to_id: None}, synchronize_session=False)
-            ProcurementItem.query.filter_by(created_by_id=target.id).update({ProcurementItem.created_by_id: None}, synchronize_session=False)
+            tenant_filter(ProcurementItem.query).filter_by(assigned_to_id=target.id).update({ProcurementItem.assigned_to_id: None}, synchronize_session=False)
+            tenant_filter(ProcurementItem.query).filter_by(created_by_id=target.id).update({ProcurementItem.created_by_id: None}, synchronize_session=False)
 
-            Request.query.filter_by(user_id=target.id).update({Request.user_id: None}, synchronize_session=False)
-            Request.query.filter_by(approved_by_id=target.id).update({Request.approved_by_id: None}, synchronize_session=False)
+            tenant_filter(Request.query).filter_by(user_id=target.id).update({Request.user_id: None}, synchronize_session=False)
+            tenant_filter(Request.query).filter_by(approved_by_id=target.id).update({Request.approved_by_id: None}, synchronize_session=False)
 
-            Expense.query.filter_by(user_id=target.id).update({Expense.user_id: None}, synchronize_session=False)
-            Suggestion.query.filter_by(user_id=target.id).update({Suggestion.user_id: None}, synchronize_session=False)
-            Feedback.query.filter_by(user_id=target.id).update({Feedback.user_id: None}, synchronize_session=False)
+            tenant_filter(Expense.query).filter_by(user_id=target.id).update({Expense.user_id: None}, synchronize_session=False)
+            tenant_filter(Suggestion.query).filter_by(user_id=target.id).update({Suggestion.user_id: None}, synchronize_session=False)
+            tenant_filter(Feedback.query).filter_by(user_id=target.id).update({Feedback.user_id: None}, synchronize_session=False)
 
-            Team.query.filter_by(created_by_id=target.id).update({Team.created_by_id: None}, synchronize_session=False)
+            tenant_filter(Team.query).filter_by(created_by_id=target.id).update({Team.created_by_id: None}, synchronize_session=False)
 
             try:
                 db.session.delete(target)
@@ -223,26 +225,26 @@ def admin():
             flash('User deleted successfully', 'success')
             return redirect(url_for('admin_panel.admin'))
             
-    all_users = User.query.all()
+    all_users = tenant_filter(User.query).all()
     
-    total_users = User.query.count()
-    total_budget_all = float(db.session.query(func.sum(Budget.amount_allocated)).scalar() or 0)
+    total_users = tenant_filter(User.query).count()
+    total_budget_all = float(tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).scalar() or 0)
     
-    total_spent_proc = float(db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.status == 'completed').scalar() or 0)
-    total_spent_legacy = float(db.session.query(func.sum(Expense.amount)).scalar() or 0)
+    total_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.status == 'completed').scalar() or 0)
+    total_spent_legacy = float(tenant_filter(db.session.query(func.sum(Expense.amount))).scalar() or 0)
     total_spent_all = total_spent_proc + total_spent_legacy
     
-    system_avg_rating = db.session.query(func.avg(Feedback.rating)).scalar() or 0
+    system_avg_rating = tenant_filter(db.session.query(func.avg(Feedback.rating))).scalar() or 0
     
     floor_data = []
     for f in range(FLOOR_MIN, FLOOR_MAX + 1):
-        ph = User.query.filter_by(floor=f, role='pantryHead').first()
-        f_user_count = User.query.filter_by(floor=f).count()
-        f_budget = float(db.session.query(func.sum(Budget.amount_allocated)).filter(Budget.floor == f).scalar() or 0)
-        f_spent_proc = float(db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.floor == f, ProcurementItem.status == 'completed').scalar() or 0)
-        f_spent_legacy = float(db.session.query(func.sum(Expense.amount)).filter(Expense.floor == f).scalar() or 0)
+        ph = tenant_filter(User.query).filter_by(floor=f, role='pantryHead').first()
+        f_user_count = tenant_filter(User.query).filter_by(floor=f).count()
+        f_budget = float(tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(Budget.floor == f).scalar() or 0)
+        f_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.floor == f, ProcurementItem.status == 'completed').scalar() or 0)
+        f_spent_legacy = float(tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == f).scalar() or 0)
         f_spent = f_spent_proc + f_spent_legacy
-        f_rating = db.session.query(func.avg(Feedback.rating)).filter(Feedback.floor == f).scalar() or 0
+        f_rating = tenant_filter(db.session.query(func.avg(Feedback.rating))).filter(Feedback.floor == f).scalar() or 0
         
         floor_data.append({
             'floor': f,
@@ -284,7 +286,7 @@ def admin_floor_members():
         return jsonify({"error": "invalid_floor"}), 400
 
     members = (
-        User.query.filter_by(floor=floor, role='member')
+        tenant_filter(User.query).filter_by(floor=floor, role='member')
         .order_by(User.tr_number.asc(), User.full_name.asc(), User.email.asc())
         .all()
     )
@@ -319,13 +321,13 @@ def floor_admin():
         abort(403)
 
     floor = _get_active_floor(user)
-    floor_users = User.query.filter_by(floor=floor).order_by(User.role.asc(), User.email.asc()).all()
+    floor_users = tenant_filter(User.query).filter_by(floor=floor).order_by(User.role.asc(), User.email.asc()).all()
     tea_managers = [u for u in floor_users if u.role == 'teaManager']
-    active_announcements = Announcement.query.filter_by(floor=floor, is_archived=False).order_by(Announcement.created_at.desc()).all()
-    archived_announcements = Announcement.query.filter_by(floor=floor, is_archived=True).order_by(Announcement.created_at.desc()).all()
+    active_announcements = tenant_filter(Announcement.query).filter_by(floor=floor, is_archived=False).order_by(Announcement.created_at.desc()).all()
+    archived_announcements = tenant_filter(Announcement.query).filter_by(floor=floor, is_archived=True).order_by(Announcement.created_at.desc()).all()
     
-    floor_teams = Team.query.filter_by(floor=floor).order_by(Team.name.asc()).all()
-    garamat_records = Garamat.query.filter_by(floor=floor).order_by(Garamat.date.desc()).all()
+    floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
+    garamat_records = tenant_filter(Garamat.query).filter_by(floor=floor).order_by(Garamat.date.desc()).all()
 
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
@@ -354,7 +356,8 @@ def floor_admin():
                 reason=reason,
                 date=dt_obj,
                 floor=floor,
-                created_by_id=user.id
+                created_by_id=user.id,
+                tenant_id=getattr(g, 'tenant_id', None)
             )
             db.session.add(new_g)
             db.session.commit()
@@ -363,9 +366,9 @@ def floor_admin():
 
         if action == 'delete_garamat':
             g_id = request.form.get('garamat_id')
-            g = Garamat.query.get(g_id)
-            if g and (g.floor == floor or user.role == 'admin'):
-                db.session.delete(g)
+            g_rec = tenant_filter(Garamat.query).get(g_id)
+            if g_rec and (g_rec.floor == floor or user.role == 'admin'):
+                db.session.delete(g_rec)
                 db.session.commit()
                 flash('Penalty record deleted', 'success')
             return redirect(url_for('admin_panel.floor_admin'))
@@ -381,7 +384,8 @@ def floor_admin():
                 title=title,
                 content=content,
                 floor=floor,
-                created_by_id=user.id
+                created_by_id=user.id,
+                tenant_id=getattr(g, 'tenant_id', None)
             )
             db.session.add(new_ann)
             db.session.commit()
@@ -390,7 +394,7 @@ def floor_admin():
 
         if action == 'archive_announcement':
             ann_id = request.form.get('announcement_id')
-            ann = Announcement.query.get(ann_id)
+            ann = tenant_filter(Announcement.query).get(ann_id)
             if ann and (ann.floor == floor or user.role == 'admin'):
                 ann.is_archived = True
                 db.session.commit()
@@ -399,7 +403,7 @@ def floor_admin():
 
         if action == 'delete_announcement':
             ann_id = request.form.get('announcement_id')
-            ann = Announcement.query.get(ann_id)
+            ann = tenant_filter(Announcement.query).get(ann_id)
             if ann and (ann.floor == floor or user.role == 'admin'):
                 db.session.delete(ann)
                 db.session.commit()
@@ -413,7 +417,7 @@ def floor_admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
 
-            target = User.query.get(target_user_id)
+            target = tenant_filter(User.query).get(target_user_id)
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
@@ -441,7 +445,7 @@ def floor_admin():
                 flash('Invalid user selected', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
 
-            target = User.query.get(target_user_id)
+            target = tenant_filter(User.query).get(target_user_id)
             if not target:
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.floor_admin'))
@@ -497,12 +501,12 @@ def create_team():
         flash('Team name is required', 'error')
         return redirect(url_for('pantry.people'))
 
-    existing = Team.query.filter_by(floor=floor, name=name).first()
+    existing = tenant_filter(Team.query).filter_by(floor=floor, name=name).first()
     if existing:
         flash('Team name already exists on this floor', 'error')
         return redirect(url_for('pantry.people'))
 
-    team = Team(name=name, icon=icon, floor=floor, created_by_id=user.id)
+    team = Team(name=name, icon=icon, floor=floor, created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
     db.session.add(team)
     db.session.commit()
     flash('Team created', 'success')
@@ -517,7 +521,7 @@ def update_team(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = Team.query.get(team_id)
+    team = tenant_filter(Team.query).get(team_id)
     if not team:
         abort(404)
 
@@ -529,7 +533,7 @@ def update_team(team_id):
         flash('Team name is required', 'error')
         return redirect(url_for('pantry.people'))
 
-    if Team.query.filter(Team.floor == team.floor, Team.name == name, Team.id != team.id).first():
+    if tenant_filter(Team.query).filter(Team.floor == team.floor, Team.name == name, Team.id != team.id).first():
         flash('Team name already exists on this floor', 'error')
         return redirect(url_for('pantry.people'))
 
@@ -548,14 +552,14 @@ def delete_team(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = Team.query.get(team_id)
+    team = tenant_filter(Team.query).get(team_id)
     if not team:
         abort(404)
 
     _require_team_access(user, team)
 
-    TeamMember.query.filter_by(team_id=team.id).delete(synchronize_session=False)
-    Menu.query.filter_by(assigned_team_id=team.id).update({"assigned_team_id": None}, synchronize_session=False)
+    tenant_filter(TeamMember.query).filter_by(team_id=team.id).delete(synchronize_session=False)
+    tenant_filter(Menu.query).filter_by(assigned_team_id=team.id).update({"assigned_team_id": None}, synchronize_session=False)
     db.session.delete(team)
     db.session.commit()
     flash('Team deleted', 'success')
@@ -570,7 +574,7 @@ def add_team_member(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = Team.query.get(team_id)
+    team = tenant_filter(Team.query).get(team_id)
     if not team:
         abort(404)
 
@@ -582,16 +586,16 @@ def add_team_member(team_id):
         flash('Invalid user selected', 'error')
         return redirect(url_for('pantry.people'))
 
-    member = User.query.get(member_id)
+    member = tenant_filter(User.query).get(member_id)
     if not member or member.floor != team.floor or member.role == 'admin':
         flash('User must be on this floor', 'error')
         return redirect(url_for('pantry.people'))
 
-    if TeamMember.query.filter_by(team_id=team.id, user_id=member.id).first():
+    if tenant_filter(TeamMember.query).filter_by(team_id=team.id, user_id=member.id).first():
         flash('User is already in this team', 'error')
         return redirect(url_for('pantry.people'))
 
-    db.session.add(TeamMember(team_id=team.id, user_id=member.id))
+    db.session.add(TeamMember(team_id=team.id, user_id=member.id, tenant_id=getattr(g, 'tenant_id', None)))
     db.session.commit()
     flash('Member added to team', 'success')
     return redirect(url_for('pantry.people'))
@@ -605,7 +609,7 @@ def remove_team_member(team_id):
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
-    team = Team.query.get(team_id)
+    team = tenant_filter(Team.query).get(team_id)
     if not team:
         abort(404)
 
@@ -617,7 +621,7 @@ def remove_team_member(team_id):
         flash('Invalid user selected', 'error')
         return redirect(url_for('pantry.people'))
 
-    TeamMember.query.filter_by(team_id=team.id, user_id=member_id).delete(synchronize_session=False)
+    tenant_filter(TeamMember.query).filter_by(team_id=team.id, user_id=member_id).delete(synchronize_session=False)
     db.session.commit()
     flash('Member removed', 'success')
     return redirect(url_for('pantry.people'))

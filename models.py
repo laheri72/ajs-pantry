@@ -1,14 +1,39 @@
 from app import db
 from datetime import datetime
 from enum import Enum
+import uuid
+from sqlalchemy.dialects.postgresql import UUID
 
 class RoleEnum(Enum):
+    SUPER_ADMIN = 'super_admin'
     ADMIN = 'admin'
     PANTRY_HEAD = 'pantryHead'
     TEA_MANAGER = 'teaManager'
     MEMBER = 'member'
 
-class User(db.Model):
+class Tenant(db.Model):
+    __tablename__ = 'tenants'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = db.Column(db.String(255), nullable=False)
+    floor_count = db.Column(db.Integer, default=11)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    subscription_status = db.Column(db.String(50), default='active')
+
+class PlatformAudit(db.Model):
+    __tablename__ = 'platform_audits'
+    id = db.Column(db.Integer, primary_key=True)
+    action = db.Column(db.String(100), nullable=False) # e.g., 'provision_tenant', 'suspend_tenant'
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    performed_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
+    performed_by = db.relationship('User', foreign_keys=[performed_by_id])
+
+class TenantMixin:
+    tenant_id = db.Column(UUID(as_uuid=True), db.ForeignKey('tenants.id'), nullable=True, index=True)
+
+class User(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -24,15 +49,15 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-class Dish(db.Model):
+class Dish(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False, unique=True)
+    name = db.Column(db.String(120), nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
-class Menu(db.Model):
+class Menu(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
@@ -51,7 +76,7 @@ class Menu(db.Model):
     assigned_team = db.relationship('Team', foreign_keys=[assigned_team_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
-class Expense(db.Model):
+class Expense(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Float, nullable=False)
@@ -63,7 +88,7 @@ class Expense(db.Model):
     
     user = db.relationship('User', backref='expenses')
 
-class TeaTask(db.Model):
+class TeaTask(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -75,7 +100,7 @@ class TeaTask(db.Model):
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
-class Suggestion(db.Model):
+class Suggestion(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -85,7 +110,7 @@ class Suggestion(db.Model):
     
     user = db.relationship('User', backref='suggestions')
 
-class SuggestionVote(db.Model):
+class SuggestionVote(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     suggestion_id = db.Column(db.Integer, db.ForeignKey('suggestion.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -94,7 +119,7 @@ class SuggestionVote(db.Model):
     suggestion = db.relationship('Suggestion', backref=db.backref('votes', cascade='all, delete-orphan'))
     user = db.relationship('User')
 
-class Feedback(db.Model):
+class Feedback(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -108,7 +133,7 @@ class Feedback(db.Model):
     menu = db.relationship('Menu', foreign_keys=[menu_id])
     user = db.relationship('User', backref='feedbacks')
 
-class Request(db.Model):
+class Request(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -124,7 +149,7 @@ class Request(db.Model):
     user = db.relationship('User', foreign_keys=[user_id])
     approved_by = db.relationship('User', foreign_keys=[approved_by_id])
 
-class Bill(db.Model):
+class Bill(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     bill_no = db.Column(db.String(100), nullable=False)
     bill_date = db.Column(db.Date, nullable=False)
@@ -138,7 +163,7 @@ class Bill(db.Model):
     # Relationship to items
     items = db.relationship('ProcurementItem', backref='bill', lazy=True)
 
-class ProcurementItem(db.Model):
+class ProcurementItem(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     item_name = db.Column(db.String(100), nullable=False)
     quantity = db.Column(db.String(50), nullable=False)
@@ -159,7 +184,7 @@ class ProcurementItem(db.Model):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 
-class Team(db.Model):
+class Team(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     icon = db.Column(db.String(50), nullable=True)  # emoji or short label
@@ -170,7 +195,7 @@ class Team(db.Model):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 
-class TeamMember(db.Model):
+class TeamMember(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -180,7 +205,7 @@ class TeamMember(db.Model):
     user = db.relationship('User', foreign_keys=[user_id])
 
 
-class Budget(db.Model):
+class Budget(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     floor = db.Column(db.Integer, nullable=False, index=True)
     amount_allocated = db.Column(db.Numeric(12, 2), nullable=False, default=0)
@@ -191,7 +216,7 @@ class Budget(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-class FloorLendBorrow(db.Model):
+class FloorLendBorrow(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     lender_floor = db.Column(db.Integer, nullable=False, index=True)
     borrower_floor = db.Column(db.Integer, nullable=False, index=True)
@@ -209,7 +234,7 @@ class FloorLendBorrow(db.Model):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 
-class SpecialEvent(db.Model):
+class SpecialEvent(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
@@ -221,7 +246,7 @@ class SpecialEvent(db.Model):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 
-class Announcement(db.Model):
+class Announcement(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
@@ -234,7 +259,7 @@ class Announcement(db.Model):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 
-class Garamat(db.Model):
+class Garamat(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)

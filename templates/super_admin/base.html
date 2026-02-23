@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CEO Portal - AJS Pantry Infrastructure{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --ceo-primary: #0f172a;
+            --ceo-sidebar: #1e293b;
+            --ceo-accent: #3b82f6;
+            --ceo-bg: #f8fafc;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--ceo-bg);
+            color: #334155;
+            overflow-x: hidden;
+        }
+        .sidebar {
+            background-color: var(--ceo-sidebar);
+            width: 280px;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            color: #cbd5e1;
+            z-index: 1050;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        .sidebar-brand {
+            padding: 2.5rem 2rem;
+            color: white;
+            font-weight: 800;
+            font-size: 1.25rem;
+            letter-spacing: -0.5px;
+        }
+        .nav-ceo .nav-link {
+            padding: 1rem 2rem;
+            color: #94a3b8;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            border-left: 4px solid transparent;
+            transition: 0.3s;
+        }
+        .nav-ceo .nav-link:hover {
+            color: white;
+            background: rgba(255,255,255,0.05);
+        }
+        .nav-ceo .nav-link.active {
+            color: white;
+            background: rgba(59, 130, 246, 0.1);
+            border-left-color: var(--ceo-accent);
+        }
+        .nav-ceo .nav-link i {
+            width: 24px;
+            margin-right: 12px;
+            font-size: 1.1rem;
+        }
+        .main-wrapper {
+            margin-left: 280px;
+            min-height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
+        .platform-header {
+            background: white;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 999;
+        }
+        .content-body {
+            padding: 1.5rem;
+        }
+        @media (min-width: 992px) {
+            .content-body {
+                padding: 2.5rem 3rem;
+            }
+        }
+        .card-expert {
+            border: none;
+            border-radius: 16px;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+            margin-bottom: 1.5rem;
+        }
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-ceo {
+            background: var(--ceo-accent);
+            color: white;
+            border-radius: 10px;
+            padding: 0.6rem 1.5rem;
+            font-weight: 600;
+            border: none;
+        }
+        .btn-ceo:hover {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .main-wrapper {
+                margin-left: 0;
+            }
+            .platform-header {
+                padding: 0.75rem 1rem;
+            }
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1040;
+        }
+        .sidebar-overlay.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    
+    <div class="sidebar" id="ceoSidebar">
+        <div class="sidebar-brand d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-layer-group text-primary me-2"></i>CORE <span class="text-primary">ADMIN</span></span>
+            <button class="btn btn-link text-white d-lg-none p-0" id="closeSidebar">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <nav class="nav nav-ceo flex-column">
+            <a class="nav-link {% if request.endpoint == 'super_admin.dashboard' %}active{% endif %}" href="{{ url_for('super_admin.dashboard') }}">
+                <i class="fas fa-chart-pie"></i> Overview
+            </a>
+            <a class="nav-link {% if request.endpoint == 'super_admin.tenants_list' or 'tenants' in request.path %}active{% endif %}" href="{{ url_for('super_admin.tenants_list') }}">
+                <i class="fas fa-server"></i> Infrastructure
+            </a>
+            <!-- Removed placeholder features -->
+            
+            <div class="mt-auto mb-4 px-4">
+                <div class="bg-dark bg-opacity-25 rounded-4 p-3 small">
+                    <div class="text-white mb-1">Infrastructure Status</div>
+                    <div class="progress" style="height: 4px;">
+                        <div class="progress-bar bg-success" style="width: 100%"></div>
+                    </div>
+                    <div class="mt-2 text-muted small">All systems operational</div>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm w-100 mt-3 rounded-3">
+                    <i class="fas fa-power-off me-1"></i> Exit Portal
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <div class="main-wrapper">
+        <header class="platform-header">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-link text-dark d-lg-none me-3 p-0" id="toggleSidebar">
+                    <i class="fas fa-bars fa-lg"></i>
+                </button>
+                <div class="h5 fw-bold mb-0 d-none d-sm-block">Global Control</div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="text-end d-none d-md-block">
+                    <div class="small fw-bold">Root Admin</div>
+                    <div class="text-muted small" style="font-size: 0.7rem;">Infrastructure CEO</div>
+                </div>
+                <img src="https://ui-avatars.com/api/?name=CEO&background=3b82f6&color=fff" class="rounded-circle border" width="36" height="36">
+            </div>
+        </header>
+
+        <div class="content-body">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'primary' }} alert-dismissible fade show border-0 rounded-4 shadow-sm" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('ceoSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggle = document.getElementById('toggleSidebar');
+            const close = document.getElementById('closeSidebar');
+
+            function toggleSidebar() {
+                sidebar.classList.toggle('show');
+                overlay.classList.toggle('show');
+            }
+
+            if(toggle) toggle.addEventListener('click', toggleSidebar);
+            if(close) close.addEventListener('click', toggleSidebar);
+            if(overlay) overlay.addEventListener('click', toggleSidebar);
+        });
+    </script>
+</body>
+</html>

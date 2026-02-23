@@ -1,0 +1,75 @@
+{% extends "super_admin/base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 mb-md-5 gap-3">
+    <div>
+        <h2 class="fw-bold mb-0">Infrastructure Nodes</h2>
+        <p class="text-muted mb-0">Global capacity and node status oversight</p>
+    </div>
+    <button class="btn btn-ceo shadow-sm" data-bs-toggle="modal" data-bs-target="#provisionModal">
+        <i class="fas fa-plus me-2"></i> Provision New
+    </button>
+</div>
+
+<div class="card card-expert">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
+            <thead class="bg-light text-muted small text-uppercase">
+                <tr>
+                    <th class="px-4 py-3">Node Identity</th>
+                    <th>Config</th>
+                    <th>Engagement</th>
+                    <th>Status</th>
+                    <th class="text-end px-4">Management</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tenants %}
+                <tr>
+                    <td class="px-4 py-4">
+                        <div class="fw-bold text-dark">{{ t.name }}</div>
+                        <div class="small text-muted" style="font-family: monospace; font-size: 0.7rem;">{{ t.id }}</div>
+                    </td>
+                    <td>
+                        <div class="small fw-bold">{{ t.floor_count }} Floors</div>
+                        <div class="small text-muted">{{ t.subscription_status | title }} Tier</div>
+                    </td>
+                    <td>
+                        <div class="small"><strong>{{ t.user_count }}</strong> Users</div>
+                        <div class="small text-muted"><strong>{{ t.activity_count }}</strong> Ops</div>
+                    </td>
+                    <td>
+                        {% if t.is_active %}
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2">Operational</span>
+                        {% else %}
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-3 py-2">Suspended</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end px-4">
+                        <div class="btn-group">
+                            <a href="{{ url_for('super_admin.tenant_detail', tenant_id=t.id) }}" class="btn btn-light btn-sm fw-bold px-3">
+                                Inspect
+                            </a>
+                            <button type="button" class="btn btn-light btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown"></button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                <li>
+                                    <form method="POST" action="{{ url_for('super_admin.toggle_tenant', tenant_id=t.id) }}">
+                                        <button type="submit" class="dropdown-item {{ 'text-danger' if t.is_active else 'text-success' }}">
+                                            <i class="fas fa-{{ 'power-off' if t.is_active else 'check-circle' }} me-2"></i>
+                                            {{ 'Suspend Node' if t.is_active else 'Restore Node' }}
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Provisioning Modal (Reuse logic from dashboard if needed, or redirect back) -->
+{% include "super_admin/_provision_modal.html" ignore missing %}
+{% endblock %}
