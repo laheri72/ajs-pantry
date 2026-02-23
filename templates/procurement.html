@@ -279,6 +279,26 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Custom Confirmation Modal -->
+<div class="modal fade" id="procurementConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-body text-center p-4">
+                <div class="text-teal mb-3">
+                    <i class="fas fa-cart-arrow-down fa-3x"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Create List?</h5>
+                <p class="text-muted small mb-4">Are you sure you want to create these procurement items? This will send email notifications to the assigned member.</p>
+                <div class="d-grid gap-2">
+                    <button type="button" id="confirmProcurementBtn" class="btn btn-teal">Yes, Create & Notify</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -545,6 +565,15 @@
                 .catch(() => {});
         });
 
+        const confirmProcurementModal = new bootstrap.Modal(document.getElementById('procurementConfirmModal'));
+        const confirmProcurementBtn = document.getElementById('confirmProcurementBtn');
+        let isConfirmed = false;
+
+        confirmProcurementBtn.addEventListener('click', function() {
+            isConfirmed = true;
+            form.submit();
+        });
+
         form.addEventListener('submit', function (e) {
             clearError();
 
@@ -569,6 +598,12 @@
             if (validCount === 0) {
                 e.preventDefault();
                 showError('Please add at least one item.');
+                return;
+            }
+
+            if (!isConfirmed) {
+                e.preventDefault();
+                confirmProcurementModal.show();
             }
         });
     });

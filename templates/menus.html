@@ -143,7 +143,7 @@
                 <h5 class="modal-title fw-bold"><i class="fas fa-calendar-plus me-2"></i>Schedule Meal</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST">
+            <form method="POST" onsubmit="return confirm('Are you sure you want to schedule this meal? This will send email notifications to the assigned team/user.')">
                 <div class="modal-body p-4">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -220,6 +220,25 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Custom Confirmation Modal -->
+<div class="modal fade" id="customConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-body text-center p-4">
+                <div class="text-teal mb-3">
+                    <i class="fas fa-paper-plane fa-3x"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Send Notifications?</h5>
+                <p class="text-muted small mb-4">Are you sure you want to schedule this meal? This will send email notifications to the assigned team/user.</p>
+                <div class="d-grid gap-2">
+                    <button type="button" id="confirmScheduleBtn" class="btn btn-teal">Yes, Schedule & Send</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <style>
 .menu-page .nav-pills .nav-link {
@@ -343,6 +362,28 @@ document.addEventListener('DOMContentLoaded', function () {
             newDishWrap.classList.add('d-none');
             newDishName.required = false;
             newDishName.value = '';
+        });
+    }
+
+    // Custom Confirmation Logic
+    const scheduleForm = document.getElementById('scheduleMealForm');
+    const customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
+    const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
+    let isConfirmed = false;
+
+    if (scheduleForm) {
+        scheduleForm.addEventListener('submit', function (e) {
+            if (!isConfirmed) {
+                e.preventDefault();
+                customConfirmModal.show();
+            }
+        });
+    }
+
+    if (confirmScheduleBtn) {
+        confirmScheduleBtn.addEventListener('click', function () {
+            isConfirmed = true;
+            scheduleForm.submit();
         });
     }
 });

@@ -1,6 +1,9 @@
 import os
 import logging
-from flask import Flask, session, g, redirect, url_for, request, abort
+from flask import Flask, session, g, redirect, url_for, request, abort, jsonify
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from datetime import datetime, timedelta
