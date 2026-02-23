@@ -1,9 +1,21 @@
-from flask import session, abort
+from flask import session, abort, g
 from models import User
 from datetime import datetime
 
 FLOOR_MIN = 1
 FLOOR_MAX = 11
+
+def tenant_filter(query):
+    """Filters the query by the current tenant_id in g."""
+    if hasattr(g, 'tenant_id') and g.tenant_id:
+        return query.filter_by(tenant_id=g.tenant_id)
+    return query
+
+def require_super_admin():
+    user = _get_current_user()
+    if not user or (user.role != 'super_admin' and user.tenant_id is not None):
+        abort(403)
+    return user
 
 def _extract_first_name(full_name):
     if not full_name:
@@ -80,7 +92,14 @@ def _get_active_floor(user):
     return val
 
 def _get_floor_options_for_admin():
-    return list(range(FLOOR_MIN, FLOOR_MAX + 1))
+    from models import Tenant
+    user = _get_current_user()
+    if not user or not user.tenant_id:
+        return list(range(FLOOR_MIN, FLOOR_MAX + 1))
+    
+    tenant = Tenant.query.get(user.tenant_id)
+    limit = tenant.floor_count if tenant and tenant.floor_count else FLOOR_MAX
+    return list(range(FLOOR_MIN, limit + 1))
 
 def _require_staff_for_floor(user):
     if not user:

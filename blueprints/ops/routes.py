@@ -8,7 +8,8 @@ from ..utils import (
     _require_user,
     _get_active_floor,
     _require_staff_for_floor,
-    _display_name_for
+    _display_name_for,
+    tenant_filter
 )
 
 @ops_bp.route('/tea', methods=['GET', 'POST'])
@@ -20,7 +21,7 @@ def tea():
     _require_staff_for_floor(user)
 
     floor = _get_active_floor(user)
-    floor_users = User.query.filter_by(floor=floor).all()
+    floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
 
     if request.method == 'POST' and user.role in ['admin', 'teaManager']:
         try:
@@ -36,7 +37,7 @@ def tea():
             except ValueError:
                 assigned_to_id = None
 
-        if assigned_to_id and not User.query.filter_by(id=assigned_to_id, floor=floor).first():
+        if assigned_to_id and not tenant_filter(User.query).filter_by(id=assigned_to_id, floor=floor).first():
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
@@ -45,6 +46,7 @@ def tea():
             assigned_to_id=assigned_to_id,
             floor=floor,
             created_by_id=user.id,
+            tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(task)
         db.session.commit()
@@ -71,11 +73,11 @@ def tea():
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
 
-    task_query = TeaTask.query.filter_by(floor=floor).filter(TeaTask.date >= month_start, TeaTask.date < month_end)
+    task_query = tenant_filter(TeaTask.query).filter_by(floor=floor).filter(TeaTask.date >= month_start, TeaTask.date < month_end)
     floor_tasks = task_query.order_by(TeaTask.date.desc()).all()
 
     count_rows = (
-        db.session.query(TeaTask.assigned_to_id, func.count(TeaTask.id))
+        tenant_filter(db.session.query(TeaTask.assigned_to_id, func.count(TeaTask.id)))
         .filter(
             TeaTask.floor == floor,
             TeaTask.date >= month_start,
@@ -113,7 +115,7 @@ def complete_tea_task(task_id):
     if user.role not in ['admin', 'teaManager']:
         return ('', 403)
 
-    task = TeaTask.query.get(task_id)
+    task = tenant_filter(TeaTask.query).get(task_id)
     if not task:
         return ('', 404)
     if user.role != 'admin' and task.floor != user.floor:
@@ -153,6 +155,7 @@ def requests():
             user_id=user.id,
             floor=user.floor,
             status='pending',
+            tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(new_req)
         db.session.commit()
@@ -161,12 +164,12 @@ def requests():
 
     floor = _get_active_floor(user)
     if user.role == 'admin':
-        visible_requests = Request.query.filter_by(floor=floor).order_by(Request.created_at.desc()).all()
+        visible_requests = tenant_filter(Request.query).filter_by(floor=floor).order_by(Request.created_at.desc()).all()
     elif user.role == 'pantryHead':
-        visible_requests = Request.query.filter_by(floor=user.floor).order_by(Request.created_at.desc()).all()
+        visible_requests = tenant_filter(Request.query).filter_by(floor=user.floor).order_by(Request.created_at.desc()).all()
     else:
         visible_requests = (
-            Request.query.filter_by(floor=user.floor)
+            tenant_filter(Request.query).filter_by(floor=user.floor)
             .filter(or_(Request.status == 'approved', Request.user_id == user.id))
             .order_by(Request.created_at.desc())
             .all()
@@ -183,7 +186,7 @@ def update_request_status(request_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    req = Request.query.get(request_id)
+    req = tenant_filter(Request.query).get(request_id)
     if not req:
         return ('', 404)
 
@@ -213,7 +216,7 @@ def delete_request(request_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    req = Request.query.get(request_id)
+    req = tenant_filter(Request.query).get(request_id)
     if not req:
         return ('', 404)
 
@@ -231,7 +234,7 @@ def procurement():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    floor_users = User.query.filter_by(floor=floor).all()
+    floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
 
     if request.method == 'POST':
         if user.role not in ['admin', 'pantryHead']:
@@ -244,7 +247,7 @@ def procurement():
             except ValueError:
                 assigned_to_id = None
 
-        if assigned_to_id and not User.query.filter_by(id=assigned_to_id, floor=floor).first():
+        if assigned_to_id and not tenant_filter(User.query).filter_by(id=assigned_to_id, floor=floor).first():
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
@@ -276,6 +279,7 @@ def procurement():
                         assigned_to_id=assigned_to_id,
                         created_by_id=user.id,
                         floor=floor,
+                        tenant_id=getattr(g, 'tenant_id', None)
                     )
                 )
 
@@ -302,13 +306,14 @@ def procurement():
             assigned_to_id=assigned_to_id,
             created_by_id=user.id,
             floor=floor,
+            tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(item)
         db.session.commit()
         flash('Procurement item added successfully.', 'success')
         return redirect(url_for('ops.procurement'))
 
-    procurement_items = ProcurementItem.query.filter_by(floor=floor).order_by(ProcurementItem.created_at.desc()).all()
+    procurement_items = tenant_filter(ProcurementItem.query).filter_by(floor=floor).order_by(ProcurementItem.created_at.desc()).all()
     pending_items = [i for i in procurement_items if (i.status or '').strip().lower() != 'completed']
     completed_items = [i for i in procurement_items if (i.status or '').strip().lower() == 'completed']
 
@@ -363,7 +368,7 @@ def complete_procurement_item(item_id):
             abort(403)
         return ('', 403)
 
-    item = ProcurementItem.query.get(item_id)
+    item = tenant_filter(ProcurementItem.query).get(item_id)
     if not item:
         if request.accept_mimetypes.accept_html:
             abort(404)
@@ -393,7 +398,7 @@ def revoke_procurement_item(item_id):
             abort(403)
         return ('', 403)
 
-    item = ProcurementItem.query.get(item_id)
+    item = tenant_filter(ProcurementItem.query).get(item_id)
     if not item:
         if request.accept_mimetypes.accept_html:
             abort(404)
@@ -426,7 +431,7 @@ def delete_procurement_item(item_id):
             abort(403)
         return ('', 403)
 
-    item = ProcurementItem.query.get(item_id)
+    item = tenant_filter(ProcurementItem.query).get(item_id)
     if not item:
         if request.accept_mimetypes.accept_html:
             abort(404)
@@ -453,7 +458,7 @@ def procurement_suggest():
     floor = _get_active_floor(user)
     q = (request.args.get('q') or '').strip()
 
-    base_query = ProcurementItem.query.filter_by(floor=floor)
+    base_query = tenant_filter(ProcurementItem.query).filter_by(floor=floor)
     if q:
         q_lower = q.lower()
         base_query = base_query.filter(func.lower(ProcurementItem.item_name).like(f"%{q_lower}%"))
@@ -489,7 +494,7 @@ def procurement_suggest_qty():
 
     item_lower = item.lower()
     rows = (
-        ProcurementItem.query.filter_by(floor=floor)
+        tenant_filter(ProcurementItem.query).filter_by(floor=floor)
         .filter(func.lower(ProcurementItem.item_name) == item_lower)
         .order_by(ProcurementItem.created_at.desc())
         .limit(80)

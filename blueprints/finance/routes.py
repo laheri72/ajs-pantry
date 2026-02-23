@@ -9,7 +9,8 @@ from . import finance_bp
 from ..utils import (
     _require_user,
     _get_active_floor,
-    _get_floor_options_for_admin
+    _get_floor_options_for_admin,
+    tenant_filter
 )
 
 @finance_bp.route('/expenses', methods=['GET', 'POST'])
@@ -34,7 +35,7 @@ def expenses():
                 flash('Invalid cost value', 'error')
                 return redirect(url_for('finance.expenses'))
 
-            item = ProcurementItem.query.get(item_id)
+            item = tenant_filter(ProcurementItem.query).get(item_id)
             if item and (user.role == 'admin' or item.floor == user.floor):
                 if item.status != 'completed':
                     flash('Costs can only be recorded for completed items.', 'error')
@@ -44,10 +45,10 @@ def expenses():
                     
                     # If item belongs to a bill, update bill total
                     if item.bill_id:
-                        bill = Bill.query.get(item.bill_id)
+                        bill = tenant_filter(Bill.query).get(item.bill_id)
                         if bill:
                             # Recalculate total amount from all items in this bill
-                            bill_total = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
+                            bill_total = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
                             bill.total_amount = bill_total
 
                     db.session.commit()
@@ -78,7 +79,8 @@ def expenses():
                     bill_date=bill_date,
                     shop_name=shop_name,
                     floor=floor,
-                    total_amount=0
+                    total_amount=0,
+                    tenant_id=getattr(g, 'tenant_id', None)
                 )
                 db.session.add(bill)
                 db.session.flush() # Get bill.id
@@ -88,7 +90,7 @@ def expenses():
                     item_id = int(item_ids[i])
                     cost = float(costs[i] or 0)
                     
-                    item = ProcurementItem.query.get(item_id)
+                    item = tenant_filter(ProcurementItem.query).get(item_id)
                     if item and (user.role == 'admin' or item.floor == floor):
                         item.actual_cost = cost
                         item.bill_id = bill.id
@@ -105,37 +107,37 @@ def expenses():
 
     # 2. Financial Calculations
     # Total Budget Allocated
-    total_budget = db.session.query(func.sum(Budget.amount_allocated)).filter(Budget.floor == floor).scalar() or 0
+    total_budget = tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(Budget.floor == floor).scalar() or 0
     
     # Total Spent (Current System: Completed Procurements with Costs)
-    total_spent_procurement = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(
+    total_spent_procurement = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
         ProcurementItem.floor == floor, 
         ProcurementItem.status == 'completed'
     ).scalar() or 0
     
     # Legacy Expenses (Optional: include in total spent if desired)
-    total_spent_legacy = db.session.query(func.sum(Expense.amount)).filter(Expense.floor == floor).scalar() or 0
+    total_spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == floor).scalar() or 0
     
     total_spent = float(total_spent_procurement) + float(total_spent_legacy)
     remaining_balance = float(total_budget) - total_spent
 
     # 3. Data for Ledger
     # Get completed procurements for this floor that are NOT yet in a bill
-    pending_procurements = ProcurementItem.query.filter_by(
+    pending_procurements = tenant_filter(ProcurementItem.query).filter_by(
         floor=floor, status='completed', bill_id=None
     ).order_by(ProcurementItem.created_at.desc()).all()
     
     # Get all bills for this floor
-    bills = Bill.query.filter_by(floor=floor).order_by(Bill.bill_date.desc()).all()
+    bills = tenant_filter(Bill.query).filter_by(floor=floor).order_by(Bill.bill_date.desc()).all()
     
     # Get budget history
-    budgets = Budget.query.filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
+    budgets = tenant_filter(Budget.query).filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
     
     # Legacy expenses for reference
-    legacy_expenses = Expense.query.filter_by(floor=floor).order_by(Expense.date.desc()).all()
+    legacy_expenses = tenant_filter(Expense.query).filter_by(floor=floor).order_by(Expense.date.desc()).all()
 
     # Get unique shop names for suggestions
-    unique_shops = db.session.query(Bill.shop_name).filter(
+    unique_shops = tenant_filter(db.session.query(Bill.shop_name)).filter(
         Bill.floor == floor, Bill.shop_name.isnot(None), Bill.shop_name != ''
     ).distinct().order_by(Bill.shop_name).all()
     unique_shops = [s[0] for s in unique_shops]
@@ -161,7 +163,7 @@ def delete_bill(bill_id):
     if not user or user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    bill = Bill.query.get_or_404(bill_id)
+    bill = tenant_filter(Bill.query).get_or_404(bill_id)
     if user.role != 'admin' and bill.floor != user.floor:
         abort(403)
 
@@ -195,7 +197,8 @@ def add_budget():
         allocation_type=request.form.get('allocation_type'),
         start_date=start_date,
         end_date=end_date,
-        notes=request.form.get('notes')
+        notes=request.form.get('notes'),
+        tenant_id=getattr(g, 'tenant_id', None)
     )
     db.session.add(budget)
     db.session.commit()
@@ -211,7 +214,7 @@ def delete_expense(expense_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    expense = Expense.query.get(expense_id)
+    expense = tenant_filter(Expense.query).get(expense_id)
     if not expense:
         abort(404)
     if user.role == 'pantryHead' and expense.floor != user.floor:
@@ -234,11 +237,11 @@ def lend_borrow():
     floor = _get_active_floor(user)
     
     if user.role == 'admin':
-        pending = FloorLendBorrow.query.filter_by(status='pending').order_by(FloorLendBorrow.created_at.desc()).all()
-        returned = FloorLendBorrow.query.filter_by(status='returned').order_by(FloorLendBorrow.borrower_marked_at.desc()).all()
-        completed = FloorLendBorrow.query.filter_by(status='completed').order_by(FloorLendBorrow.lender_verified_at.desc()).limit(100).all()
+        pending = tenant_filter(FloorLendBorrow.query).filter_by(status='pending').order_by(FloorLendBorrow.created_at.desc()).all()
+        returned = tenant_filter(FloorLendBorrow.query).filter_by(status='returned').order_by(FloorLendBorrow.borrower_marked_at.desc()).all()
+        completed = tenant_filter(FloorLendBorrow.query).filter_by(status='completed').order_by(FloorLendBorrow.lender_verified_at.desc()).limit(100).all()
     else:
-        query = FloorLendBorrow.query.filter(or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor))
+        query = tenant_filter(FloorLendBorrow.query).filter(or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor))
         
         pending = query.filter(FloorLendBorrow.status == 'pending').order_by(FloorLendBorrow.created_at.desc()).all()
         returned = query.filter(FloorLendBorrow.status == 'returned').order_by(FloorLendBorrow.borrower_marked_at.desc()).all()
@@ -275,7 +278,8 @@ def create_lend_borrow():
         item_type=request.form.get('item_type'),
         notes=request.form.get('notes'),
         created_by_id=user.id,
-        status='pending'
+        status='pending',
+        tenant_id=getattr(g, 'tenant_id', None)
     )
     db.session.add(new_record)
     db.session.commit()
@@ -291,7 +295,7 @@ def mark_returned(record_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    record = FloorLendBorrow.query.get_or_404(record_id)
+    record = tenant_filter(FloorLendBorrow.query).get_or_404(record_id)
     floor = _get_active_floor(user)
 
     if user.role != 'admin' and record.borrower_floor != floor:
@@ -316,7 +320,7 @@ def verify_return(record_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    record = FloorLendBorrow.query.get_or_404(record_id)
+    record = tenant_filter(FloorLendBorrow.query).get_or_404(record_id)
     floor = _get_active_floor(user)
     action = request.form.get('action')
 
@@ -404,7 +408,8 @@ def save_imported_bill():
             total_amount=data.get('total_amount', 0),
             floor=floor,
             source='receipt_scan',
-            original_filename=data.get('filename')
+            original_filename=data.get('filename'),
+            tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(bill)
         db.session.flush()
@@ -420,7 +425,8 @@ def save_imported_bill():
                 created_by_id=user.id,
                 actual_cost=item_data.get('cost'),
                 expense_recorded_at=datetime.utcnow(),
-                bill_id=bill.id
+                bill_id=bill.id,
+                tenant_id=getattr(g, 'tenant_id', None)
             )
             db.session.add(item)
 

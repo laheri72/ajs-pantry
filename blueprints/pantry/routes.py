@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify
+from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
 from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense
 from datetime import datetime, date, timedelta
@@ -9,6 +9,7 @@ from ..utils import (
     _get_active_floor,
     _require_staff_for_floor,
     _display_name_for,
+    tenant_filter,
     FLOOR_MIN,
     FLOOR_MAX
 )
@@ -32,26 +33,26 @@ def dashboard():
 
     if is_privileged:
         # Total spent: Legacy Expenses + Completed Procurement Costs
-        total_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(
+        total_spent_proc = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
             ProcurementItem.floor == floor, 
             ProcurementItem.status == 'completed'
         ).scalar() or 0
-        total_spent_legacy = db.session.query(func.sum(Expense.amount)).filter(Expense.floor == floor).scalar() or 0
+        total_spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == floor).scalar() or 0
         weekly_expenses = float(total_spent_proc) + float(total_spent_legacy)
 
         # Pending Lend/Borrow for this floor (either as lender or borrower)
-        pending_lend_borrow_count = FloorLendBorrow.query.filter(
+        pending_lend_borrow_count = tenant_filter(FloorLendBorrow.query).filter(
             or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor),
             FloorLendBorrow.status == 'pending'
         ).count()
 
     stats = {
-        'user_count': User.query.filter_by(floor=floor).count(),
-        'pending_requests': Request.query.filter_by(floor=floor, status='pending').count(),
+        'user_count': tenant_filter(User.query).filter_by(floor=floor).count(),
+        'pending_requests': tenant_filter(Request.query).filter_by(floor=floor, status='pending').count(),
         'weekly_expenses': weekly_expenses,
         'stars_7d': int(
             (
-                db.session.query(func.coalesce(func.sum(Feedback.rating), 0))
+                tenant_filter(db.session.query(func.coalesce(func.sum(Feedback.rating), 0)))
                 .filter(Feedback.floor == floor, Feedback.created_at >= stars_since_dt, Feedback.menu_id.isnot(None))
                 .scalar()
             )
@@ -60,14 +61,14 @@ def dashboard():
     }
 
     upcoming_dish = (
-        Menu.query.filter_by(floor=floor)
+        tenant_filter(Menu.query).filter_by(floor=floor)
         .filter(Menu.date >= today)
         .order_by(Menu.date.asc())
         .first()
     )
 
     top_team_row = (
-        db.session.query(Menu.assigned_team_id.label('team_id'), func.sum(Feedback.rating).label('stars'))
+        tenant_filter(db.session.query(Menu.assigned_team_id.label('team_id'), func.sum(Feedback.rating).label('stars')))
         .join(Feedback, Feedback.menu_id == Menu.id)
         .filter(Menu.floor == floor, Feedback.created_at >= stars_since_dt, Menu.assigned_team_id.isnot(None))
         .group_by(Menu.assigned_team_id)
@@ -75,20 +76,20 @@ def dashboard():
         .first()
     )
     if top_team_row and top_team_row.team_id:
-        t = Team.query.get(top_team_row.team_id)
+        t = tenant_filter(Team.query).get(top_team_row.team_id)
         stats['top_team_7d'] = f"{(t.icon or '').strip()} {(t.name or '').strip()}".strip() if t else None
     else:
         stats['top_team_7d'] = None
 
     upcoming_tea_duties = (
-        TeaTask.query.filter_by(floor=floor, assigned_to_id=user.id)
+        tenant_filter(TeaTask.query).filter_by(floor=floor, assigned_to_id=user.id)
         .filter(TeaTask.status != 'completed', TeaTask.date >= today, TeaTask.date <= upcoming_until)
         .order_by(TeaTask.date.asc())
         .all()
     )
 
     upcoming_procurement_assignments = (
-        ProcurementItem.query.filter_by(floor=floor, assigned_to_id=user.id)
+        tenant_filter(ProcurementItem.query).filter_by(floor=floor, assigned_to_id=user.id)
         .filter(ProcurementItem.status != 'completed', ProcurementItem.created_at >= since_dt)
         .order_by(ProcurementItem.created_at.desc())
         .all()
@@ -97,7 +98,7 @@ def dashboard():
     team_ids = [
         tid
         for (tid,) in (
-            db.session.query(TeamMember.team_id)
+            tenant_filter(db.session.query(TeamMember.team_id))
             .join(Team, TeamMember.team_id == Team.id)
             .filter(Team.floor == floor, TeamMember.user_id == user.id)
             .all()
@@ -108,7 +109,7 @@ def dashboard():
         menu_filters.append(Menu.assigned_team_id.in_(team_ids))
 
     upcoming_menu_assignments = (
-        Menu.query.filter_by(floor=floor)
+        tenant_filter(Menu.query).filter_by(floor=floor)
         .filter(Menu.date >= today, Menu.date <= upcoming_until)
         .filter(or_(*menu_filters))
         .order_by(Menu.date.asc())
@@ -120,7 +121,7 @@ def dashboard():
     
     # 1. Announcements (last 7 days)
     announcement_since = datetime.utcnow() - timedelta(days=7)
-    recent_announcements = Announcement.query.filter(
+    recent_announcements = tenant_filter(Announcement.query).filter(
         Announcement.floor == floor,
         Announcement.created_at >= announcement_since,
         Announcement.is_archived == False
@@ -169,7 +170,7 @@ def dashboard():
 
     # 3. Special Events (upcoming 7 days)
     event_until = today + timedelta(days=7)
-    upcoming_events = SpecialEvent.query.filter(
+    upcoming_events = tenant_filter(SpecialEvent.query).filter(
         SpecialEvent.floor == floor,
         SpecialEvent.date >= today,
         SpecialEvent.date <= event_until
@@ -185,8 +186,7 @@ def dashboard():
             'category': 'Special Event'
         })
 
-    # Sort notifications by time (newest first for announcements, soonest first for assignments if we mixed them)
-    # Actually, let's keep it simple: Announcements first, then assignments
+    # Sort notifications by time
     notifications.sort(key=lambda x: x['time'], reverse=True)
     
     return render_template(
@@ -220,11 +220,11 @@ def people():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    users = User.query.filter_by(floor=floor).all()
+    users = tenant_filter(User.query).filter_by(floor=floor).all()
     users.sort(key=lambda u: (u.full_name or u.username or u.email or "").lower())
-    teams = Team.query.filter_by(floor=floor).order_by(Team.name.asc()).all()
+    teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
 
-    team_memberships = TeamMember.query.join(Team, TeamMember.team_id == Team.id).filter(Team.floor == floor).all()
+    team_memberships = tenant_filter(TeamMember.query).join(Team, TeamMember.team_id == Team.id).filter(Team.floor == floor).all()
     members_by_team_id = {}
     for tm in team_memberships:
         members_by_team_id.setdefault(tm.team_id, []).append(tm.user)
@@ -239,14 +239,14 @@ def people():
 
     team_leaderboard = []
     team_rows = (
-        db.session.query(
+        tenant_filter(db.session.query(
             Team.id.label('team_id'),
             Team.name.label('team_name'),
             Team.icon.label('team_icon'),
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
             func.count(Feedback.id).label('ratings_count'),
             func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
-        )
+        ))
         .join(Menu, Menu.assigned_team_id == Team.id)
         .join(Feedback, Feedback.menu_id == Menu.id)
         .filter(Team.floor == floor, Feedback.created_at >= leaderboard_since)
@@ -269,7 +269,7 @@ def people():
 
     individual_leaderboard = []
     individual_rows = (
-        db.session.query(
+        tenant_filter(db.session.query(
             User.id.label('user_id'),
             User.full_name.label('full_name'),
             User.username.label('username'),
@@ -277,7 +277,7 @@ def people():
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
             func.count(Feedback.id).label('ratings_count'),
             func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
-        )
+        ))
         .join(Menu, Menu.assigned_to_id == User.id)
         .join(Feedback, Feedback.menu_id == Menu.id)
         .filter(User.floor == floor, Feedback.created_at >= leaderboard_since)
@@ -301,12 +301,12 @@ def people():
     dish_name_expr = func.coalesce(Dish.name, Menu.title)
     dish_leaderboard = []
     dish_rows = (
-        db.session.query(
+        tenant_filter(db.session.query(
             dish_name_expr.label('dish_name'),
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
             func.count(Feedback.id).label('ratings_count'),
             func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
-        )
+        ))
         .join(Menu, Feedback.menu_id == Menu.id)
         .outerjoin(Dish, Menu.dish_id == Dish.id)
         .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
@@ -329,13 +329,13 @@ def people():
         )
 
     dish_champion_rows = (
-        db.session.query(
+        tenant_filter(db.session.query(
             dish_name_expr.label('dish_name'),
             Team.id.label('team_id'),
             Team.name.label('team_name'),
             Team.icon.label('team_icon'),
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
-        )
+        ))
         .join(Menu, Feedback.menu_id == Menu.id)
         .outerjoin(Dish, Menu.dish_id == Dish.id)
         .join(Team, Menu.assigned_team_id == Team.id)
@@ -374,6 +374,7 @@ def people():
         dish_leaderboard=dish_leaderboard,
         dish_champions=dish_champions,
         current_user=user,
+        active_floor=floor
     )
 
 @pantry_bp.route('/calendar')
@@ -383,9 +384,9 @@ def calendar():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    floor_menus = Menu.query.filter_by(floor=floor).all()
-    floor_tea_tasks = TeaTask.query.filter_by(floor=floor).all()
-    floor_special_events = SpecialEvent.query.filter_by(floor=floor).all()
+    floor_menus = tenant_filter(Menu.query).filter_by(floor=floor).all()
+    floor_tea_tasks = tenant_filter(TeaTask.query).filter_by(floor=floor).all()
+    floor_special_events = tenant_filter(SpecialEvent.query).filter_by(floor=floor).all()
 
     menus = [
         {
@@ -436,7 +437,7 @@ def calendar():
         for s in floor_special_events
     ]
 
-    return render_template('calendar.html', menus=menus, tea_tasks=tea_tasks, special_events=special_events, current_user=user)
+    return render_template('calendar.html', menus=menus, tea_tasks=tea_tasks, special_events=special_events, current_user=user, active_floor=floor)
 
 @pantry_bp.route('/special-events', methods=['POST'])
 def create_special_event():
@@ -458,7 +459,8 @@ def create_special_event():
         description=description,
         date=event_date,
         floor=floor,
-        created_by_id=user.id
+        created_by_id=user.id,
+        tenant_id=getattr(g, 'tenant_id', None)
     )
     db.session.add(new_event)
     db.session.commit()
@@ -471,9 +473,9 @@ def delete_special_event(event_id):
     if not user or user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    event = SpecialEvent.query.get_or_404(event_id)
+    event = tenant_filter(SpecialEvent.query).get_or_404(event_id)
     
-    # Ensure the event belongs to the user's floor (optional but recommended)
+    # Ensure the event belongs to the user's floor
     floor = _get_active_floor(user)
     if event.floor != floor:
         abort(403)
@@ -489,7 +491,7 @@ def update_special_event(event_id):
     if not user or user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    event = SpecialEvent.query.get_or_404(event_id)
+    event = tenant_filter(SpecialEvent.query).get_or_404(event_id)
     
     floor = _get_active_floor(user)
     if event.floor != floor:
@@ -513,9 +515,9 @@ def menus():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    floor_users = User.query.filter_by(floor=floor).all()
-    floor_teams = Team.query.filter_by(floor=floor).order_by(Team.name.asc()).all()
-    dishes = Dish.query.order_by(func.lower(Dish.name).asc()).all()
+    floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
+    floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
+    dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
 
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         try:
@@ -536,7 +538,7 @@ def menus():
             if not dish_id_val:
                 flash('Invalid dish selected', 'error')
                 return redirect(url_for('pantry.menus'))
-            dish = Dish.query.get(dish_id_val)
+            dish = tenant_filter(Dish.query).get(dish_id_val)
             if not dish:
                 flash('Dish not found', 'error')
                 return redirect(url_for('pantry.menus'))
@@ -544,11 +546,11 @@ def menus():
             if len(new_dish_name) > 120:
                 flash('Dish name is too long', 'error')
                 return redirect(url_for('pantry.menus'))
-            existing = Dish.query.filter(func.lower(Dish.name) == new_dish_name.lower()).first()
+            existing = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_dish_name.lower()).first()
             if existing:
                 dish = existing
             else:
-                dish = Dish(name=new_dish_name, created_by_id=user.id)
+                dish = Dish(name=new_dish_name, created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
                 db.session.add(dish)
                 db.session.flush()
         else:
@@ -568,14 +570,14 @@ def menus():
             except ValueError:
                 assigned_to_id = None
 
-        if assigned_team_id and not Team.query.filter_by(id=assigned_team_id, floor=floor).first():
+        if assigned_team_id and not tenant_filter(Team.query).filter_by(id=assigned_team_id, floor=floor).first():
             flash('Assigned team must be on your floor', 'error')
             assigned_team_id = None
 
         if assigned_team_id:
             assigned_to_id = None
 
-        if assigned_to_id and not User.query.filter_by(id=assigned_to_id, floor=floor).first():
+        if assigned_to_id and not tenant_filter(User.query).filter_by(id=assigned_to_id, floor=floor).first():
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
@@ -594,12 +596,13 @@ def menus():
             assigned_team_id=assigned_team_id,
             floor=floor,
             created_by_id=user.id,
+            tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(menu)
         db.session.commit()
         flash('Menu added successfully', 'success')
 
-    floor_menus = Menu.query.filter_by(floor=floor).order_by(Menu.date.desc()).all()
+    floor_menus = tenant_filter(Menu.query).filter_by(floor=floor).order_by(Menu.date.desc()).all()
 
     # Prepare Weekly View Data
     today = date.today()
@@ -624,7 +627,8 @@ def menus():
         floor_teams=floor_teams, 
         dishes=dishes, 
         current_user=user,
-        today=today
+        today=today,
+        active_floor=floor
     )
 
 @pantry_bp.route('/menus/<int:menu_id>/delete', methods=['POST'])
@@ -636,7 +640,7 @@ def delete_menu(menu_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    menu = Menu.query.get(menu_id)
+    menu = tenant_filter(Menu.query).get(menu_id)
     if not menu:
         abort(404)
     if user.role == 'pantryHead' and menu.floor != user.floor:
@@ -659,6 +663,7 @@ def suggestions():
             description=request.form.get('description'),
             user_id=user.id,
             floor=user.floor,
+            tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(suggestion)
         db.session.commit()
@@ -669,7 +674,7 @@ def suggestions():
     
     # Calculate vote counts and join for sorting
     suggestions_with_votes = (
-        db.session.query(Suggestion, func.count(SuggestionVote.id).label('vote_count'))
+        tenant_filter(db.session.query(Suggestion, func.count(SuggestionVote.id).label('vote_count')))
         .outerjoin(SuggestionVote)
         .filter(Suggestion.floor == floor)
         .group_by(Suggestion.id)
@@ -678,13 +683,14 @@ def suggestions():
     )
 
     # Get the IDs of suggestions the current user has voted for
-    user_voted_ids = {v.suggestion_id for v in SuggestionVote.query.filter_by(user_id=user.id).all()}
+    user_voted_ids = {v.suggestion_id for v in tenant_filter(SuggestionVote.query).filter_by(user_id=user.id).all()}
 
     return render_template(
         'suggestions.html', 
         suggestions_with_votes=suggestions_with_votes, 
         user_voted_ids=user_voted_ids,
-        current_user=user
+        current_user=user,
+        active_floor=floor
     )
 
 @pantry_bp.route('/suggestions/<int:suggestion_id>/vote', methods=['POST'])
@@ -693,11 +699,11 @@ def vote_suggestion(suggestion_id):
     if not user:
         return ('', 401)
 
-    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    suggestion = tenant_filter(Suggestion.query).get_or_404(suggestion_id)
     if suggestion.floor != user.floor:
         abort(403)
 
-    existing_vote = SuggestionVote.query.filter_by(suggestion_id=suggestion_id, user_id=user.id).first()
+    existing_vote = tenant_filter(SuggestionVote.query).filter_by(suggestion_id=suggestion_id, user_id=user.id).first()
     
     if existing_vote:
         # If user already voted, remove the vote (toggle)
@@ -706,7 +712,7 @@ def vote_suggestion(suggestion_id):
         return jsonify({"voted": False, "votes": len(suggestion.votes)})
     else:
         # Add new vote
-        new_vote = SuggestionVote(suggestion_id=suggestion_id, user_id=user.id)
+        new_vote = SuggestionVote(suggestion_id=suggestion_id, user_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
         db.session.add(new_vote)
         db.session.commit()
         return jsonify({"voted": True, "votes": len(suggestion.votes)})
@@ -720,7 +726,7 @@ def delete_suggestion(suggestion_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    suggestion = Suggestion.query.get(suggestion_id)
+    suggestion = tenant_filter(Suggestion.query).get(suggestion_id)
     if not suggestion:
         return ('', 404)
 
@@ -753,7 +759,7 @@ def feedbacks():
             flash('Invalid menu selected', 'error')
             return redirect(url_for('pantry.feedbacks'))
 
-        menu = Menu.query.get(menu_id_val)
+        menu = tenant_filter(Menu.query).get(menu_id_val)
         if not menu or menu.floor != floor:
             flash('Menu not found on this floor', 'error')
             return redirect(url_for('pantry.feedbacks'))
@@ -787,7 +793,7 @@ def feedbacks():
         )
         title = dish_label[:100]
 
-        existing = Feedback.query.filter_by(menu_id=menu.id, user_id=user.id).first()
+        existing = tenant_filter(Feedback.query).filter_by(menu_id=menu.id, user_id=user.id).first()
         if existing:
             existing.title = title
             existing.description = description
@@ -801,6 +807,7 @@ def feedbacks():
                 menu_id=menu.id,
                 user_id=user.id,
                 floor=menu.floor,
+                tenant_id=getattr(g, 'tenant_id', None)
             )
             db.session.add(feedback)
 
@@ -809,12 +816,12 @@ def feedbacks():
         return redirect(url_for('pantry.feedbacks'))
 
     floor = _get_active_floor(user)
-    visible_feedbacks = Feedback.query.filter_by(floor=floor).order_by(Feedback.created_at.desc()).all()
+    visible_feedbacks = tenant_filter(Feedback.query).filter_by(floor=floor).order_by(Feedback.created_at.desc()).all()
 
     today = date.today()
     menu_window_start = today - timedelta(days=14)
     menu_options = (
-        Menu.query.filter_by(floor=floor)
+        tenant_filter(Menu.query).filter_by(floor=floor)
         .filter(Menu.date >= menu_window_start, Menu.date <= today)
         .filter(or_(Menu.assigned_team_id.isnot(None), Menu.assigned_to_id.isnot(None)))
         .order_by(Menu.date.desc())
@@ -823,7 +830,7 @@ def feedbacks():
     )
 
     rated_menu_ids = {
-        f.menu_id for f in Feedback.query.filter_by(user_id=user.id).filter(Feedback.menu_id.isnot(None)).all()
+        f.menu_id for f in tenant_filter(Feedback.query).filter_by(user_id=user.id).filter(Feedback.menu_id.isnot(None)).all()
     }
 
     return render_template('feedbacks.html', feedbacks=visible_feedbacks, menu_options=menu_options, rated_menu_ids=rated_menu_ids, current_user=user)
@@ -837,7 +844,7 @@ def delete_feedback(feedback_id):
     if user.role not in {'admin', 'pantryHead'}:
         return ('', 403)
 
-    feedback = Feedback.query.get(feedback_id)
+    feedback = tenant_filter(Feedback.query).get(feedback_id)
     if not feedback:
         return ('', 404)
 

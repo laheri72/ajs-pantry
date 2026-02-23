@@ -31,7 +31,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-teal fixed-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('pantry.dashboard') }}">
-                <i class="fas fa-utensils me-2"></i>Maskan Breakfast
+                <i class="fas fa-utensils me-2"></i>{% if tenant_name %}{{ tenant_name }}{% else %}Maskan Breakfast{% endif %}
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -40,6 +40,13 @@
 
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
+                    {% if is_super_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-bold" href="{{ url_for('super_admin.dashboard') }}">
+                            <i class="fas fa-shield-alt"></i> PLATFORM
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('pantry.dashboard') }}">
                             <i class="fas fa-home"></i> Home
