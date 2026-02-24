@@ -1,20 +1,21 @@
 {% extends "super_admin/base.html" %}
 
 {% block content %}
-<div class="row g-3 g-md-4 mb-4 mb-md-5">
+<!-- KPI Header -->
+<div class="row g-3 g-md-4 mb-4">
     <div class="col-sm-6 col-xl-3">
         <div class="card card-expert p-3 p-md-4 h-100">
             <div class="d-flex align-items-center">
                 <div class="stat-icon bg-primary bg-opacity-10 text-primary me-3">
-                    <i class="fas fa-building fa-lg"></i>
+                    <i class="fas fa-chart-pie fa-lg"></i>
                 </div>
                 <div>
-                    <div class="text-muted small fw-bold text-uppercase">Tenants</div>
-                    <div class="h3 fw-bold mb-0">{{ stats.tenant_count }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">Financial Util.</div>
+                    <div class="h3 fw-bold mb-0">{{ stats.financial_util }}%</div>
                 </div>
             </div>
-            <div class="mt-3 small text-success">
-                <i class="fas fa-arrow-up me-1"></i> {{ stats.growth_rate }} new this month
+            <div class="mt-3 small text-muted">
+                Platform-wide budget usage
             </div>
         </div>
     </div>
@@ -22,92 +23,178 @@
         <div class="card card-expert p-3 p-md-4 h-100">
             <div class="d-flex align-items-center">
                 <div class="stat-icon bg-success bg-opacity-10 text-success me-3">
-                    <i class="fas fa-users fa-lg"></i>
+                    <i class="fas fa-check-circle fa-lg"></i>
                 </div>
                 <div>
-                    <div class="text-muted small fw-bold text-uppercase">Global Users</div>
-                    <div class="h3 fw-bold mb-0">{{ stats.user_count }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">Ops Completion</div>
+                    <div class="h3 fw-bold mb-0">{{ stats.completion_rate }}%</div>
                 </div>
             </div>
-            <div class="mt-3 small text-muted">Active cross-tenant</div>
+            <div class="mt-3 small text-muted">Task execution efficiency</div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
         <div class="card card-expert p-3 p-md-4 h-100">
             <div class="d-flex align-items-center">
                 <div class="stat-icon bg-warning bg-opacity-10 text-warning me-3">
-                    <i class="fas fa-bolt fa-lg"></i>
+                    <i class="fas fa-star fa-lg"></i>
                 </div>
                 <div>
-                    <div class="text-muted small fw-bold text-uppercase">Ops Activity</div>
-                    <div class="h3 fw-bold mb-0">{{ stats.activity_total }}</div>
+                    <div class="text-muted small fw-bold text-uppercase">Satisfaction</div>
+                    <div class="h3 fw-bold mb-0">{{ stats.avg_rating }}<span class="small text-muted">/5</span></div>
                 </div>
             </div>
-            <div class="mt-3 small text-muted">Platform interactions</div>
+            <div class="mt-3 small text-muted">Global feedback average</div>
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-expert p-3 p-md-4 h-100 d-flex align-items-center justify-content-center">
-            <button class="btn btn-ceo w-100 py-2 py-md-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#provisionModal">
-                <i class="fas fa-plus-circle me-2"></i> Launch Tenant
-            </button>
+        <div class="card card-expert p-3 p-md-4 h-100">
+            <div class="d-flex align-items-center">
+                <div class="stat-icon bg-info bg-opacity-10 text-info me-3">
+                    <i class="fas fa-layer-group fa-lg"></i>
+                </div>
+                <div>
+                    <div class="text-muted small fw-bold text-uppercase">Infrastructure</div>
+                    <div class="h3 fw-bold mb-0">{{ stats.active_infra }}</div>
+                </div>
+            </div>
+            <div class="mt-3 small text-muted">Active floors globally</div>
         </div>
     </div>
 </div>
 
-<div class="row g-4 mb-4 mb-md-5">
+<!-- Main Analytics Grid -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card card-expert p-3 p-md-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h6 class="fw-bold mb-0"><i class="fas fa-heartbeat me-2 text-danger"></i>Platform Engagement Trend</h6>
+                <span class="badge bg-light text-dark">Last 30 Days</span>
+            </div>
+            <div style="position: relative; height: 300px;">
+                <canvas id="engagementChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card card-expert p-3 p-md-4 h-100">
+            <h6 class="fw-bold mb-4"><i class="fas fa-shopping-basket me-2 text-success"></i>Spend Categories</h6>
+            <div style="position: relative; height: 250px;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+            <div class="mt-4">
+                <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Inter-Floor Sharing</span>
+                    <span class="fw-bold">{{ stats.total_shared }} items</span>
+                </div>
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-info" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Matrix & At-Risk -->
+<div class="row g-4 mb-4">
     <div class="col-lg-7 col-xl-8">
         <div class="card card-expert p-3 p-md-4 h-100">
-            <h6 class="fw-bold mb-4"><i class="fas fa-chart-line me-2 text-primary"></i>Platform Engagement</h6>
-            <div style="position: relative; height: 300px;">
-                <canvas id="activityChart"></canvas>
+            <h6 class="fw-bold mb-4"><i class="fas fa-th me-2 text-primary"></i>Tenant Performance Matrix</h6>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="small text-muted">
+                        <tr>
+                            <th>Tenant</th>
+                            <th>Users</th>
+                            <th>Rating</th>
+                            <th>Spend</th>
+                            <th>Health</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for t in stats.tenant_matrix %}
+                        <tr>
+                            <td class="fw-bold">{{ t.name }}</td>
+                            <td>{{ t.users }}</td>
+                            <td>
+                                <span class="badge {% if t.rating >= 4 %}bg-success{% elif t.rating >= 3 %}bg-warning{% else %}bg-danger{% endif %} bg-opacity-10 {% if t.rating >= 4 %}text-success{% elif t.rating >= 3 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ t.rating }}
+                                </span>
+                            </td>
+                            <td>{{ "{:,.0f}".format(t.spent) }}</td>
+                            <td>
+                                <div class="progress" style="height: 6px; width: 60px;">
+                                    <div class="progress-bar {% if t.rating >= 3 %}bg-success{% else %}bg-danger{% endif %}" style="width: {{ t.rating * 20 }}%"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
     <div class="col-lg-5 col-xl-4">
+        {% if at_risk %}
+        <div class="card card-expert border-danger border-opacity-25 p-3 p-md-4 mb-4">
+            <h6 class="fw-bold mb-3 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Attention Required</h6>
+            <div class="list-group list-group-flush">
+                {% for r in at_risk %}
+                <div class="list-group-item px-0 py-2 border-0 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold small">{{ r.name }}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">{{ r.reason }}</div>
+                    </div>
+                    <a href="{{ url_for('super_admin.tenant_detail', tenant_id=r.id) }}" class="btn btn-outline-danger btn-sm py-0 px-2">Fix</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
         <div class="card card-expert p-3 p-md-4 h-100">
-            <h6 class="fw-bold mb-4"><i class="fas fa-clock me-2 text-success"></i>Recent Node Launches</h6>
+            <button class="btn btn-ceo w-100 py-3 mb-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#provisionModal">
+                <i class="fas fa-plus-circle me-2"></i> Launch New Tenant
+            </button>
+            
+            <h6 class="fw-bold mb-3"><i class="fas fa-clock me-2 text-muted"></i>Recent Launches</h6>
             <div class="list-group list-group-flush">
                 {% for t in tenants %}
-                <div class="list-group-item px-0 py-3 border-0 border-bottom">
+                <div class="list-group-item px-0 py-2 border-0 border-bottom">
                     <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold text-dark text-truncate" style="max-width: 150px;">{{ t.name }}</div>
-                            <div class="small text-muted">{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else 'Provisioned' }}</div>
-                        </div>
-                        <a href="{{ url_for('super_admin.tenant_detail', tenant_id=t.id) }}" class="btn btn-light btn-sm rounded-3">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
+                        <div class="small fw-bold">{{ t.name }}</div>
+                        <a href="{{ url_for('super_admin.tenant_detail', tenant_id=t.id) }}" class="text-muted"><i class="fas fa-external-link-alt"></i></a>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-            <a href="{{ url_for('super_admin.tenants_list') }}" class="btn btn-link btn-sm text-primary mt-3 text-decoration-none fw-bold p-0">
-                View all infrastructure <i class="fas fa-chevron-right ms-1"></i>
-            </a>
         </div>
     </div>
 </div>
 
+<!-- Audit Stream -->
 <div class="card card-expert p-3 p-md-4">
-    <h6 class="fw-bold mb-4"><i class="fas fa-history me-2 text-muted"></i>Global Audit Stream</h6>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h6 class="fw-bold mb-0"><i class="fas fa-fingerprint me-2 text-secondary"></i>Platform Security Audit</h6>
+        <a href="#" class="small text-decoration-none">View full logs</a>
+    </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
             <thead class="text-muted small">
                 <tr>
-                    <th>Timestamp</th>
-                    <th>Action</th>
-                    <th class="d-none d-md-table-cell">Details</th>
-                    <th>Operator</th>
+                    <th>Event</th>
+                    <th>Detail</th>
+                    <th>Time</th>
+                    <th>By</th>
                 </tr>
             </thead>
             <tbody>
                 {% for audit in audits %}
                 <tr class="small">
-                    <td class="text-muted" style="white-space: nowrap;">{{ audit.created_at.strftime('%H:%M %b %d') }}</td>
                     <td><span class="badge bg-light text-dark">{{ audit.action.replace('_', ' ').upper() }}</span></td>
-                    <td class="text-dark d-none d-md-table-cell">{{ audit.description }}</td>
-                    <td class="fw-bold text-truncate" style="max-width: 100px;">{{ audit.performed_by.username if audit.performed_by else 'System' }}</td>
+                    <td class="text-dark">{{ audit.description }}</td>
+                    <td class="text-muted">{{ audit.created_at.strftime('%H:%M %b %d') }}</td>
+                    <td class="fw-bold">{{ audit.performed_by.username if audit.performed_by else 'System' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -120,16 +207,22 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('activityChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
+    // Engagement Trend Chart
+    const engCtx = document.getElementById('engagementChart').getContext('2d');
+    new Chart(engCtx, {
+        type: 'line',
         data: {
-            labels: ['Meal Plans', 'Tea Duties', 'Procurements', 'Evaluations'],
+            labels: {{ stats.activity_labels | tojson }},
             datasets: [{
-                label: 'Operations',
-                data: {{ stats.activity_data | tojson }},
-                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#6366f1'],
-                borderRadius: 8
+                label: 'Interactions',
+                data: {{ stats.activity_values | tojson }},
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                borderWidth: 3,
+                pointRadius: 0,
+                pointHoverRadius: 5
             }]
         },
         options: {
@@ -137,9 +230,35 @@ document.addEventListener('DOMContentLoaded', function() {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
-                x: { grid: { display: false } }
+                y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } }
             }
+        }
+    });
+
+    // Category Breakdown Chart
+    const catCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(catCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ stats.cat_labels | tojson }},
+            datasets: [{
+                data: {{ stats.cat_values | tojson }},
+                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                borderWidth: 0,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 15, font: { size: 11 } }
+                }
+            },
+            cutout: '70%'
         }
     });
 });

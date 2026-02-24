@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, g
 from werkzeug.security import check_password_hash, generate_password_hash
 from app import db
-from models import User, Tenant, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit
+from models import User, Tenant, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow
 from . import super_admin_bp
 from ..utils import require_super_admin
 from sqlalchemy import func
@@ -38,34 +38,119 @@ def login():
 def dashboard():
     require_super_admin()
     
-    # Platform-Wide Metrics
+    # 1. Platform-Wide KPIs
     total_tenants = Tenant.query.count()
     total_users = User.query.filter(User.tenant_id.isnot(None)).count()
+    active_infrastructure = db.session.query(func.sum(Tenant.floor_count)).scalar() or 0
     
-    # Activity Distribution
-    activity = {
-        'menus': Menu.query.count(),
-        'tea_tasks': TeaTask.query.count(),
-        'procurements': ProcurementItem.query.count(),
-        'feedbacks': Feedback.query.count()
-    }
+    # 2. Financial Utilization
+    total_budget = db.session.query(func.sum(Budget.amount_allocated)).scalar() or 0
+    total_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.status == 'completed').scalar() or 0
+    total_spent_legacy = db.session.query(func.sum(Expense.amount)).scalar() or 0
+    total_spent = float(total_spent_proc or 0) + float(total_spent_legacy or 0)
+    financial_utilization = (total_spent / float(total_budget) * 100) if total_budget and total_budget > 0 else 0
+
+    # 3. Operational Completion Rate
+    total_tea = TeaTask.query.count()
+    completed_tea = TeaTask.query.filter_by(status='completed').count()
+    total_proc = ProcurementItem.query.count()
+    completed_proc = ProcurementItem.query.filter_by(status='completed').count()
     
-    # Growth Calculation
+    total_tasks = total_tea + total_proc
+    completed_tasks = completed_tea + completed_proc
+    completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+
+    # 4. Satisfaction Index
+    avg_rating = db.session.query(func.avg(Feedback.rating)).scalar() or 0
+    
+    # 5. Activity Heatbeat (Last 30 Days)
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    new_tenants_30d = Tenant.query.filter(Tenant.created_at >= thirty_days_ago).count()
     
+    def get_daily_counts(model):
+        return db.session.query(
+            func.date(model.created_at), 
+            func.count(model.id)
+        ).filter(model.created_at >= thirty_days_ago)\
+         .group_by(func.date(model.created_at)).all()
+
+    activity_trend = {}
+    for date_obj, count in get_daily_counts(Menu): activity_trend[str(date_obj)] = activity_trend.get(str(date_obj), 0) + count
+    for date_obj, count in get_daily_counts(TeaTask): activity_trend[str(date_obj)] = activity_trend.get(str(date_obj), 0) + count
+    for date_obj, count in get_daily_counts(ProcurementItem): activity_trend[str(date_obj)] = activity_trend.get(str(date_obj), 0) + count
+    for date_obj, count in get_daily_counts(Feedback): activity_trend[str(date_obj)] = activity_trend.get(str(date_obj), 0) + count
+    
+    sorted_dates = sorted(activity_trend.keys())
+    activity_labels = [datetime.strptime(d, '%Y-%m-%d').strftime('%b %d') for d in sorted_dates]
+    activity_values = [activity_trend[d] for d in sorted_dates]
+
+    # 6. Financial Category Breakdown
+    categories = db.session.query(
+        ProcurementItem.category, 
+        func.sum(ProcurementItem.actual_cost)
+    ).filter(ProcurementItem.status == 'completed')\
+     .group_by(ProcurementItem.category).all()
+    
+    cat_labels = [c[0] for c in categories]
+    cat_values = [float(c[1] or 0) for c in categories]
+
+    # 7. Resource Sharing
+    total_shared = FloorLendBorrow.query.filter(FloorLendBorrow.created_at >= thirty_days_ago).count()
+
+    # 8. Tenant Performance Matrix & At-Risk
+    tenants_list = Tenant.query.all()
+    tenant_stats = []
+    at_risk_tenants = []
+    
+    for t in tenants_list:
+        u_count = User.query.filter_by(tenant_id=t.id).count()
+        f_rating = db.session.query(func.avg(Feedback.rating)).filter_by(tenant_id=t.id).scalar() or 0
+        t_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter_by(tenant_id=t.id, status='completed').scalar() or 0
+        t_spent_legacy = db.session.query(func.sum(Expense.amount)).filter_by(tenant_id=t.id).scalar() or 0
+        t_spent = float(t_spent_proc or 0) + float(t_spent_legacy or 0)
+        
+        last_activity = db.session.query(func.max(PlatformAudit.created_at)).filter_by(performed_by_id=User.id).join(User).filter(User.tenant_id == t.id).scalar()
+        
+        stat = {
+            'id': t.id,
+            'name': t.name,
+            'users': u_count,
+            'rating': round(float(f_rating), 1),
+            'spent': t_spent
+        }
+        tenant_stats.append(stat)
+        
+        # At-Risk logic
+        is_inactive = not last_activity or last_activity < (datetime.utcnow() - timedelta(days=7))
+        if f_rating > 0 and f_rating < 3.0 or is_inactive:
+            at_risk_tenants.append({
+                'name': t.name,
+                'reason': 'Low Satisfaction' if f_rating < 3.0 and f_rating > 0 else 'Inactivity',
+                'id': t.id
+            })
+
     stats = {
         'tenant_count': total_tenants,
         'user_count': total_users,
-        'activity_total': sum(activity.values()),
-        'growth_rate': new_tenants_30d,
-        'activity_data': [activity['menus'], activity['tea_tasks'], activity['procurements'], activity['feedbacks']]
+        'active_infra': active_infrastructure,
+        'financial_util': round(financial_utilization, 1),
+        'completion_rate': round(completion_rate, 1),
+        'avg_rating': round(float(avg_rating), 1),
+        'activity_labels': activity_labels,
+        'activity_values': activity_values,
+        'cat_labels': cat_labels,
+        'cat_values': cat_values,
+        'total_shared': total_shared,
+        'tenant_matrix': tenant_stats
     }
     
     recent_tenants = Tenant.query.order_by(Tenant.created_at.desc()).limit(5).all()
     recent_audits = PlatformAudit.query.order_by(PlatformAudit.created_at.desc()).limit(10).all()
         
-    return render_template('super_admin/dashboard.html', tenants=recent_tenants, stats=stats, audits=recent_audits)
+    return render_template('super_admin/dashboard.html', 
+                           tenants=recent_tenants, 
+                           stats=stats, 
+                           audits=recent_audits,
+                           at_risk=at_risk_tenants)
 
 @super_admin_bp.route('/platform-admin/tenants')
 def tenants_list():
