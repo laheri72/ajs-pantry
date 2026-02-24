@@ -121,6 +121,62 @@ def _get_current_user():
         return None
     return User.query.get(user_id)
 
+import os
+import json
+import logging
+from pywebpush import webpush, WebPushException
+
+def send_push_notification(user_id, title, body, icon=None, url=None):
+    """Sends a push notification to all subscriptions of a specific user."""
+    from models import PushSubscription
+    from app import db
+    
+    subscriptions = PushSubscription.query.filter_by(user_id=user_id).all()
+    if not subscriptions:
+        return False
+
+    vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY")
+    vapid_public_key = os.environ.get("VAPID_PUBLIC_KEY")
+    vapid_claims = {"sub": "mailto:admin@maskan.local"} # Replace with your email if desired
+
+    if not vapid_private_key or not vapid_public_key:
+        logging.warning("Push Notification failed: VAPID keys not found in environment.")
+        return False
+
+    notification_data = {
+        "title": title,
+        "body": body,
+        "icon": icon or "/static/icons/icon-192.png",
+        "url": url or "/dashboard"
+    }
+
+    success_count = 0
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {
+                        "p256dh": sub.p256dh,
+                        "auth": sub.auth
+                    }
+                },
+                data=json.dumps(notification_data),
+                vapid_private_key=vapid_private_key,
+                vapid_claims=vapid_claims
+            )
+            success_count += 1
+        except WebPushException as ex:
+            logging.error(f"Push Notification Error: {ex}")
+            # If the subscription is no longer valid, we should probably delete it
+            if ex.response and ex.response.status_code in [404, 410]:
+                db.session.delete(sub)
+                db.session.commit()
+        except Exception as e:
+            logging.error(f"General Push Error: {e}")
+
+    return success_count > 0
+
 def _require_user():
     user = _get_current_user()
     if not user:

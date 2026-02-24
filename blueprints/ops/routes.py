@@ -9,7 +9,8 @@ from ..utils import (
     _get_active_floor,
     _require_staff_for_floor,
     _display_name_for,
-    tenant_filter
+    tenant_filter,
+    send_push_notification
 )
 
 @ops_bp.route('/tea', methods=['GET', 'POST'])
@@ -50,7 +51,17 @@ def tea():
         )
         db.session.add(task)
         db.session.commit()
-        flash('Tea task added successfully', 'success')
+
+        if assigned_to_id:
+            send_push_notification(
+                user_id=assigned_to_id,
+                title="New Tea Duty",
+                body=f"You have been assigned tea duty for {task_date.strftime('%b %d')}.",
+                icon="/static/icons/icon-192.png",
+                url="/tea"
+            )
+
+        flash('tea task added successfully', 'success')
         return redirect(url_for('ops.tea'))
 
     month_param = (request.args.get('month') or '').strip()
@@ -159,6 +170,19 @@ def requests():
         )
         db.session.add(new_req)
         db.session.commit()
+
+        # Notify Admins/PantryHeads of the floor
+        admins = tenant_filter(User.query).filter(User.floor == user.floor, User.role.in_(['admin', 'pantryHead'])).all()
+        for admin in admins:
+            if admin.id != user.id:
+                send_push_notification(
+                    user_id=admin.id,
+                    title=f"New Request: {new_req.request_type.title()}",
+                    body=f"From {user.full_name or user.username}: {new_req.title}",
+                    icon="/static/icons/icon-192.png",
+                    url="/requests"
+                )
+
         flash('Request submitted successfully', 'success')
         return redirect(url_for('ops.requests'))
 
@@ -205,6 +229,17 @@ def update_request_status(request_id):
     req.status = new_status
     req.approved_by_id = user.id if new_status == 'approved' else None
     db.session.commit()
+
+    # Notify the user
+    if req.user_id:
+        send_push_notification(
+            user_id=req.user_id,
+            title=f"Request {new_status.title()}",
+            body=f"Your request '{req.title}' has been {new_status}.",
+            icon="/static/icons/icon-192.png",
+            url="/requests"
+        )
+
     return ('', 204)
 
 @ops_bp.route('/requests/<int:request_id>/delete', methods=['POST'])
@@ -289,6 +324,16 @@ def procurement():
 
             db.session.add_all(items_to_add)
             db.session.commit()
+
+            if assigned_to_id:
+                send_push_notification(
+                    user_id=assigned_to_id,
+                    title="New Procurement Task",
+                    body=f"You have been assigned {len(items_to_add)} items to buy.",
+                    icon="/static/icons/icon-192.png",
+                    url="/procurement"
+                )
+
             flash(f'Added {len(items_to_add)} procurement items successfully.', 'success')
             return redirect(url_for('ops.procurement'))
 
@@ -310,6 +355,16 @@ def procurement():
         )
         db.session.add(item)
         db.session.commit()
+
+        if assigned_to_id:
+            send_push_notification(
+                user_id=assigned_to_id,
+                title="New Procurement Task",
+                body=f"You have been assigned to buy: {item_name}.",
+                icon="/static/icons/icon-192.png",
+                url="/procurement"
+            )
+
         flash('Procurement item added successfully.', 'success')
         return redirect(url_for('ops.procurement'))
 

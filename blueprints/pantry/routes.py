@@ -10,6 +10,7 @@ from ..utils import (
     _require_staff_for_floor,
     _display_name_for,
     tenant_filter,
+    send_push_notification,
     FLOOR_MIN,
     FLOOR_MAX
 )
@@ -464,6 +465,19 @@ def create_special_event():
     )
     db.session.add(new_event)
     db.session.commit()
+
+    # Notify users on the floor via Push
+    floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
+    for fu in floor_users:
+        if fu.id != user.id: # Don't notify the creator
+            send_push_notification(
+                user_id=fu.id,
+                title="New Special Event",
+                body=f"{title} on {event_date.strftime('%b %d')}",
+                icon="/static/icons/icon-192.png",
+                url="/calendar"
+            )
+
     flash('Special event added to calendar.', 'success')
     return redirect(url_for('pantry.calendar'))
 
@@ -600,6 +614,16 @@ def menus():
         )
         db.session.add(menu)
         db.session.commit()
+
+        if assigned_to_id:
+            send_push_notification(
+                user_id=assigned_to_id,
+                title="New Menu Assignment",
+                body=f"You have been assigned to prepare: {menu_title}.",
+                icon="/static/icons/icon-192.png",
+                url="/menus"
+            )
+
         flash('Menu added successfully', 'success')
         return redirect(url_for('pantry.menus'))
 

@@ -270,7 +270,7 @@ function processOfflineItem(item) {
 function initializeNotifications() {
     // Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
+        // Notification.requestPermission(); // Don't prompt immediately, wait for user action
     }
     
     // Auto-dismiss existing flash messages
@@ -296,6 +296,69 @@ function initializeNotifications() {
     
     // Setup cooking alert notifications
     setupCookingAlerts();
+}
+
+// Push Notification Subscription
+async function subscribeToPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showNotification('Push notifications are not supported by your browser.', 'error');
+        return;
+    }
+
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        
+        // Get Public Key from server
+        const keyResponse = await fetch('/api/push/public-key');
+        const { public_key } = await keyResponse.json();
+        
+        if (!public_key) {
+            console.error('VAPID Public Key not found.');
+            return;
+        }
+
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(public_key)
+        });
+
+        // Send subscription to server
+        const response = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subscription)
+        });
+
+        if (response.ok) {
+            showNotification('Push notifications enabled successfully!', 'success');
+            const btn = document.getElementById('enablePushBtn');
+            if (btn) btn.style.display = 'none';
+        } else {
+            showNotification('Failed to enable push notifications.', 'error');
+        }
+    } catch (error) {
+        console.error('Push Subscription Error:', error);
+        if (Notification.permission === 'denied') {
+            showNotification('Notification permission denied. Please enable it in browser settings.', 'warning');
+        } else {
+            showNotification('Error enabling push notifications.', 'error');
+        }
+    }
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
 }
 
 function setupCookingAlerts() {
@@ -758,6 +821,7 @@ window.returnToLastPage = returnToLastPage;
 window.exportData = exportData;
 window.printExpenseReport = printExpenseReport;
 window.showNotification = showNotification;
+window.subscribeToPush = subscribeToPush;
 window.handleProfilePicUpload = handleProfilePicUpload;
 window.editUser = editUser;
 window.filterByFloor = filterByFloor;
