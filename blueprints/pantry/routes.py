@@ -473,7 +473,7 @@ def delete_special_event(event_id):
     if not user or user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    event = tenant_filter(SpecialEvent.query).get_or_404(event_id)
+    event = tenant_filter(SpecialEvent.query).filter_by(id=event_id).first_or_404()
     
     # Ensure the event belongs to the user's floor
     floor = _get_active_floor(user)
@@ -491,7 +491,7 @@ def update_special_event(event_id):
     if not user or user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    event = tenant_filter(SpecialEvent.query).get_or_404(event_id)
+    event = tenant_filter(SpecialEvent.query).filter_by(id=event_id).first_or_404()
     
     floor = _get_active_floor(user)
     if event.floor != floor:
@@ -700,7 +700,7 @@ def vote_suggestion(suggestion_id):
     if not user:
         return ('', 401)
 
-    suggestion = tenant_filter(Suggestion.query).get_or_404(suggestion_id)
+    suggestion = tenant_filter(Suggestion.query).filter_by(id=suggestion_id).first_or_404()
     if suggestion.floor != user.floor:
         abort(403)
 
@@ -710,13 +710,17 @@ def vote_suggestion(suggestion_id):
         # If user already voted, remove the vote (toggle)
         db.session.delete(existing_vote)
         db.session.commit()
-        return jsonify({"voted": False, "votes": len(suggestion.votes)})
+        # Count votes explicitly after commit
+        vote_count = tenant_filter(SuggestionVote.query).filter_by(suggestion_id=suggestion_id).count()
+        return jsonify({"voted": False, "votes": vote_count})
     else:
         # Add new vote
         new_vote = SuggestionVote(suggestion_id=suggestion_id, user_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
         db.session.add(new_vote)
         db.session.commit()
-        return jsonify({"voted": True, "votes": len(suggestion.votes)})
+        # Count votes explicitly after commit
+        vote_count = tenant_filter(SuggestionVote.query).filter_by(suggestion_id=suggestion_id).count()
+        return jsonify({"voted": True, "votes": vote_count})
 
 @pantry_bp.route('/suggestions/<int:suggestion_id>/delete', methods=['POST'])
 def delete_suggestion(suggestion_id):

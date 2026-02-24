@@ -273,6 +273,27 @@ function initializeNotifications() {
         Notification.requestPermission();
     }
     
+    // Auto-dismiss existing flash messages
+    const alerts = document.querySelectorAll('.auto-dismiss');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            if (alert) {
+                // Add fade out animation
+                alert.classList.add('alert-fadeOut');
+                
+                // Use Bootstrap's alert close for proper cleanup, with fallback
+                setTimeout(() => {
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                        const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+                        if (bsAlert) bsAlert.close();
+                    } else {
+                        alert.remove();
+                    }
+                }, 400);
+            }
+        }, 5000); // 5 seconds
+    });
+    
     // Setup cooking alert notifications
     setupCookingAlerts();
 }
@@ -285,33 +306,51 @@ function setupCookingAlerts() {
     }
 }
 
-function showNotification(message, type = 'info') {
-    // Create custom notification toast
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'error' ? 'danger' : type} toast-notification`;
-    toast.style.cssText = `
-        position: fixed;
-        top: 90px;
-        right: 20px;
-        z-index: 1060;
-        min-width: 300px;
-        animation: slideInRight 0.3s ease;
+function showNotification(message, type = 'info', duration = 5000) {
+    // Get or create toast container
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '1080';
+        document.body.appendChild(container);
+    }
+
+    // Create custom notification alert
+    const alert = document.createElement('div');
+    const alertType = type === 'error' ? 'danger' : type;
+    const icon = type === 'error' ? 'exclamation-circle' : (type === 'success' ? 'check-circle' : 'info-circle');
+    
+    alert.className = `alert alert-${alertType} alert-dismissible fade show shadow-lg mb-3 auto-dismiss`;
+    alert.role = 'alert';
+    alert.style.minWidth = '300px';
+    
+    alert.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${icon} me-3 fs-4"></i>
+            <div>${message}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
     
-    toast.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
-    `;
+    container.appendChild(alert);
     
-    document.body.appendChild(toast);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.style.animation = 'slideOutRight 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }
-    }, 5000);
+    // Auto remove
+    if (duration > 0) {
+        setTimeout(() => {
+            if (alert && alert.parentElement) {
+                alert.classList.add('alert-fadeOut');
+                setTimeout(() => {
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                        const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+                        if (bsAlert) bsAlert.close();
+                    } else {
+                        alert.remove();
+                    }
+                }, 400);
+            }
+        }, duration);
+    }
     
     // Browser notification for important alerts
     if (type === 'warning' || type === 'error') {
@@ -583,25 +622,6 @@ function logPerformance() {
 
 // Initialize performance monitoring
 window.addEventListener('load', logPerformance);
-
-// Add CSS animations
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideInRight {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    @keyframes slideOutRight {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    
-    .toast-notification {
-        animation: slideInRight 0.3s ease;
-    }
-`;
-document.head.appendChild(style);
 
 // Profile picture handling
 function handleProfilePicUpload(event) {

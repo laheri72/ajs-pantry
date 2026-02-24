@@ -265,6 +265,11 @@ body.dark-theme .list-group-item-action:hover {
 }
 
 /* Alert Overrides */
+body.dark-theme .toast-container .alert {
+    background-color: var(--bg-surface-light) !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+}
+
 body.dark-theme .alert {
     background-color: var(--bg-surface-light) !important;
     color: var(--text-main) !important;
@@ -272,27 +277,27 @@ body.dark-theme .alert {
 }
 
 body.dark-theme .alert-success {
-    background-color: rgba(76, 175, 80, 0.15) !important;
+    background-color: var(--bg-surface-light) !important;
     color: #81C784 !important;
-    border: 1px solid rgba(76, 175, 80, 0.3) !important;
+    border-left: 5px solid #4CAF50 !important;
 }
 
 body.dark-theme .alert-danger {
-    background-color: rgba(244, 67, 54, 0.15) !important;
+    background-color: var(--bg-surface-light) !important;
     color: #E57373 !important;
-    border: 1px solid rgba(244, 67, 54, 0.3) !important;
+    border-left: 5px solid #F44336 !important;
 }
 
 body.dark-theme .alert-warning {
-    background-color: rgba(255, 152, 0, 0.15) !important;
+    background-color: var(--bg-surface-light) !important;
     color: #FFB74D !important;
-    border: 1px solid rgba(255, 152, 0, 0.3) !important;
+    border-left: 5px solid #FF9800 !important;
 }
 
 body.dark-theme .alert-info {
-    background-color: rgba(33, 150, 243, 0.15) !important;
+    background-color: var(--bg-surface-light) !important;
     color: #90CAF9 !important;
-    border: 1px solid rgba(33, 150, 243, 0.3) !important;
+    border-left: 5px solid #2196F3 !important;
 }
 
 body.dark-theme .alert-light {

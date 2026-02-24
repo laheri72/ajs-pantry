@@ -163,7 +163,7 @@ def delete_bill(bill_id):
     if not user or user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    bill = tenant_filter(Bill.query).get_or_404(bill_id)
+    bill = tenant_filter(Bill.query).filter_by(id=bill_id).first_or_404()
     if user.role != 'admin' and bill.floor != user.floor:
         abort(403)
 
@@ -295,7 +295,7 @@ def mark_returned(record_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    record = tenant_filter(FloorLendBorrow.query).get_or_404(record_id)
+    record = tenant_filter(FloorLendBorrow.query).filter_by(id=record_id).first_or_404()
     floor = _get_active_floor(user)
 
     if user.role != 'admin' and record.borrower_floor != floor:
@@ -320,7 +320,7 @@ def verify_return(record_id):
     if user.role not in ['admin', 'pantryHead']:
         abort(403)
 
-    record = tenant_filter(FloorLendBorrow.query).get_or_404(record_id)
+    record = tenant_filter(FloorLendBorrow.query).filter_by(id=record_id).first_or_404()
     floor = _get_active_floor(user)
     action = request.form.get('action')
 

@@ -157,20 +157,23 @@
 
     <!-- Main Content -->
     <main class="{% if current_user %}main-content{% endif %}">
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="container-fluid mt-3">
-            {% for category, message in messages %}
-            <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show"
-                role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-            {% endfor %}
+        <!-- Modern Floating Flash Messages -->
+        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show shadow-lg mb-3 auto-dismiss"
+                    role="alert" style="min-width: 300px; border-left: 5px solid {{ '#C62828' if category == 'error' else '#2E7D32' }};">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-3 fs-4"></i>
+                        <div>{{ message }}</div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
         </div>
-        {% endif %}
-        {% endwith %}
 
         {% block content %}{% endblock %}
     </main>
