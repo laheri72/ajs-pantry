@@ -601,6 +601,7 @@ def menus():
         db.session.add(menu)
         db.session.commit()
         flash('Menu added successfully', 'success')
+        return redirect(url_for('pantry.menus'))
 
     floor_menus = tenant_filter(Menu.query).filter_by(floor=floor).order_by(Menu.date.desc()).all()
 

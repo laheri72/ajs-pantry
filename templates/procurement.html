@@ -285,19 +285,28 @@
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-body text-center p-4">
-                <div class="text-teal mb-3">
-                    <i class="fas fa-cart-arrow-down fa-3x"></i>
+                <div class="text-warning mb-3">
+                    <i class="fas fa-paper-plane fa-3x"></i>
                 </div>
-                <h5 class="fw-bold mb-2">Create List?</h5>
-                <p class="text-muted small mb-4">Are you sure you want to create these procurement items? This will send email notifications to the assigned member.</p>
+                <h5 class="fw-bold mb-2">Create & Delegate?</h5>
+                <div class="mb-3">
+                    <span class="badge bg-soft-teal text-teal border border-teal small px-3">Email Notification</span>
+                </div>
+                <p class="text-muted small mb-4">
+                    The assigned member will receive an <strong>automatic email</strong> with this procurement list. Proceed?
+                </p>
                 <div class="d-grid gap-2">
-                    <button type="button" id="confirmProcurementBtn" class="btn btn-teal">Yes, Create & Notify</button>
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="confirmProcurementBtn" class="btn btn-teal py-2">Yes, Create & Notify</button>
+                    <button type="button" class="btn btn-light py-2" data-bs-toggle="modal" data-bs-target="#procurementListModal">Back to Edit</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .bg-soft-teal { background-color: rgba(38, 166, 154, 0.1); }
+</style>
 
 {% endblock %}
 
@@ -570,6 +579,8 @@
         let isConfirmed = false;
 
         confirmProcurementBtn.addEventListener('click', function() {
+            confirmProcurementBtn.disabled = true;
+            confirmProcurementBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating...';
             isConfirmed = true;
             form.submit();
         });
