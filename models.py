@@ -273,3 +273,14 @@ class Garamat(db.Model, TenantMixin):
     user = db.relationship('User', foreign_keys=[user_id])
     team = db.relationship('Team', foreign_keys=[team_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+
+
+class PushSubscription(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    endpoint = db.Column(db.Text, nullable=False)
+    p256dh = db.Column(db.String(255), nullable=False)
+    auth = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('push_subscriptions', cascade='all, delete-orphan'))

@@ -12,6 +12,7 @@ from ..utils import (
     _require_team_access,
     _get_floor_options_for_admin,
     tenant_filter,
+    send_push_notification,
     FLOOR_MIN,
     FLOOR_MAX
 )
@@ -389,6 +390,19 @@ def floor_admin():
             )
             db.session.add(new_ann)
             db.session.commit()
+
+            # Push Notification
+            floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
+            for fu in floor_users:
+                if fu.id != user.id:
+                    send_push_notification(
+                        user_id=fu.id,
+                        title=f"Announcement: {title}",
+                        body=content[:100] + ("..." if len(content) > 100 else ""),
+                        icon="/static/icons/icon-192.png",
+                        url="/dashboard"
+                    )
+
             flash('Announcement posted successfully', 'success')
             return redirect(url_for('admin_panel.floor_admin'))
 
