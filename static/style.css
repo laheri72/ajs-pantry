@@ -907,20 +907,57 @@ body {
 }
 
 /* Alert Enhancements */
-.alert {
+.toast-container {
+    padding-top: 80px !important; /* Clear the fixed navbar */
+    pointer-events: none; /* Allow clicking through container */
+}
+
+.toast-container .alert {
+    pointer-events: auto; /* Re-enable for the actual alerts */
+    animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     border: none;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
+    overflow: hidden;
+    position: relative;
+}
+
+.alert-fadeOut {
+    animation: slideOutRight 0.4s ease forwards !important;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(110%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOutRight {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(110%); opacity: 0; }
 }
 
 .alert-success {
-    background-color: #E8F5E8;
+    background-color: #FFFFFF;
     color: #2E7D32;
+    border-left: 5px solid #2E7D32 !important;
 }
 
 .alert-danger {
-    background-color: #FFEBEE;
+    background-color: #FFFFFF;
     color: #C62828;
+    border-left: 5px solid #C62828 !important;
+}
+
+.alert-warning {
+    background-color: #FFFFFF;
+    color: #F57C00;
+    border-left: 5px solid #F57C00 !important;
+}
+
+.alert-info {
+    background-color: #FFFFFF;
+    color: #0277BD;
+    border-left: 5px solid #0277BD !important;
 }
 
 /* Utility Classes */
