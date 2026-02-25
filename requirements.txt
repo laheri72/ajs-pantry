@@ -21,3 +21,5 @@ Werkzeug==3.1.5
 pdfplumber
 pywebpush
 cryptography
+pytesseract
+Pillow
