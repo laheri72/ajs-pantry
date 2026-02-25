@@ -2,161 +2,106 @@
 
 ## 1. Overview
 
-AJS Pantry is a multi-tenant Flask web application used to manage pantry operations (menus, tea tasks, expenses, feedback, procurement) across multiple residential or office floors.
+AJS Pantry is a production-hardened, multi-tenant Flask web application designed to manage pantry operations (menus, tea tasks, expenses, feedback, procurement) across multiple residential or office floors.
 
-The system provides **role-based access control** with four primary roles:
-
-* Admin
-* Pantry Head
-* Tea Manager
-* Member
+The system provides **role-based access control (RBAC)** with five primary roles:
+*   **Super Admin:** Platform-level management and tenant provisioning.
+*   **Admin:** System-wide management for a specific tenant.
+*   **Pantry Head:** Floor-level management (Menus, Procurement, Penalties).
+*   **Tea Manager:** Specialized floor role for tea duty scheduling.
+*   **Member:** General user with access to personalized feeds and feedback.
 
 ---
 
 ## 2. Production Architecture
 
-**Live stack:**
-
+**Live Stack:**
 User → Firebase Hosting Domain → HTTPS (Let’s Encrypt)
 → Nginx Reverse Proxy (Oracle Cloud VM)
-→ Gunicorn WSGI Server → Flask Application
+→ Gunicorn WSGI Server → Flask Application (Modular Blueprints)
 → Supabase PostgreSQL Database
 
-Key properties:
-
-* Public HTTPS access
-* 24/7 Oracle Always-Free VM
-* Automatic SSL renewal
-* GitHub Actions CI/CD auto-deployment
-* Supabase managed database hosting
+**Key Properties:**
+*   **Public HTTPS:** Managed via Nginx and Let's Encrypt.
+*   **Compute:** Oracle Always-Free ARM VM (Continuous uptime).
+*   **CI/CD:** Fully automated via GitHub Actions (SSH deployment + Auto-migrations).
+*   **Persistence:** Supabase managed PostgreSQL with Row-Level Isolation logic.
 
 ---
 
 ## 3. Tech Stack
 
-* **Backend:** Flask (Python 3.10+)
-* **ORM:** Flask-SQLAlchemy
-* **Database:** PostgreSQL (Supabase)
-* **Driver:** psycopg2-binary
-* **Frontend:** Jinja2 templates + vanilla CSS/JS
-* **Server:** Gunicorn (production), Werkzeug (development)
-* **Reverse Proxy:** Nginx
-* **Hosting:** Oracle Cloud Always-Free VM
-* **CI/CD:** GitHub Actions auto-deploy via SSH
+*   **Backend:** Flask 3.1.x (Python 3.11+)
+*   **ORM:** Flask-SQLAlchemy + SQLAlchemy 2.0 (with global event listeners).
+*   **Migrations:** Flask-Migrate (Alembic) for safe, versioned schema updates.
+*   **Database:** PostgreSQL (Supabase) using the production-ready `psycopg2` driver.
+*   **Frontend:** Jinja2 Templates + Vanilla CSS/JS + Bootstrap 5.
+*   **PWA:** Service Worker support with Web Push Notifications (`pywebpush`).
+*   **OCR:** Tesseract OCR for receipt scanning and automated expense entry.
 
 ---
 
-## 4. Core File Structure
+## 4. Core File Structure (Modularized)
 
-* `app.py` → Flask initialization, DB config, production boot
-* `routes.py` → All HTTP routes and business logic
-* `models.py` → SQLAlchemy schema definitions
-* `main.py` → Local development runner
-* `templates/` → Jinja HTML views
-* `static/` → CSS, JS, assets
-* `.github/workflows/deploy.yml` → CI/CD deployment pipeline
-
----
-
-## 5. Local Development
-
-### Setup
-
-Create `.env`:
-
-```
-DATABASE_URL=postgresql://...
-SESSION_SECRET=...
-```
-
-Install dependencies:
-
-```
-pip install -r requirements.txt
-```
-
-Run locally:
-
-```
-python main.py
-```
+*   `app.py` → Factory initialization, Blueprint registration, and global middleware.
+*   `models.py` → SQLAlchemy schema definitions + **Global Tenant Isolation Listener**.
+*   `blueprints/` → Domain-driven logic:
+    *   `auth/` → Session management and user security.
+    *   `pantry/` → Menus, Calendar, Dishes, and Community Board.
+    *   `finance/` → Expenses, Bills, Budgets, and Receipt OCR.
+    *   `ops/` → Tea Tasks, Procurement, and User Requests.
+    *   `admin/` → PH/Admin controls, Teams, and Penalties.
+    *   `super_admin/` → SaaS Platform management.
+*   `migrations/` → DB version history (managed via `flask db`).
+*   `static/` → PWA assets, dark theme overrides, and core `script.js`.
+*   `templates/` → Organized Jinja2 views matching blueprint domains.
 
 ---
 
-## 6. Production Deployment
+## 5. Multi-Tenancy & Security
 
-Gunicorn service runs via systemd:
+### 5.1 Global Tenant Isolation
+Isolation is enforced at the **SQLAlchemy ORM level**. A `do_orm_execute` listener in `models.py` automatically injects `tenant_id == g.tenant_id` into every query for models inheriting from `TenantMixin`. This prevents data leakage even if a developer forgets a manual filter.
 
-```
-gunicorn --bind 0.0.0.0:8000 app:app
-```
-
-Nginx handles:
-
-* HTTPS termination
-* Reverse proxy to Gunicorn
-* Domain routing
-
-Deployment is **fully automated**:
-
-```
-git push → GitHub Actions → Oracle VM → restart service
-```
+### 5.2 Environment Hardening
+*   **Strict Boot:** The app will fail to start if `SESSION_SECRET` or `INTERNAL_API_SECRET` are missing.
+*   **Credential Protection:** `.env` is ignored by Git; secrets are managed via server-side environment variables.
+*   **RBAC Middleware:** `enforce_tenancy` and `_require_user` helpers validate every request context.
 
 ---
 
-## 7. Authentication Model
+## 6. Automated Workflows
 
-* Session-based login using secure cookies
-* Password hashing via Werkzeug
-* Role-based authorization
-* Multiple concurrent sessions currently allowed
+### 6.1 Deployment (CI/CD)
+Pushing to `main` triggers `.github/workflows/deploy.yml`:
+1.  Connects to Oracle VM via SSH.
+2.  Pulls latest code.
+3.  Installs dependencies from `requirements.txt`.
+4.  **Auto-executes `flask db upgrade`** to sync Supabase.
+5.  Restarts Gunicorn.
 
-Future improvement:
-
-* DB-tracked sessions
-* forced single login
-* audit logging
-
----
-
-## 8. Database Management
-
-* Supabase PostgreSQL is the **single source of truth**
-* Schema managed via SQLAlchemy models + manual SQL when required
-* No full Alembic migration pipeline yet
+### 6.2 Push Notifications
+Integrated PWA Push system using VAPID keys. Notifications are triggered server-side for:
+*   New floor announcements/special events.
+*   Assignment of Menus, Tea Duty, or Procurement tasks.
+*   Request status updates (Approve/Reject).
 
 ---
 
-## 9. Security Rules
+## 7. Performance Standards
 
-* `.env` and secrets must never be committed
-* Only HTTPS public access allowed
-* Server access restricted via SSH keys
-* CI/CD uses encrypted GitHub secrets
-
----
-
-## 10. Testing Status
-
-* No automated test suite yet
-* Future plan: pytest + basic integration tests
+*   **N+1 Prevention:** Core routes (`Dashboard`, `People`, `Calendar`) must use `joinedload` for related entities (Users, Teams, Dishes).
+*   **DB Indexing:** `tenant_id` and `floor` are indexed on all primary tables to ensure sub-100ms response times.
+*   **Logging:** Level set to `INFO` in production to prevent disk bloat while maintaining auditability.
 
 ---
 
-## 11. Operational Notes
+## 8. Maintenance Guidelines
 
-* Oracle VM is Always-Free and runs continuously
-* SSL renews automatically via Certbot
-* Supabase provides managed backups and uptime
-
----
-
-## 12. Future Roadmap
-
-* Session management in DB
-* Automated database backups
-* Admin analytics dashboard
-* Performance scaling for 400+ users
-* Full test coverage
-
+*   **Schema Changes:** 
+    1.  Update `models.py`.
+    2.  Run `flask db migrate -m "description"` locally.
+    3.  Commit the new migration file.
+    4.  Push to deploy (Auto-upgrades Supabase).
+*   **New Routes:** Always place routes in the relevant Blueprint and verify the `ROUTE_MAP.md` is updated.
+*   **Dependencies:** Keep `pyproject.toml` and `requirements.txt` in sync. Use `psycopg2` (not -binary) for production stability.
