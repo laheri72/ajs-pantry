@@ -628,17 +628,34 @@ def menus():
         flash('Menu added successfully', 'success')
         return redirect(url_for('pantry.menus'))
 
-    floor_menus = tenant_filter(Menu.query).filter_by(floor=floor).order_by(Menu.date.desc()).all()
-
     # Prepare Weekly View Data
     today = date.today()
-    # Find start of week (Monday)
     start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=7)
+    
+    # Fetch menus for current week (usually small)
+    weekly_menus = (
+        tenant_filter(Menu.query)
+        .options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team), joinedload(Menu.dish))
+        .filter(Menu.floor == floor, Menu.date >= start_of_week, Menu.date < end_of_week)
+        .all()
+    )
+    
+    # Fetch all menus with pagination for history
+    page = request.args.get('page', 1, type=int)
+    menus_pagination = (
+        tenant_filter(Menu.query)
+        .options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team), joinedload(Menu.dish))
+        .filter_by(floor=floor)
+        .order_by(Menu.date.desc())
+        .paginate(page=page, per_page=15, error_out=False)
+    )
+    floor_menus = menus_pagination.items
     
     weekly_days = []
     for i in range(7):
         day_date = start_of_week + timedelta(days=i)
-        day_menus = [m for m in floor_menus if m.date == day_date]
+        day_menus = [m for m in weekly_menus if m.date == day_date]
         weekly_days.append({
             "date": day_date,
             "is_today": day_date == today,
@@ -647,7 +664,8 @@ def menus():
 
     return render_template(
         'menus.html', 
-        menus=floor_menus, 
+        menus=floor_menus,
+        pagination=menus_pagination,
         weekly_days=weekly_days,
         floor_users=floor_users, 
         floor_teams=floor_teams, 
@@ -846,7 +864,16 @@ def feedbacks():
         return redirect(url_for('pantry.feedbacks'))
 
     floor = _get_active_floor(user)
-    visible_feedbacks = tenant_filter(Feedback.query).filter_by(floor=floor).order_by(Feedback.created_at.desc()).all()
+    page = request.args.get('page', 1, type=int)
+    
+    feedbacks_pagination = (
+        tenant_filter(Feedback.query)
+        .options(joinedload(Feedback.user), joinedload(Feedback.menu).joinedload(Menu.dish))
+        .filter_by(floor=floor)
+        .order_by(Feedback.created_at.desc())
+        .paginate(page=page, per_page=15, error_out=False)
+    )
+    visible_feedbacks = feedbacks_pagination.items
 
     today = date.today()
     menu_window_start = today - timedelta(days=14)
@@ -863,7 +890,7 @@ def feedbacks():
         f.menu_id for f in tenant_filter(Feedback.query).filter_by(user_id=user.id).filter(Feedback.menu_id.isnot(None)).all()
     }
 
-    return render_template('feedbacks.html', feedbacks=visible_feedbacks, menu_options=menu_options, rated_menu_ids=rated_menu_ids, current_user=user)
+    return render_template('feedbacks.html', feedbacks=visible_feedbacks, pagination=feedbacks_pagination, menu_options=menu_options, rated_menu_ids=rated_menu_ids, current_user=user)
 
 @pantry_bp.route('/feedbacks/<int:feedback_id>/delete', methods=['POST'])
 def delete_feedback(feedback_id):

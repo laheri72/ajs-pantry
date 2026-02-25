@@ -221,6 +221,34 @@
                             <div class="p-4 text-center text-muted">No recorded bills yet.</div>
                             {% endif %}
                         </div>
+                        
+                        <!-- Bills Pagination -->
+                        {% if bills_pagination and bills_pagination.pages > 1 %}
+                        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+                            <div class="small text-muted">
+                                Showing {{ (bills_pagination.page - 1) * bills_pagination.per_page + 1 }} to {{ [bills_pagination.page * bills_pagination.per_page, bills_pagination.total]|min }} of {{ bills_pagination.total }} bills
+                            </div>
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item {% if not bills_pagination.has_prev %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('finance.expenses', bills_page=bills_pagination.prev_num) if bills_pagination.has_prev else '#' }}">Previous</a>
+                                    </li>
+                                    {% for page in bills_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                                        {% if page %}
+                                            <li class="page-item {% if page == bills_pagination.page %}active{% endif %}">
+                                                <a class="page-link" href="{{ url_for('finance.expenses', bills_page=page) }}">{{ page }}</a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <li class="page-item {% if not bills_pagination.has_next %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('finance.expenses', bills_page=bills_pagination.next_num) if bills_pagination.has_next else '#' }}">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -262,7 +290,7 @@
             <div class="card-header bg-light py-2">
                 <div class="small fw-bold text-muted text-uppercase">Legacy Expenses (History)</div>
             </div>
-            <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
                 <div class="list-group list-group-flush">
                     {% for e in legacy_expenses %}
                     <div class="list-group-item small">
@@ -275,6 +303,27 @@
                     {% endfor %}
                 </div>
             </div>
+            
+            <!-- Legacy Pagination -->
+            {% if legacy_pagination and legacy_pagination.pages > 1 %}
+            <div class="card-footer bg-white py-2">
+                <nav class="d-flex justify-content-between align-items-center">
+                    <div class="small text-muted">Pg {{ legacy_pagination.page }}/{{ legacy_pagination.pages }}</div>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item {% if not legacy_pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link py-0 px-2" href="{{ url_for('finance.expenses', legacy_page=legacy_pagination.prev_num) if legacy_pagination.has_prev else '#' }}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item {% if not legacy_pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link py-0 px-2" href="{{ url_for('finance.expenses', legacy_page=legacy_pagination.next_num) if legacy_pagination.has_next else '#' }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
