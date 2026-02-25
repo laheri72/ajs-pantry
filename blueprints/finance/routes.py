@@ -445,3 +445,29 @@ def save_imported_bill():
         db.session.rollback()
         logging.error(f"Save Imported Bill Error: {str(e)}")
         return jsonify({'error': f"Failed to save bill: {str(e)}"}), 500
+
+@finance_bp.route('/bills/<int:bill_id>/items', methods=['GET'])
+def get_bill_items(bill_id):
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    bill = tenant_filter(Bill.query).filter_by(id=bill_id).first_or_404()
+    # Basic floor check for non-admins
+    if user.role != 'admin' and bill.floor != user.floor:
+        abort(403)
+
+    items = []
+    for item in bill.items:
+        items.append({
+            'id': item.id,
+            'item_name': item.item_name,
+            'quantity': item.quantity,
+            'actual_cost': float(item.actual_cost or 0)
+        })
+    
+    return jsonify({
+        'bill_no': bill.bill_no,
+        'bill_date': bill.bill_date.strftime('%Y-%m-%d'),
+        'items': items
+    })
