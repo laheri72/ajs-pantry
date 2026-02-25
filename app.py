@@ -6,19 +6,23 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from flask_migrate import Migrate
 from datetime import datetime, timedelta
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class Base(DeclarativeBase):
     pass
 
 db = SQLAlchemy(model_class=Base)
+migrate = Migrate()
 
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "maskan-breakfast-management-secret-key")
+app.secret_key = os.environ.get("SESSION_SECRET")
+if not app.secret_key:
+    raise RuntimeError("CRITICAL: SESSION_SECRET environment variable is missing.")
 
 # Session Security for Shared PCs
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
@@ -63,6 +67,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 
 db.init_app(app)
+migrate.init_app(app, db)
 
 # Attempt to connect to the configured database
 with app.app_context():
@@ -71,7 +76,6 @@ with app.app_context():
 
     try:
         db.session.execute(text("SELECT 1")).fetchone()
-        db.create_all()
         logging.info("Connected to primary database successfully.")
     except Exception as e:
         logging.critical("DATABASE CONNECTION FAILED. App will stop.")
@@ -182,9 +186,10 @@ app.register_blueprint(super_admin_bp)
 @app.route("/internal/send-email", methods=["POST"])
 def send_email():
     secret = request.headers.get("X-SECRET")
+    internal_secret = os.environ.get("INTERNAL_API_SECRET")
 
     # Simple protection so nobody abuses your endpoint
-    if secret != "PANTRY_SECRET_123":
+    if not internal_secret or secret != internal_secret:
         return jsonify({"error": "Unauthorized"}), 403
 
     data = request.json
@@ -218,6 +223,3 @@ def send_email():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)

@@ -3,6 +3,7 @@ from app import db
 from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 from . import pantry_bp
 from ..utils import (
     _require_user,
@@ -62,7 +63,7 @@ def dashboard():
     }
 
     upcoming_dish = (
-        tenant_filter(Menu.query).filter_by(floor=floor)
+        tenant_filter(Menu.query).options(joinedload(Menu.dish)).filter_by(floor=floor)
         .filter(Menu.date >= today)
         .order_by(Menu.date.asc())
         .first()
@@ -83,14 +84,14 @@ def dashboard():
         stats['top_team_7d'] = None
 
     upcoming_tea_duties = (
-        tenant_filter(TeaTask.query).filter_by(floor=floor, assigned_to_id=user.id)
+        tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter_by(floor=floor, assigned_to_id=user.id)
         .filter(TeaTask.status != 'completed', TeaTask.date >= today, TeaTask.date <= upcoming_until)
         .order_by(TeaTask.date.asc())
         .all()
     )
 
     upcoming_procurement_assignments = (
-        tenant_filter(ProcurementItem.query).filter_by(floor=floor, assigned_to_id=user.id)
+        tenant_filter(ProcurementItem.query).options(joinedload(ProcurementItem.assigned_to)).filter_by(floor=floor, assigned_to_id=user.id)
         .filter(ProcurementItem.status != 'completed', ProcurementItem.created_at >= since_dt)
         .order_by(ProcurementItem.created_at.desc())
         .all()
@@ -110,7 +111,7 @@ def dashboard():
         menu_filters.append(Menu.assigned_team_id.in_(team_ids))
 
     upcoming_menu_assignments = (
-        tenant_filter(Menu.query).filter_by(floor=floor)
+        tenant_filter(Menu.query).options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team)).filter_by(floor=floor)
         .filter(Menu.date >= today, Menu.date <= upcoming_until)
         .filter(or_(*menu_filters))
         .order_by(Menu.date.asc())
@@ -122,7 +123,7 @@ def dashboard():
     
     # 1. Announcements (last 7 days)
     announcement_since = datetime.utcnow() - timedelta(days=7)
-    recent_announcements = tenant_filter(Announcement.query).filter(
+    recent_announcements = tenant_filter(Announcement.query).options(joinedload(Announcement.created_by)).filter(
         Announcement.floor == floor,
         Announcement.created_at >= announcement_since,
         Announcement.is_archived == False
@@ -171,7 +172,7 @@ def dashboard():
 
     # 3. Special Events (upcoming 7 days)
     event_until = today + timedelta(days=7)
-    upcoming_events = tenant_filter(SpecialEvent.query).filter(
+    upcoming_events = tenant_filter(SpecialEvent.query).options(joinedload(SpecialEvent.created_by)).filter(
         SpecialEvent.floor == floor,
         SpecialEvent.date >= today,
         SpecialEvent.date <= event_until
@@ -225,7 +226,7 @@ def people():
     users.sort(key=lambda u: (u.full_name or u.username or u.email or "").lower())
     teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
 
-    team_memberships = tenant_filter(TeamMember.query).join(Team, TeamMember.team_id == Team.id).filter(Team.floor == floor).all()
+    team_memberships = tenant_filter(TeamMember.query).options(joinedload(TeamMember.user)).join(Team, TeamMember.team_id == Team.id).filter(Team.floor == floor).all()
     members_by_team_id = {}
     for tm in team_memberships:
         members_by_team_id.setdefault(tm.team_id, []).append(tm.user)
@@ -385,9 +386,9 @@ def calendar():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    floor_menus = tenant_filter(Menu.query).filter_by(floor=floor).all()
-    floor_tea_tasks = tenant_filter(TeaTask.query).filter_by(floor=floor).all()
-    floor_special_events = tenant_filter(SpecialEvent.query).filter_by(floor=floor).all()
+    floor_menus = tenant_filter(Menu.query).options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team)).filter_by(floor=floor).all()
+    floor_tea_tasks = tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter_by(floor=floor).all()
+    floor_special_events = tenant_filter(SpecialEvent.query).options(joinedload(SpecialEvent.created_by)).filter_by(floor=floor).all()
 
     menus = [
         {

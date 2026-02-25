@@ -3,6 +3,9 @@ from datetime import datetime
 from enum import Enum
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import event
+from sqlalchemy.orm import with_loader_criteria
+from flask import g
 
 class RoleEnum(Enum):
     SUPER_ADMIN = 'super_admin'
@@ -284,3 +287,26 @@ class PushSubscription(db.Model, TenantMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('push_subscriptions', cascade='all, delete-orphan'))
+
+
+@event.listens_for(db.session, "do_orm_execute")
+def _add_tenant_filter(execute_state):
+    """
+    Automatically adds a tenant_id filter to all ORM queries if a tenant_id
+    is present in Flask's global 'g' object.
+    """
+    if (
+        execute_state.is_select
+        and not execute_state.is_column_load
+        and not execute_state.is_relationship_load
+        and hasattr(g, 'tenant_id')
+        and g.tenant_id is not None
+        and not getattr(g, 'is_super_admin', False)
+    ):
+        execute_state.statement = execute_state.statement.options(
+            with_loader_criteria(
+                TenantMixin,
+                lambda cls: cls.tenant_id == g.tenant_id,
+                include_aliases=True
+            )
+        )
