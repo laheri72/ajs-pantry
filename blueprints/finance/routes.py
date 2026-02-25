@@ -4,6 +4,7 @@ from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill
 from .services.parser_factory import ParserFactory
 from datetime import datetime, date
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 import logging
 from . import finance_bp
 from ..utils import (
@@ -123,18 +124,23 @@ def expenses():
 
     # 3. Data for Ledger
     # Get completed procurements for this floor that are NOT yet in a bill
+    # This list is usually small (pending to be recorded), so we keep it as .all()
     pending_procurements = tenant_filter(ProcurementItem.query).filter_by(
         floor=floor, status='completed', bill_id=None
     ).order_by(ProcurementItem.created_at.desc()).all()
     
-    # Get all bills for this floor
-    bills = tenant_filter(Bill.query).filter_by(floor=floor).order_by(Bill.bill_date.desc()).all()
+    # Get all bills for this floor (PAGINATED)
+    bills_page = request.args.get('bills_page', 1, type=int)
+    bills_pagination = tenant_filter(Bill.query).options(joinedload(Bill.items)).filter_by(floor=floor).order_by(Bill.bill_date.desc()).paginate(page=bills_page, per_page=15, error_out=False)
+    bills = bills_pagination.items
     
     # Get budget history
     budgets = tenant_filter(Budget.query).filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
     
-    # Legacy expenses for reference
-    legacy_expenses = tenant_filter(Expense.query).filter_by(floor=floor).order_by(Expense.date.desc()).all()
+    # Legacy expenses for reference (PAGINATED)
+    legacy_page = request.args.get('legacy_page', 1, type=int)
+    legacy_pagination = tenant_filter(Expense.query).filter_by(floor=floor).order_by(Expense.date.desc()).paginate(page=legacy_page, per_page=15, error_out=False)
+    legacy_expenses = legacy_pagination.items
 
     # Get unique shop names for suggestions
     unique_shops = tenant_filter(db.session.query(Bill.shop_name)).filter(
@@ -149,12 +155,15 @@ def expenses():
         remaining_balance=remaining_balance,
         pending_procurements=pending_procurements,
         bills=bills,
+        bills_pagination=bills_pagination,
         budgets=budgets,
         legacy_expenses=legacy_expenses,
+        legacy_pagination=legacy_pagination,
         unique_shops=unique_shops,
         is_manager=is_manager,
         today=date.today(),
-        current_user=user
+        current_user=user,
+        active_floor=floor
     )
 
 @finance_bp.route('/bills/<int:bill_id>/delete', methods=['POST'])

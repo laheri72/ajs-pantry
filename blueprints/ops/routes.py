@@ -3,6 +3,7 @@ from app import db
 from models import User, TeaTask, Request, ProcurementItem
 from datetime import datetime, date
 from sqlalchemy import or_, func
+from sqlalchemy.orm import joinedload
 from . import ops_bp
 from ..utils import (
     _require_user,
@@ -84,7 +85,7 @@ def tea():
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
 
-    task_query = tenant_filter(TeaTask.query).filter_by(floor=floor).filter(TeaTask.date >= month_start, TeaTask.date < month_end)
+    task_query = tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter_by(floor=floor).filter(TeaTask.date >= month_start, TeaTask.date < month_end)
     floor_tasks = task_query.order_by(TeaTask.date.desc()).all()
 
     count_rows = (
@@ -187,19 +188,21 @@ def requests():
         return redirect(url_for('ops.requests'))
 
     floor = _get_active_floor(user)
+    page = request.args.get('page', 1, type=int)
+    
     if user.role == 'admin':
-        visible_requests = tenant_filter(Request.query).filter_by(floor=floor).order_by(Request.created_at.desc()).all()
+        requests_pagination = tenant_filter(Request.query).filter_by(floor=floor).order_by(Request.created_at.desc()).paginate(page=page, per_page=15, error_out=False)
     elif user.role == 'pantryHead':
-        visible_requests = tenant_filter(Request.query).filter_by(floor=user.floor).order_by(Request.created_at.desc()).all()
+        requests_pagination = tenant_filter(Request.query).filter_by(floor=user.floor).order_by(Request.created_at.desc()).paginate(page=page, per_page=15, error_out=False)
     else:
-        visible_requests = (
+        requests_pagination = (
             tenant_filter(Request.query).filter_by(floor=user.floor)
             .filter(or_(Request.status == 'approved', Request.user_id == user.id))
             .order_by(Request.created_at.desc())
-            .all()
+            .paginate(page=page, per_page=15, error_out=False)
         )
 
-    return render_template('requests.html', requests=visible_requests, current_user=user)
+    return render_template('requests.html', requests=requests_pagination.items, pagination=requests_pagination, current_user=user)
 
 @ops_bp.route('/requests/<int:request_id>/status', methods=['POST'])
 def update_request_status(request_id):
@@ -368,9 +371,24 @@ def procurement():
         flash('Procurement item added successfully.', 'success')
         return redirect(url_for('ops.procurement'))
 
-    procurement_items = tenant_filter(ProcurementItem.query).filter_by(floor=floor).order_by(ProcurementItem.created_at.desc()).all()
-    pending_items = [i for i in procurement_items if (i.status or '').strip().lower() != 'completed']
-    completed_items = [i for i in procurement_items if (i.status or '').strip().lower() == 'completed']
+    # 1. Fetch pending items (not paginated, usually small)
+    pending_items = (
+        tenant_filter(ProcurementItem.query)
+        .options(joinedload(ProcurementItem.assigned_to))
+        .filter(ProcurementItem.floor == floor, or_(ProcurementItem.status == None, ProcurementItem.status != 'completed'))
+        .all()
+    )
+
+    # 2. Fetch completed items (paginated)
+    completed_page = request.args.get('completed_page', 1, type=int)
+    completed_pagination = (
+        tenant_filter(ProcurementItem.query)
+        .options(joinedload(ProcurementItem.assigned_to))
+        .filter(ProcurementItem.floor == floor, ProcurementItem.status == 'completed')
+        .order_by(ProcurementItem.created_at.desc())
+        .paginate(page=completed_page, per_page=15, error_out=False)
+    )
+    completed_items = completed_pagination.items
 
     priority_rank = {'high': 0, 'medium': 1, 'low': 2}
     pending_items.sort(
@@ -379,7 +397,6 @@ def procurement():
             -(i.created_at.timestamp() if i.created_at else 0),
         )
     )
-    completed_items.sort(key=lambda i: -(i.created_at.timestamp() if i.created_at else 0))
 
     pending_group_map = {}
     for item in pending_items:
@@ -406,8 +423,11 @@ def procurement():
         pending_items=pending_items,
         pending_groups=pending_groups,
         completed_items=completed_items,
+        completed_pagination=completed_pagination,
+        total_completed_count=completed_pagination.total,
         floor_users=floor_users,
         current_user=user,
+        active_floor=floor
     )
 
 @ops_bp.route('/procurement/complete/<int:item_id>', methods=['POST'])
