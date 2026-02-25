@@ -55,6 +55,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/lend-borrow/<id>/verify`| `verify_return` | POST | Lender confirms or rejects return |
 | `/expenses/import-receipt` | `import_receipt` | POST | Scan PDF/Image receipts |
 | `/expenses/save-imported-bill` | `save_imported_bill`| POST | Persist parsed PDF data to DB |
+| `/bills/<id>/items` | `get_bill_items` | GET | API: Fetch all items for a specific bill (JSON) |
 
 ---
 
