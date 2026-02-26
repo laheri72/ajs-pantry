@@ -110,10 +110,12 @@ def expenses():
     # Total Budget Allocated
     total_budget = tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(Budget.floor == floor).scalar() or 0
     
-    # Total Spent (Current System: Completed Procurements with Costs)
+    # Total Spent (Current System: Billed Procurements with Costs)
+    # We only count items that are officially recorded in a bill to match user expectations
     total_spent_procurement = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
         ProcurementItem.floor == floor, 
-        ProcurementItem.status == 'completed'
+        ProcurementItem.status == 'completed',
+        ProcurementItem.bill_id.isnot(None)
     ).scalar() or 0
     
     # Legacy Expenses (Optional: include in total spent if desired)
@@ -178,10 +180,32 @@ def delete_bill(bill_id):
 
     for item in bill.items:
         item.bill_id = None
+        # Also clear costs so they are truly "pending" and not counting in Total Spent
+        item.actual_cost = None
+        item.expense_recorded_at = None
     
     db.session.delete(bill)
     db.session.commit()
-    flash('Bill deleted and items moved back to pending costs.', 'success')
+    flash('Bill record removed. Items returned to pending list (costs reset).', 'success')
+    return redirect(url_for('finance.expenses'))
+
+@finance_bp.route('/bills/<int:bill_id>/delete-permanent', methods=['POST'])
+def delete_bill_permanent(bill_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    bill = tenant_filter(Bill.query).filter_by(id=bill_id).first_or_404()
+    if user.role != 'admin' and bill.floor != user.floor:
+        abort(403)
+
+    # Delete all items associated with this bill permanently
+    for item in bill.items:
+        db.session.delete(item)
+    
+    db.session.delete(bill)
+    db.session.commit()
+    flash('Bill and all its associated items have been permanently deleted.', 'success')
     return redirect(url_for('finance.expenses'))
 
 @finance_bp.route('/budgets/add', methods=['POST'])
