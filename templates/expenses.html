@@ -239,14 +239,24 @@
                                             <tfoot>
                                                 <tr>
                                                     <td colspan="3" class="text-end p-2 border-top">
-                                                        <form action="{{ url_for('finance.delete_bill', bill_id=bill.id) }}"
-                                                            method="POST"
-                                                            onsubmit="return confirm('Delete this bill? Items will return to pending list.')">
-                                                            <button type="submit"
-                                                                class="btn btn-sm btn-link text-danger text-decoration-none">
-                                                                <i class="fas fa-trash-alt me-1"></i> Delete Bill record
-                                                            </button>
-                                                        </form>
+                                                        <div class="d-flex justify-content-end gap-3">
+                                                            <form action="{{ url_for('finance.delete_bill', bill_id=bill.id) }}"
+                                                                method="POST"
+                                                                onsubmit="return confirm('Remove this bill record? Items will return to pending list with costs reset.')">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-link text-muted text-decoration-none">
+                                                                    <i class="fas fa-unlink me-1"></i> Unlink Bill record
+                                                                </button>
+                                                            </form>
+                                                            <form action="{{ url_for('finance.delete_bill_permanent', bill_id=bill.id) }}"
+                                                                method="POST"
+                                                                onsubmit="return confirm('PERMANENTLY DELETE this bill and ALL associated procurement items? This cannot be undone.')">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-link text-danger text-decoration-none fw-bold">
+                                                                    <i class="fas fa-trash-alt me-1"></i> Permanent Delete
+                                                                </button>
+                                                            </form>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             </tfoot>

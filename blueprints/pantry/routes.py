@@ -34,10 +34,11 @@ def dashboard():
     weekly_expenses = 0
 
     if is_privileged:
-        # Total spent: Legacy Expenses + Completed Procurement Costs
+        # Total spent: Legacy Expenses + Billed Procurement Costs
         total_spent_proc = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
             ProcurementItem.floor == floor, 
-            ProcurementItem.status == 'completed'
+            ProcurementItem.status == 'completed',
+            ProcurementItem.bill_id.isnot(None)
         ).scalar() or 0
         total_spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == floor).scalar() or 0
         weekly_expenses = float(total_spent_proc) + float(total_spent_legacy)
