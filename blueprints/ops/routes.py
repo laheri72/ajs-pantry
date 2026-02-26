@@ -11,7 +11,8 @@ from ..utils import (
     _require_staff_for_floor,
     _display_name_for,
     tenant_filter,
-    send_push_notification
+    send_push_notification,
+    send_email_notification
 )
 
 @ops_bp.route('/tea', methods=['GET', 'POST'])
@@ -329,6 +330,7 @@ def procurement():
             db.session.commit()
 
             if assigned_to_id:
+                assigned_user = User.query.get(assigned_to_id)
                 send_push_notification(
                     user_id=assigned_to_id,
                     title="New Procurement Task",
@@ -336,6 +338,28 @@ def procurement():
                     icon="/static/icons/icon-192.png",
                     url="/procurement"
                 )
+
+                if assigned_user and assigned_user.email:
+                    items_list_html = "".join([
+                        f"<li><strong>{item.item_name}</strong>: {item.quantity} ({item.category})</li>"
+                        for item in items_to_add
+                    ])
+                    email_body = f"""
+                        <div style="font-family: sans-serif; padding: 20px;">
+                            <h3>Hello {assigned_user.full_name or assigned_user.username or 'there'},</h3>
+                            <p>You have been assigned <strong>{len(items_to_add)} new items</strong> to procure:</p>
+                            <ul>{items_list_html}</ul>
+                            <br/>
+                            <a href="{url_for('ops.procurement', _external=True)}" style="background-color: #26a69a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+                                View Procurement List
+                            </a>
+                        </div>
+                    """
+                    send_email_notification(
+                        to_email=assigned_user.email,
+                        subject=f"New Procurement Tasks ({len(items_to_add)} items)",
+                        html_content=email_body
+                    )
 
             flash(f'Added {len(items_to_add)} procurement items successfully.', 'success')
             return redirect(url_for('ops.procurement'))
@@ -360,6 +384,7 @@ def procurement():
         db.session.commit()
 
         if assigned_to_id:
+            assigned_user = User.query.get(assigned_to_id)
             send_push_notification(
                 user_id=assigned_to_id,
                 title="New Procurement Task",
@@ -367,6 +392,26 @@ def procurement():
                 icon="/static/icons/icon-192.png",
                 url="/procurement"
             )
+
+            if assigned_user and assigned_user.email:
+                email_body = f"""
+                    <div style="font-family: sans-serif; padding: 20px;">
+                        <h3>Hello {assigned_user.full_name or assigned_user.username or 'there'},</h3>
+                        <p>You have been assigned a <strong>new item</strong> to procure:</p>
+                        <ul>
+                            <li><strong>{item.item_name}</strong>: {item.quantity} ({item.category})</li>
+                        </ul>
+                        <br/>
+                        <a href="{url_for('ops.procurement', _external=True)}" style="background-color: #26a69a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+                            View Procurement List
+                        </a>
+                    </div>
+                """
+                send_email_notification(
+                        to_email=assigned_user.email,
+                        subject=f"Procurement Task: {item.item_name}",
+                        html_content=email_body
+                    )
 
         flash('Procurement item added successfully.', 'success')
         return redirect(url_for('ops.procurement'))
