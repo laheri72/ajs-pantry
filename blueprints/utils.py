@@ -124,7 +124,35 @@ def _get_current_user():
 import os
 import json
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from pywebpush import webpush, WebPushException
+
+def send_email_notification(to_email, subject, html_content):
+    """Sends an email notification using SMTP."""
+    gmail_user = os.environ.get("GMAIL_USER")
+    gmail_pass = os.environ.get("GMAIL_PASS")
+
+    if not gmail_user or not gmail_pass:
+        logging.warning("Email notification failed: GMAIL credentials not found.")
+        return False
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = gmail_user
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(html_content, "html"))
+
+    try:
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(gmail_user, gmail_pass)
+        server.sendmail(gmail_user, to_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        logging.error(f"Email Error: {e}")
+        return False
 
 def send_push_notification(user_id, title, body, icon=None, url=None):
     """Sends a push notification to all subscriptions of a specific user."""
