@@ -338,8 +338,14 @@ def atomic_reconcile_full():
 
         # 4. Final Total Sync
         db.session.flush() # Ensure all items have costs applied
-        final_total = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
-        bill.total_amount = final_total
+        
+        # Priority: 1. Manually edited total from payload, 2. Sum of items
+        payload_total = float(data.get('total_amount') or 0)
+        if payload_total > 0:
+            bill.total_amount = payload_total
+        else:
+            final_total = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
+            bill.total_amount = final_total
 
         db.session.commit()
         return jsonify({'success': True, 'bill_id': bill.id})
@@ -543,16 +549,30 @@ def import_receipt():
         return jsonify({'error': f"Unsupported file type: {mime_type}"}), 400
 
     try:
+        # Reset stream position just in case
+        file.seek(0)
+        
         # Use Factory to process (Full pipeline: Extract Text -> Detect Parser -> Parse Data)
-        receipt_data = ParserFactory.process_receipt(file.stream, mime_type)
-        if not receipt_data:
+        text = ParserFactory.get_text(file.stream, mime_type)
+        if text == "ERROR_TESSERACT_NOT_FOUND":
+            return jsonify({'error': 'OCR Engine (Tesseract) is not installed on the server. Please contact administrator.'}), 500
+            
+        if not text:
             return jsonify({'error': 'Failed to extract text from receipt.'}), 500
+        
+        parser = ParserFactory.get_parser(text)
+        receipt_data = parser.parse(text)
+        
+        if not receipt_data:
+            return jsonify({'error': 'Failed to parse extracted text.'}), 500
             
         data = receipt_data.to_dict()
         data['filename'] = file.filename
         return jsonify(data)
     except Exception as e:
-        logging.error(f"Receipt Import Error: {str(e)}")
+        import traceback
+        error_details = traceback.format_exc()
+        logging.error(f"Receipt Import Error: {str(e)}\n{error_details}")
         return jsonify({'error': f"Failed to parse receipt: {str(e)}"}), 500
 
 @finance_bp.route('/expenses/save-imported-bill', methods=['POST'])

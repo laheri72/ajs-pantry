@@ -103,40 +103,130 @@ class DMartParser(BaseParser):
 
         return data
 
+class BlinkitParser(BaseParser):
+    def parse(self, text):
+        data = ReceiptData(shop_name='Blinkit (Bigway Marketing)')
+        
+        # 1. Extract Order ID / Bill No
+        # Look for "Order Id : 402613975" or "Invoice Number : C20632T230216450"
+        bill_no_match = re.search(r'(?:Order\s+Id|Invoice\s+Number)[\s:]+([A-Z0-9]+)', text, re.IGNORECASE)
+        if bill_no_match:
+            data.bill_no = bill_no_match.group(1)
+        
+        # 2. Extract Date
+        # Look for "Invoice Date : 29-Nov-2023"
+        date_match = re.search(r'Invoice\s+Date[\s:]+(\d{2}-[a-z]{3}-\d{4})', text, re.IGNORECASE)
+        if date_match:
+            try:
+                dt_obj = datetime.strptime(date_match.group(1), '%d-%b-%Y')
+                data.bill_date = dt_obj.strftime('%Y-%m-%d')
+            except:
+                pass
+
+        # 3. Extract Items
+        # Table format: Sr. no | UPC | Item Description | MRP | Discount | Qty | Taxable Value | ... | Total
+        # Example: 1 | 890... | Prega News ... | 60.00 | 0.50 | 2 | 106.25 | ... | 119.00
+        # We look for lines starting with a serial number followed by a UPC (usually 13 digits)
+        item_pattern = re.compile(
+            r'(\d+)\s+(\d{10,13})\s+(.*?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2}).*?(\d+\.\d{2})',
+            re.MULTILINE
+        )
+        
+        matches = item_pattern.findall(text)
+        for m in matches:
+            try:
+                data.items.append({
+                    'name': m[2].strip(),
+                    'quantity': m[5],
+                    'cost': float(m[7])
+                })
+            except:
+                continue
+
+        # 4. Extract Total
+        # Look for the final total at the bottom of the table or "Amount in Words"
+        total_match = re.search(r'Total\s+[\d\.]+\s+[\d\.]+\s+([\d,]+\.\d{2})', text, re.IGNORECASE)
+        if total_match:
+            data.total_amount = float(total_match.group(1).replace(',', ''))
+        else:
+            # Fallback: sum items
+            if data.items:
+                data.total_amount = sum(item['cost'] for item in data.items)
+
+        return data
+
 class GenericParser(BaseParser):
     def parse(self, text):
-        data = ReceiptData(shop_name='Unknown Store')
+        data = ReceiptData(shop_name='Smart Scan')
+        lines = text.split('\n')
         
-        # Try to find something that looks like a total
-        # Look for "Total", "Net Amount", "Grand Total"
-        total_patterns = [
-            r'(?:TOTAL|GRAND\s+TOTAL|NET\s+AMOUNT|AMOUNT\s+DUE)[\s:]+([\d,]+\.\d{2})',
-            r'RS\.?\s*([\d,]+\.\d{2})',
-            r'TOTAL\s+PAYABLE[\s:]+([\d,]+\.\d{2})'
-        ]
-        for pattern in total_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                data.total_amount = float(match.group(1).replace(',', ''))
-                break
+        # 1. Date Detection
+        date_pattern = re.compile(r'(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{2,4})')
+        dates = date_pattern.findall(text)
+        if dates: data.bill_date = dates[0]
 
-        # Try to find a date
-        date_patterns = [
-            r'(\d{2}/\d{2}/\d{4})',
-            r'(\d{2}-\d{2}-\d{4})',
-            r'(\d{2}/\d{2}/\d{2})',
-            r'(\d{2}\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+\d{4})'
-        ]
-        for pattern in date_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
+        # 2. Number extraction - flexible patterns
+        # Patterns: 123.45, 123. 45, 123 ,45, 123-45
+        price_pattern = re.compile(r'(\d{1,6}[\s\.,-]+\d{2})(?!\d)')
+        
+        all_prices = []
+        potential_items = []
+
+        for line in lines:
+            line = line.strip()
+            if not line or len(line) < 5: continue
+            
+            # Look for numbers
+            line_prices_raw = price_pattern.findall(line)
+            if not line_prices_raw:
+                # Try finding any integer > 10 at the end of the line
+                int_match = re.search(r'(\d{2,6})$', line)
+                if int_match:
+                    line_prices_raw = [int_match.group(1)]
+                else:
+                    continue
+            
+            # Normalize prices
+            floats = []
+            for p in line_prices_raw:
                 try:
-                    # Very basic date parsing, could be improved with dateutil
-                    raw_date = match.group(1)
-                    # This is just a placeholder for more robust parsing
-                    data.bill_date = raw_date 
-                    break
-                except:
-                    pass
+                    # Remove spaces, replace , with .
+                    clean_p = re.sub(r'[\s-]', '', p).replace(',', '.')
+                    if '.' not in clean_p: # It was an integer from the fallback
+                        val = float(clean_p)
+                    else:
+                        val = float(clean_p)
+                    floats.append(val)
+                except: continue
+            
+            if not floats: continue
+            all_prices.extend(floats)
+            
+            # Item detection
+            name_part = line
+            for p_str in line_prices_raw:
+                name_part = name_part.replace(p_str, '')
+            
+            clean_name = re.sub(r'^[0-9\.\s\-]+', '', name_part).strip()
+            # Clean up middle junk
+            clean_name = re.sub(r'\s{2,}', ' ', clean_name)
+            
+            if len(clean_name) > 3 and not any(kw in clean_name.upper() for kw in ['TOTAL', 'TAX', 'GST', 'CGST', 'SGST', 'VAT', 'CESS', 'AMOUNT', 'DATE', 'INVOICE', 'PAGE', 'TEL', 'FSSAI']):
+                potential_items.append({
+                    'name': clean_name,
+                    'quantity': '1',
+                    'cost': floats[-1]
+                })
+
+        # 3. Total Detection - Largest number usually
+        if all_prices:
+            data.total_amount = max(all_prices)
+        
+        # 4. Refine Items
+        data.items = [it for it in potential_items if it['cost'] < data.total_amount * 0.95 or len(potential_items) == 1]
+        
+        # Fallback for Total
+        if (not data.total_amount or data.total_amount < 1) and data.items:
+            data.total_amount = sum(it['cost'] for it in data.items)
 
         return data
