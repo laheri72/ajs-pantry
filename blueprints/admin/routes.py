@@ -175,6 +175,49 @@ def admin():
             flash('Role assigned successfully', 'success')
             return redirect(url_for('admin_panel.admin'))
 
+        if action == 'bulk_reassign':
+            try:
+                from_user_id = int(request.form.get('from_user_id') or '')
+                to_user_id = int(request.form.get('to_user_id') or '')
+                reassign_types = request.form.getlist('reassign_types')
+                
+                if from_user_id == to_user_id:
+                    flash('Source and target user cannot be the same.', 'error')
+                    return redirect(url_for('admin_panel.admin'))
+                
+                from_user = tenant_filter(User.query).filter_by(id=from_user_id).first()
+                to_user = tenant_filter(User.query).filter_by(id=to_user_id).first()
+                
+                if not from_user or not to_user:
+                    flash('One or both users not found.', 'error')
+                    return redirect(url_for('admin_panel.admin'))
+                
+                updates = 0
+                if 'menu' in reassign_types:
+                    count = tenant_filter(Menu.query).filter_by(assigned_to_id=from_user_id).update(
+                        {Menu.assigned_to_id: to_user_id}, synchronize_session=False
+                    )
+                    updates += count
+                
+                if 'tea' in reassign_types:
+                    count = tenant_filter(TeaTask.query).filter_by(assigned_to_id=from_user_id).update(
+                        {TeaTask.assigned_to_id: to_user_id}, synchronize_session=False
+                    )
+                    updates += count
+                
+                if 'procurement' in reassign_types:
+                    count = tenant_filter(ProcurementItem.query).filter_by(assigned_to_id=from_user_id).update(
+                        {ProcurementItem.assigned_to_id: to_user_id}, synchronize_session=False
+                    )
+                    updates += count
+                
+                db.session.commit()
+                flash(f'Successfully reassigned {updates} items from {from_user.full_name or from_user.email} to {to_user.full_name or to_user.email}.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error during reassignment: {str(e)}', 'error')
+            return redirect(url_for('admin_panel.admin'))
+
         if action == 'delete_user':
             try:
                 target_user_id = int(request.form.get('user_id') or '')
@@ -286,16 +329,22 @@ def admin_floor_members():
     if floor < FLOOR_MIN or floor > FLOOR_MAX:
         return jsonify({"error": "invalid_floor"}), 400
 
-    members = (
-        tenant_filter(User.query).filter_by(floor=floor, role='member')
-        .order_by(User.tr_number.asc(), User.full_name.asc(), User.email.asc())
+    role_type = (request.args.get('role') or 'member').strip()
+
+    query = tenant_filter(User.query).filter_by(floor=floor)
+    if role_type != 'all':
+        query = query.filter_by(role=role_type)
+    
+    users = (
+        query.order_by(User.tr_number.asc(), User.full_name.asc(), User.email.asc())
         .all()
     )
 
     def _label(u):
         name = (u.full_name or u.username or u.email or '').strip()
         tr = (u.tr_number or '-').strip()
-        return f"{tr} - {name}".strip(' -')
+        role_label = f" ({u.role})" if role_type == 'all' else ""
+        return f"{tr} - {name}{role_label}".strip(' -')
 
     return jsonify(
         {
@@ -307,7 +356,7 @@ def admin_floor_members():
                     "name": (u.full_name or u.username or u.email),
                     "label": _label(u),
                 }
-                for u in members
+                for u in users
             ],
         }
     )
