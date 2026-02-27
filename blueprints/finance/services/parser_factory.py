@@ -2,7 +2,7 @@ import logging
 import io
 from .pdf_service import PDFService
 from .ocr_service import OCRService
-from .receipt_parser import DMartParser, GenericParser
+from .receipt_parser import DMartParser, GenericParser, BlinkitParser
 
 class ParserFactory:
     @staticmethod
@@ -13,7 +13,8 @@ class ParserFactory:
         if mime_type == 'application/pdf':
             return PDFService.extract_text(file_stream)
         elif mime_type.startswith('image/'):
-            return OCRService.extract_text(file_stream)
+            text = OCRService.extract_text(file_stream)
+            return text
         else:
             logging.error(f"Unsupported MIME type: {mime_type}")
             return ""
@@ -28,6 +29,10 @@ class ParserFactory:
         # D-Mart detection
         if "AVENUE E-COMMERCE" in text_upper or "DMART" in text_upper or "ORDER NUMBER" in text_upper:
             return DMartParser()
+        
+        # Blinkit / Grofers detection
+        if "BLINKIT" in text_upper or "GROFERS" in text_upper or "BIGWAY MARKETING" in text_upper:
+            return BlinkitParser()
         
         # Add more store detections here
         # elif "RELIANCE" in text_upper:

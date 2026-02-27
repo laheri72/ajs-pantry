@@ -540,12 +540,15 @@
                                 </tr>
                             </thead>
                             <tbody id="review-items-body"></tbody>
-                            <tfoot>
-                                <tr class="table-light fw-bold">
-                                    <td colspan="2">Total Amount</td>
-                                    <td class="text-end">₹<span id="review-total-amount">0.00</span></td>
-                                </tr>
-                            </tfoot>
+                                                         <tfoot>
+                                                             <tr class="table-light fw-bold">
+                                                                 <td colspan="2" class="text-end">Total Amount (₹)</td>
+                                                                 <td class="text-end" style="width: 150px;">
+                                                                     <input type="number" step="0.01" id="review-total-amount-input" class="form-control form-control-sm text-end fw-bold">
+                                                                 </td>
+                                                             </tr>
+                                                         </tfoot>
+                            
                         </table>
                     </div>
                 </div>
@@ -1265,7 +1268,7 @@
             document.getElementById('review-bill-no').value = ocrData.bill_no || '';
             document.getElementById('review-bill-date').value = ocrData.bill_date || '';
             document.getElementById('review-shop-name').value = ocrData.shop_name || '';
-            document.getElementById('review-total-amount').innerText = ocrData.total_amount.toFixed(2);
+            document.getElementById('review-total-amount-input').value = ocrData.total_amount.toFixed(2);
 
             var tbody = document.getElementById('review-items-body');
             tbody.innerHTML = '';
@@ -1279,7 +1282,7 @@
                 const bestMatch = unbilledItems.find(i => i.name.toLowerCase().includes(item.name.toLowerCase()) || item.name.toLowerCase().includes(i.name.toLowerCase()));
                 
                 tr.innerHTML = `<td>
-                                    <div class="fw-bold small">${item.name}</div>
+                                    <input type="text" class="form-control form-control-sm review-item-name" value="${item.name}" data-index="${index}">
                                     <div class="text-muted" style="font-size: 0.75rem;">Qty: ${item.quantity}</div>
                                 </td>
                                 <td>
@@ -1288,7 +1291,9 @@
                                         ${options}
                                     </select>
                                 </td>
-                                <td class="text-end fw-bold text-teal">₹${item.cost.toFixed(2)}</td>`;
+                                <td class="text-end">
+                                    <input type="number" step="0.01" class="form-control form-control-sm text-end review-item-cost" value="${item.cost.toFixed(2)}" data-index="${index}">
+                                </td>`;
                 tbody.appendChild(tr);
 
                 // Auto-select if match found
@@ -1313,33 +1318,37 @@
     function saveImportedBill() {
         if (!currentImportedData) return;
 
-        // Collect reconciliation data
         const reconciliationData = [];
-        const selects = document.querySelectorAll('.procurement-match-select');
-        selects.forEach(select => {
-            const idx = select.getAttribute('data-index');
-            const procId = select.value;
+        const newItemsData = [];
+        
+        const rows = document.querySelectorAll('#review-items-body tr');
+        rows.forEach(row => {
+            const name = row.querySelector('.review-item-name').value;
+            const cost = parseFloat(row.querySelector('.review-item-cost').value) || 0;
+            const procId = row.querySelector('.procurement-match-select').value;
+            
             if (procId) {
                 reconciliationData.push({
                     procurement_id: procId,
-                    cost: currentImportedData.items[idx].cost
+                    name: name, // We can also update name if backend supports it
+                    cost: cost
                 });
-                // Remove from new items so we don't duplicate
-                currentImportedData.items[idx].skip = true;
+            } else {
+                newItemsData.push({
+                    name: name,
+                    quantity: '1',
+                    cost: cost
+                });
             }
         });
 
-        const finalNewItems = currentImportedData.items.filter(i => !i.skip);
-
-        // First save the bill with new items, then reconcile existing ones
-        // To make it truly ATOMIC we use a new combined endpoint
         const payload = {
             bill_no: document.getElementById('review-bill-no').value,
             bill_date: document.getElementById('review-bill-date').value,
             shop_name: document.getElementById('review-shop-name').value,
-            total_amount: parseFloat(document.getElementById('review-total-amount').innerText),
+            total_amount: parseFloat(document.getElementById('review-total-amount-input').value) || 0,
             filename: currentImportedData.filename,
-            new_items: finalNewItems,
+            new_items: newItemsData,
             reconciliations: reconciliationData
         };
 
