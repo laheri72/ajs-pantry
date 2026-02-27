@@ -1011,3 +1011,11 @@ body {
 main {
     flex: 1 0 auto;
 }
+
+/* Utility classes for soft backgrounds */
+.bg-soft-primary { background-color: rgba(33, 150, 243, 0.1) !important; color: #2196F3 !important; }
+.bg-soft-success { background-color: rgba(76, 175, 80, 0.1) !important; color: #4CAF50 !important; }
+.bg-soft-warning { background-color: rgba(255, 152, 0, 0.1) !important; color: #FF9800 !important; }
+.bg-soft-danger { background-color: rgba(244, 67, 54, 0.1) !important; color: #F44336 !important; }
+.bg-soft-info { background-color: rgba(33, 150, 243, 0.1) !important; color: #2196F3 !important; }
+.bg-soft-teal { background-color: rgba(38, 166, 154, 0.1) !important; color: #26A69A !important; }

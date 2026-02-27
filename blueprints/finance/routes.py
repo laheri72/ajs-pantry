@@ -208,6 +208,146 @@ def delete_bill_permanent(bill_id):
     flash('Bill and all its associated items have been permanently deleted.', 'success')
     return redirect(url_for('finance.expenses'))
 
+@finance_bp.route('/reconcile/atomic', methods=['POST'])
+def atomic_reconcile():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    bill_id = data.get('bill_id')
+    reconciliations = data.get('reconciliations', []) # List of {procurement_id: X, cost: Y}
+
+    if not bill_id:
+        return jsonify({'error': 'Bill ID is required'}), 400
+
+    bill = tenant_filter(Bill.query).filter_by(id=bill_id).first()
+    if not bill:
+        return jsonify({'error': 'Bill not found'}), 404
+
+    try:
+        total_reconciled_cost = 0
+        for rec in reconciliations:
+            proc_id = rec.get('procurement_id')
+            cost = float(rec.get('cost') or 0)
+            
+            item = tenant_filter(ProcurementItem.query).filter_by(id=proc_id).first()
+            if item and (user.role == 'admin' or item.floor == bill.floor):
+                item.actual_cost = cost
+                item.bill_id = bill.id
+                item.status = 'completed'
+                item.expense_recorded_at = datetime.utcnow()
+                total_reconciled_cost += cost
+        
+        # Update bill total if it was a manual reconciliation adding to an existing bill
+        # Or if we want the bill to reflect the sum of its items
+        current_total = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
+        bill.total_amount = current_total
+        
+        db.session.commit()
+        return jsonify({'success': True, 'reconciled_count': len(reconciliations), 'new_total': float(bill.total_amount)})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@finance_bp.route('/procurement/unbilled', methods=['GET'])
+def get_unbilled_procurement():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    floor = _get_active_floor(user)
+    # Get items that are EITHER completed and unbilled, OR still pending
+    # This allows matching a bill to something that was just bought but not yet marked done
+    items = tenant_filter(ProcurementItem.query).filter(
+        ProcurementItem.floor == floor,
+        ProcurementItem.bill_id == None
+    ).order_by(ProcurementItem.status.desc(), ProcurementItem.created_at.desc()).all()
+
+    return jsonify({
+        'items': [{
+            'id': i.id,
+            'name': i.item_name,
+            'quantity': i.quantity,
+            'status': i.status,
+            'category': i.category,
+            'created_at': i.created_at.strftime('%Y-%m-%d')
+        } for i in items]
+    })
+
+@finance_bp.route('/reconcile/atomic/full', methods=['POST'])
+def atomic_reconcile_full():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    floor = _get_active_floor(user)
+    try:
+        bill_date_str = data.get('bill_date')
+        bill_date = datetime.strptime(bill_date_str, '%Y-%m-%d').date() if bill_date_str else date.today()
+
+        # 1. Create the Bill
+        bill = Bill(
+            bill_no=data.get('bill_no') or f"REC-{int(datetime.utcnow().timestamp())}",
+            bill_date=bill_date,
+            shop_name=data.get('shop_name') or 'Generic Vendor',
+            total_amount=data.get('total_amount', 0),
+            floor=floor,
+            source='receipt_scan',
+            original_filename=data.get('filename'),
+            tenant_id=getattr(g, 'tenant_id', None)
+        )
+        db.session.add(bill)
+        db.session.flush()
+
+        # 2. Create NEW ProcurementItems
+        for item_data in data.get('new_items', []):
+            item = ProcurementItem(
+                item_name=item_data.get('name'),
+                quantity=item_data.get('quantity'),
+                category='other',
+                priority='medium',
+                status='completed',
+                floor=floor,
+                created_by_id=user.id,
+                actual_cost=item_data.get('cost'),
+                expense_recorded_at=datetime.utcnow(),
+                bill_id=bill.id,
+                tenant_id=getattr(g, 'tenant_id', None)
+            )
+            db.session.add(item)
+
+        # 3. Reconcile EXISTING ProcurementItems
+        for rec in data.get('reconciliations', []):
+            proc_id = rec.get('procurement_id')
+            cost = float(rec.get('cost') or 0)
+            
+            item = tenant_filter(ProcurementItem.query).filter_by(id=proc_id).first()
+            if item and (user.role == 'admin' or item.floor == floor):
+                item.actual_cost = cost
+                item.bill_id = bill.id
+                item.status = 'completed'
+                item.expense_recorded_at = datetime.utcnow()
+
+        # 4. Final Total Sync
+        db.session.flush() # Ensure all items have costs applied
+        final_total = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.bill_id == bill.id).scalar() or 0
+        bill.total_amount = final_total
+
+        db.session.commit()
+        return jsonify({'success': True, 'bill_id': bill.id})
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Atomic Full Reconcile Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @finance_bp.route('/budgets/add', methods=['POST'])
 def add_budget():
     user = _require_user()
