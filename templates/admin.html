@@ -17,6 +17,9 @@
                 <button class="btn btn-outline-teal shadow-sm ms-2" data-bs-toggle="modal" data-bs-target="#addPantryHeadModal">
                     <i class="fas fa-user-tie me-1"></i> Assign Pantry Head
                 </button>
+                <button class="btn btn-warning shadow-sm ms-2" data-bs-toggle="modal" data-bs-target="#bulkReassignModal">
+                    <i class="fas fa-exchange-alt me-1"></i> Bulk Reassign
+                </button>
             </div>
         </div>
     </div>
@@ -301,6 +304,70 @@ Example:
     </div>
 </div>
 
+<!-- Bulk Reassign Modal -->
+<div class="modal fade" id="bulkReassignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title fw-bold"><i class="fas fa-exchange-alt me-2"></i>Bulk Task & Menu Reassignment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="bulk_reassign">
+                    <div class="alert alert-warning py-2 small">
+                        <i class="fas fa-exclamation-triangle me-2"></i> This will move all <strong>assigned</strong> items from one user to another. Useful for staff handovers.
+                    </div>
+                    
+                    <div class="row g-3">
+                        <!-- Source User -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Source User (Leaving)</label>
+                            <select class="form-select mb-2" id="reassignFromFloorSelect">
+                                <option value="" selected disabled>Select Floor...</option>
+                                {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                            </select>
+                            <select class="form-select" name="from_user_id" id="reassignFromUserSelect" required disabled>
+                                <option value="">Select floor first</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Target User -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Target User (Taking Over)</label>
+                            <select class="form-select mb-2" id="reassignToFloorSelect">
+                                <option value="" selected disabled>Select Floor...</option>
+                                {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                            </select>
+                            <select class="form-select" name="to_user_id" id="reassignToUserSelect" required disabled>
+                                <option value="">Select floor first</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="form-label fw-bold d-block">Items to Reassign</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="checkbox" class="btn-check" name="reassign_types" value="menu" id="typeMenu" checked>
+                            <label class="btn btn-outline-teal" for="typeMenu"><i class="fas fa-utensils me-1"></i> Menus</label>
+
+                            <input type="checkbox" class="btn-check" name="reassign_types" value="tea" id="typeTea" checked>
+                            <label class="btn btn-outline-teal" for="typeTea"><i class="fas fa-mug-hot me-1"></i> Tea Duty</label>
+
+                            <input type="checkbox" class="btn-check" name="reassign_types" value="procurement" id="typeProc" checked>
+                            <label class="btn btn-outline-teal" for="typeProc"><i class="fas fa-shopping-cart me-1"></i> Procurement</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning px-4 fw-bold">Execute Reassignment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <style>
     .bg-success-light { background-color: #e8f5e9; }
     .bg-warning-light { background-color: #fff3e0; }
@@ -352,6 +419,43 @@ Example:
         const phUserSelect = document.getElementById('pantryHeadUserSelect');
         if (phFloorSelect && phUserSelect) {
             phFloorSelect.addEventListener('change', () => loadFloorMembers(phFloorSelect.value, phUserSelect));
+        }
+
+        // Reassignment Dynamic Loading
+        async function loadFloorUsersAll(floor, userSelect) {
+            userSelect.disabled = true;
+            userSelect.innerHTML = '<option value="">Loading users...</option>';
+
+            try {
+                const res = await fetch(`/admin/floor-members?floor=${encodeURIComponent(floor)}&role=all`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                const members = data.members || [];
+
+                if (!members.length) {
+                    userSelect.innerHTML = '<option value="">No users available</option>';
+                    return;
+                }
+
+                userSelect.innerHTML = '<option value="" selected disabled>Select user...</option>' + 
+                    members.map(m => `<option value="${m.id}">${m.label}</option>`).join('');
+                userSelect.disabled = false;
+            } catch (e) {
+                userSelect.innerHTML = '<option value="">Error loading users</option>';
+            }
+        }
+
+        const reassignFromFloorSelect = document.getElementById('reassignFromFloorSelect');
+        const reassignFromUserSelect = document.getElementById('reassignFromUserSelect');
+        const reassignToFloorSelect = document.getElementById('reassignToFloorSelect');
+        const reassignToUserSelect = document.getElementById('reassignToUserSelect');
+        
+        if (reassignFromFloorSelect && reassignFromUserSelect) {
+            reassignFromFloorSelect.addEventListener('change', () => loadFloorUsersAll(reassignFromFloorSelect.value, reassignFromUserSelect));
+        }
+        if (reassignToFloorSelect && reassignToUserSelect) {
+            reassignToFloorSelect.addEventListener('change', () => loadFloorUsersAll(reassignToFloorSelect.value, reassignToUserSelect));
         }
     });
 </script>

@@ -387,9 +387,49 @@ def calendar():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    floor_menus = tenant_filter(Menu.query).options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team)).filter_by(floor=floor).all()
-    floor_tea_tasks = tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter_by(floor=floor).all()
-    floor_special_events = tenant_filter(SpecialEvent.query).options(joinedload(SpecialEvent.created_by)).filter_by(floor=floor).all()
+    
+    # Get year and month from query params or default to current date
+    now = datetime.now()
+    try:
+        current_year = int(request.args.get('year', now.year))
+        current_month = int(request.args.get('month', now.month))
+    except (ValueError, TypeError):
+        current_year = now.year
+        current_month = now.month
+
+    # Handle month rollover safely (e.g. month=0 or month=13)
+    if current_month < 1:
+        current_month = 12
+        current_year -= 1
+    elif current_month > 12:
+        current_month = 1
+        current_year += 1
+
+    # Calculate range for calendar grid (roughly 6 weeks)
+    start_bound = date(current_year, current_month, 1) - timedelta(days=7)
+    if current_month == 12:
+        next_month_start = date(current_year + 1, 1, 1)
+    else:
+        next_month_start = date(current_year, current_month + 1, 1)
+    end_bound = next_month_start + timedelta(days=14)
+
+    floor_menus = tenant_filter(Menu.query).options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team)).filter(
+        Menu.floor == floor,
+        Menu.date >= start_bound,
+        Menu.date <= end_bound
+    ).all()
+    
+    floor_tea_tasks = tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter(
+        TeaTask.floor == floor,
+        TeaTask.date >= start_bound,
+        TeaTask.date <= end_bound
+    ).all()
+    
+    floor_special_events = tenant_filter(SpecialEvent.query).options(joinedload(SpecialEvent.created_by)).filter(
+        SpecialEvent.floor == floor,
+        SpecialEvent.date >= start_bound,
+        SpecialEvent.date <= end_bound
+    ).all()
 
     menus = [
         {
@@ -440,7 +480,14 @@ def calendar():
         for s in floor_special_events
     ]
 
-    return render_template('calendar.html', menus=menus, tea_tasks=tea_tasks, special_events=special_events, current_user=user, active_floor=floor)
+    return render_template('calendar.html', 
+                           menus=menus, 
+                           tea_tasks=tea_tasks, 
+                           special_events=special_events, 
+                           current_user=user, 
+                           active_floor=floor,
+                           current_year=current_year,
+                           current_month=current_month)
 
 @pantry_bp.route('/special-events', methods=['POST'])
 def create_special_event():

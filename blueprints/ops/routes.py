@@ -26,7 +26,7 @@ def tea():
     floor = _get_active_floor(user)
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
 
-    if request.method == 'POST' and user.role in ['admin', 'teaManager']:
+    if request.method == 'POST' and user.role in ['admin', 'teaManager', 'pantryHead']:
         try:
             task_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
         except Exception:
@@ -65,6 +65,14 @@ def tea():
 
         flash('tea task added successfully', 'success')
         return redirect(url_for('ops.tea'))
+
+    # Auto-complete past pending tasks for this floor
+    tenant_filter(TeaTask.query).filter(
+        TeaTask.floor == floor,
+        TeaTask.date < date.today(),
+        TeaTask.status == 'pending'
+    ).update({TeaTask.status: 'completed'}, synchronize_session=False)
+    db.session.commit()
 
     month_param = (request.args.get('month') or '').strip()
     today = date.today()
@@ -117,6 +125,7 @@ def tea():
         selected_month=month_param,
         month_start=month_start,
         current_user=user,
+        today=today
     )
 
 @ops_bp.route('/tea/complete/<int:task_id>', methods=['POST'])
@@ -125,7 +134,7 @@ def complete_tea_task(task_id):
     if not user:
         return ('', 401)
 
-    if user.role not in ['admin', 'teaManager']:
+    if user.role not in ['admin', 'teaManager', 'pantryHead']:
         return ('', 403)
 
     task = tenant_filter(TeaTask.query).filter_by(id=task_id).first()
@@ -135,6 +144,163 @@ def complete_tea_task(task_id):
         return ('', 404)
 
     task.status = 'completed'
+    db.session.commit()
+    return ('', 204)
+
+@ops_bp.route('/tea/bulk-assign', methods=['POST'])
+def bulk_assign_tea():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'teaManager', 'pantryHead']:
+        abort(403)
+
+    floor = _get_active_floor(user)
+    try:
+        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(request.form.get('end_date'), '%Y-%m-%d').date()
+        user_ids = request.form.getlist('user_ids')
+    except Exception:
+        flash('Invalid rotation parameters', 'error')
+        return redirect(url_for('ops.tea'))
+
+    if not user_ids:
+        flash('Please select at least one user for rotation.', 'error')
+        return redirect(url_for('ops.tea'))
+
+    if start_date > end_date:
+        flash('Start date cannot be after end_date.', 'error')
+        return redirect(url_for('ops.tea'))
+
+    current_date = start_date
+    user_index = 0
+    tasks_created = 0
+    from datetime import timedelta
+
+    while current_date <= end_date:
+        # Check if task already exists for this floor and date
+        existing = tenant_filter(TeaTask.query).filter_by(floor=floor, date=current_date).first()
+        if not existing:
+            # Try to find the next available user in the rotation
+            found_user = False
+            for _ in range(len(user_ids)):
+                target_user_id = int(user_ids[user_index % len(user_ids)])
+                
+                # Check for approved absence request
+                absence = tenant_filter(Request.query).filter(
+                    Request.user_id == target_user_id,
+                    Request.status == 'approved',
+                    Request.request_type == 'absence',
+                    Request.start_date <= current_date,
+                    Request.end_date >= current_date
+                ).first()
+
+                if not absence:
+                    # Found an available user
+                    new_task = TeaTask(
+                        date=current_date,
+                        assigned_to_id=target_user_id,
+                        floor=floor,
+                        created_by_id=user.id,
+                        tenant_id=getattr(g, 'tenant_id', None)
+                    )
+                    db.session.add(new_task)
+                    tasks_created += 1
+                    user_index += 1 # Move to next user for next date
+                    found_user = True
+                    break
+                else:
+                    # User is on leave, try the next one for THIS same date
+                    user_index += 1
+            
+            # if no user was found available for this date, the date is skipped
+        
+        current_date += timedelta(days=1)
+
+    db.session.commit()
+    flash(f'Successfully generated {tasks_created} tea tasks.', 'success')
+    return redirect(url_for('ops.tea'))
+
+@ops_bp.route('/tea/bulk-assign-preview', methods=['POST'])
+def bulk_assign_preview():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'teaManager', 'pantryHead']:
+        return jsonify({"error": "unauthorized"}), 403
+
+    floor = _get_active_floor(user)
+    try:
+        data = request.get_json()
+        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        user_ids = [int(uid) for uid in data.get('user_ids', [])]
+    except Exception:
+        return jsonify({"error": "invalid_parameters"}), 400
+
+    if not user_ids:
+        return jsonify({"error": "no_users_selected"}), 400
+
+    current_date = start_date
+    user_index = 0
+    preview_tasks = []
+    from datetime import timedelta
+
+    # Get floor user names for labeling
+    users_map = {u.id: (u.full_name or u.username or u.email) for u in tenant_filter(User.query).filter_by(floor=floor).all()}
+
+    while current_date <= end_date:
+        existing = tenant_filter(TeaTask.query).filter_by(floor=floor, date=current_date).first()
+        if not existing:
+            found_user = False
+            for _ in range(len(user_ids)):
+                target_user_id = user_ids[user_index % len(user_ids)]
+                absence = tenant_filter(Request.query).filter(
+                    Request.user_id == target_user_id,
+                    Request.status == 'approved',
+                    Request.request_type == 'absence',
+                    Request.start_date <= current_date,
+                    Request.end_date >= current_date
+                ).first()
+
+                if not absence:
+                    preview_tasks.append({
+                        "date": current_date.strftime('%Y-%m-%d'),
+                        "day": current_date.strftime('%A'),
+                        "user_id": target_user_id,
+                        "user_name": users_map.get(target_user_id, "Unknown")
+                    })
+                    user_index += 1
+                    found_user = True
+                    break
+                else:
+                    user_index += 1
+        
+        current_date += timedelta(days=1)
+
+    return jsonify({"tasks": preview_tasks})
+
+@ops_bp.route('/tea/fail/<int:task_id>', methods=['POST'])
+def fail_tea_task(task_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'teaManager', 'pantryHead']:
+        return ('', 403)
+
+    task = tenant_filter(TeaTask.query).filter_by(id=task_id).first()
+    if not task: return ('', 404)
+    if user.role != 'admin' and task.floor != user.floor: return ('', 403)
+
+    task.status = 'failed'
+    db.session.commit()
+    return ('', 204)
+
+@ops_bp.route('/tea/pending/<int:task_id>', methods=['POST'])
+def reset_tea_task(task_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'teaManager', 'pantryHead']:
+        return ('', 403)
+
+    task = tenant_filter(TeaTask.query).filter_by(id=task_id).first()
+    if not task: return ('', 404)
+    if user.role != 'admin' and task.floor != user.floor: return ('', 403)
+
+    task.status = 'pending'
     db.session.commit()
     return ('', 204)
 
