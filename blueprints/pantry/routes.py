@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
-from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense
+from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -192,6 +192,88 @@ def dashboard():
     # Sort notifications by time
     notifications.sort(key=lambda x: x['time'], reverse=True)
     
+    # Morning Brief for Pantry Heads
+    morning_brief = None
+    if user.role == 'pantryHead':
+        morning_brief = {
+            'absent_staff_count': 0,
+            'breakfast_rating': 0,
+            'breakfast_feedback_count': 0,
+            'budget_usage_pct': 0,
+            'budget_remaining_days': 0,
+            'pending_procurement_count': 0,
+            'breakfast_dish_name': 'Breakfast'
+        }
+        
+        # 1. Staff Absent today
+        morning_brief['absent_staff_count'] = tenant_filter(Request.query).filter(
+            Request.floor == floor,
+            Request.request_type == 'absence',
+            Request.status == 'approved',
+            Request.start_date <= today,
+            Request.end_date >= today
+        ).count()
+        
+        # 2. Breakfast Feedback (Most recent breakfast today or yesterday)
+        recent_breakfast = tenant_filter(Menu.query).filter(
+            Menu.floor == floor,
+            Menu.meal_type == 'breakfast',
+            Menu.date <= today
+        ).order_by(Menu.date.desc()).first()
+        
+        if recent_breakfast:
+            morning_brief['breakfast_dish_name'] = recent_breakfast.title
+            feedback_stats = tenant_filter(db.session.query(
+                func.avg(Feedback.rating),
+                func.count(Feedback.id)
+            )).filter(Feedback.menu_id == recent_breakfast.id).first()
+            
+            if feedback_stats and feedback_stats[1] > 0:
+                morning_brief['breakfast_rating'] = round(float(feedback_stats[0]), 1)
+                morning_brief['breakfast_feedback_count'] = feedback_stats[1]
+        
+        # 3. Budget Alert
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        
+        # Get all budgets that overlap with the current week
+        active_budgets = tenant_filter(Budget.query).filter(
+            Budget.floor == floor,
+            Budget.start_date <= end_of_week,
+            or_(Budget.end_date >= start_of_week, Budget.end_date.is_(None))
+        ).all()
+        
+        if active_budgets:
+            total_allocated = sum(float(b.amount_allocated) for b in active_budgets)
+            
+            # Spent this week: Legacy Expenses + Finalized Procurement
+            spent_proc = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
+                ProcurementItem.floor == floor,
+                ProcurementItem.status == 'completed',
+                ProcurementItem.bill_id.isnot(None),
+                ProcurementItem.expense_recorded_at >= datetime.combine(start_of_week, datetime.min.time())
+            ).scalar() or 0
+            
+            spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(
+                Expense.floor == floor,
+                Expense.date >= start_of_week
+            ).scalar() or 0
+            
+            total_spent = float(spent_proc) + float(spent_legacy)
+            
+            if total_allocated > 0:
+                morning_brief['budget_usage_pct'] = min(100, round((total_spent / total_allocated) * 100))
+            
+            # Days remaining in the current week or until the earliest end_date
+            remaining_days = (end_of_week - today).days
+            morning_brief['budget_remaining_days'] = max(0, remaining_days)
+                
+        # 4. Procurement Pending
+        morning_brief['pending_procurement_count'] = tenant_filter(ProcurementItem.query).filter(
+            ProcurementItem.floor == floor,
+            ProcurementItem.status != 'completed'
+        ).count()
+
     return render_template(
         'dashboard.html',
         user=user,
@@ -206,6 +288,7 @@ def dashboard():
         today=today,
         upcoming_until=upcoming_until,
         current_user=user,
+        morning_brief=morning_brief
     )
 
 @pantry_bp.route('/home')

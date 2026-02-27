@@ -103,6 +103,110 @@
     </div>
     {% endif %}
 
+    {% if morning_brief %}
+    <!-- Morning Brief (Pantry Head Exclusive) -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 1.25rem;">
+                <div class="card-header bg-white border-0 pt-4 px-4 d-flex align-items-center justify-content-between">
+                    <div>
+                        <h5 class="mb-0 fw-bold d-flex align-items-center">
+                            <i class="fas fa-sun text-warning me-2 fs-4"></i>
+                            Morning Brief
+                            <span class="ms-2 badge bg-soft-warning text-dark fw-medium rounded-pill px-3 py-1" style="font-size: 0.7rem;">ACTIONABLE INSIGHTS</span>
+                        </h5>
+                    </div>
+                    <div class="text-muted small">
+                        <i class="far fa-clock me-1"></i>Updated just now
+                    </div>
+                </div>
+                <div class="card-body p-4 pt-2">
+                    <div class="row g-4">
+                        <!-- Staff Absence -->
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center p-3 rounded-4 bg-light h-100 border border-white">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                        <i class="fas fa-user-clock text-danger fs-5"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="h4 fw-bold mb-0">{{ morning_brief.absent_staff_count }}</div>
+                                    <div class="text-muted small">Staff Absent Today</div>
+                                    {% if morning_brief.absent_staff_count > 0 %}
+                                    <div class="mt-1 small text-danger fw-medium"><i class="fas fa-exclamation-triangle me-1"></i>Rotation adjusted</div>
+                                    {% else %}
+                                    <div class="mt-1 small text-success fw-medium"><i class="fas fa-check-circle me-1"></i>Full attendance</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feedback -->
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center p-3 rounded-4 bg-light h-100 border border-white">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                        <i class="fas fa-star text-warning fs-5"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="h4 fw-bold mb-0">{{ morning_brief.breakfast_rating if morning_brief.breakfast_feedback_count > 0 else 'N/A' }}</div>
+                                    <div class="text-muted small">{{ morning_brief.breakfast_dish_name }} Feedback</div>
+                                    {% if morning_brief.breakfast_feedback_count > 0 %}
+                                    <div class="mt-1 small text-muted">{{ morning_brief.breakfast_feedback_count }} members rated</div>
+                                    {% else %}
+                                    <div class="mt-1 small text-muted">No feedback yet</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Budget Alert -->
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center p-3 rounded-4 bg-light h-100 border border-white">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                        <i class="fas fa-wallet text-primary fs-5"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="h4 fw-bold mb-0">{{ morning_brief.budget_usage_pct }}%</div>
+                                    <div class="text-muted small">Budget Consumed</div>
+                                    <div class="progress mt-2" style="height: 4px;">
+                                        <div class="progress-bar {{ 'bg-danger' if morning_brief.budget_usage_pct > 80 else ('bg-warning' if morning_brief.budget_usage_pct > 60 else 'bg-success') }}" role="progressbar" style="width: {{ morning_brief.budget_usage_pct }}%"></div>
+                                    </div>
+                                    <div class="mt-1 small text-muted">{{ morning_brief.budget_remaining_days }} days remaining</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Procurement -->
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center p-3 rounded-4 bg-light h-100 border border-white">
+                                <div class="flex-shrink-0 me-3">
+                                    <div class="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                        <i class="fas fa-shopping-basket text-success fs-5"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="h4 fw-bold mb-0">{{ morning_brief.pending_procurement_count }}</div>
+                                    <div class="text-muted small">Items Pending</div>
+                                    {% if morning_brief.pending_procurement_count > 0 %}
+                                    <a href="{{ url_for('ops.procurement') }}" class="mt-1 small text-success fw-medium text-decoration-none d-block">Check shopping list <i class="fas fa-chevron-right ms-1" style="font-size: 0.6rem;"></i></a>
+                                    {% else %}
+                                    <div class="mt-1 small text-muted">All items procured</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Statistics -->
     <div class="row g-3 mb-4">
         <div class="col-sm-6 col-lg-3">
