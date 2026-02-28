@@ -502,18 +502,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (btnSuggestTeam) {
         btnSuggestTeam.addEventListener('click', function() {
+            const dateVal = document.getElementById('menuDateInput').value;
             btnSuggestTeam.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
-            fetch('/menus/next-team')
+            fetch(`/menus/next-team?date=${dateVal}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.id) {
                         teamSelect.value = data.id;
                         syncAssignmentSelects();
+                        
+                        // Conflict Alert
+                        if (data.conflicts && data.conflicts.length > 0) {
+                            const names = data.conflicts.join(', ');
+                            alert(`Warning: The following team members are marked absent on this date: ${names}. You may want to assign a buffer day instead.`);
+                        }
+
                         // Flash success
                         teamSelect.classList.add('is-valid');
                         setTimeout(() => teamSelect.classList.remove('is-valid'), 2000);
                     } else {
-                        alert("No teams found on this floor. Create a team first!");
+                        alert(data.error || "No teams found on this floor. Create a team first!");
                     }
                 })
                 .finally(() => {
@@ -741,7 +749,24 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(data => {
                 const teamSelects = document.querySelectorAll('.row-team');
                 data.sequence.forEach((team, i) => {
-                    if (teamSelects[i]) teamSelects[i].value = team.id;
+                    if (teamSelects[i]) {
+                        teamSelects[i].value = team.id;
+                        
+                        // Show conflict warning if needed
+                        const tr = teamSelects[i].closest('tr');
+                        const teamTd = teamSelects[i].closest('td');
+                        
+                        // Clear old warnings
+                        const oldWarning = teamTd.querySelector('.conflict-warning');
+                        if (oldWarning) oldWarning.remove();
+                        
+                        if (team.conflicts && team.conflicts.length > 0) {
+                            const warning = document.createElement('div');
+                            warning.className = 'conflict-warning badge bg-danger-subtle text-danger mt-1 d-block text-start text-wrap fw-normal';
+                            warning.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i> Absent: ${team.conflicts.join(', ')}`;
+                            teamTd.appendChild(warning);
+                        }
+                    }
                 });
             })
             .finally(() => {

@@ -641,6 +641,40 @@ def procurement():
         active_floor=floor
     )
 
+@ops_bp.route('/procurement/bulk-complete', methods=['POST'])
+def bulk_complete_procurement():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    item_ids = request.form.getlist('item_ids[]')
+    if not item_ids:
+        flash('No items selected', 'error')
+        return redirect(url_for('ops.procurement'))
+
+    floor = _get_active_floor(user)
+    updated_count = 0
+    
+    try:
+        # Filter items by floor and tenant for security
+        items = tenant_filter(ProcurementItem.query).filter(
+            ProcurementItem.id.in_(item_ids),
+            ProcurementItem.floor == floor
+        ).all()
+        
+        for item in items:
+            if item.status != 'completed':
+                item.status = 'completed'
+                updated_count += 1
+        
+        db.session.commit()
+        flash(f'Successfully completed {updated_count} items.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error completing items: {str(e)}', 'error')
+
+    return redirect(url_for('ops.procurement'))
+
 @ops_bp.route('/procurement/complete/<int:item_id>', methods=['POST'])
 def complete_procurement_item(item_id):
     user = _require_user()

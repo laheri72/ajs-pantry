@@ -49,10 +49,23 @@
 
     <div class="row g-3">
         <div class="col-lg-8">
+            <form id="bulkCompleteForm" method="POST" action="{{ url_for('ops.bulk_complete_procurement') }}">
             <div class="card shadow-sm">
-                <div class="card-header bg-white d-flex align-items-center justify-content-between">
-                    <div class="fw-semibold"><i class="fas fa-cart-shopping me-2 text-teal"></i>To Buy</div>
-                    <div class="text-muted small">Highest priority first</div>
+                <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="fw-semibold"><i class="fas fa-cart-shopping me-2 text-teal"></i>To Buy</div>
+                        {% if pending_items %}
+                        <div class="form-check small mb-0">
+                            <input class="form-check-input" type="checkbox" id="selectAllToBuy" onclick="toggleAllToBuy(this)">
+                            <label class="form-check-label text-muted" for="selectAllToBuy">Select All</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div id="bulkActionContainer" class="d-none">
+                        <button type="button" class="btn btn-sm btn-success" onclick="confirmBulkComplete()">
+                            <i class="fas fa-check-double me-1"></i> Complete Selected (<span id="selectedBuyCount">0</span>)
+                        </button>
+                    </div>
                 </div>
 
                 {% if pending_groups %}
@@ -78,16 +91,19 @@
                                 {% for item in group['items'] %}
                                 <div class="list-group-item">
                                     <div class="d-flex gap-3 align-items-start">
-                                        <div class="pt-1">
+                                        <div class="pt-1 d-flex gap-2">
                                             {% if current_user.role in ['admin', 'pantryHead'] %}
+                                            <div class="form-check mb-0 mt-1">
+                                                <input class="form-check-input to-buy-check" type="checkbox" name="item_ids[]" value="{{ item.id }}" onclick="updateBulkBuyCount()">
+                                            </div>
                                             <div class="d-flex flex-column gap-1">
                                                 <form method="POST" action="{{ url_for('ops.complete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Mark this item as completed?')">
-                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Mark completed">
+                                                    <button type="submit" class="btn btn-xs btn-outline-success" title="Mark completed">
                                                         <i class="fas fa-check"></i>
                                                     </button>
                                                 </form>
                                                 <form method="POST" action="{{ url_for('ops.delete_procurement_item', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Delete this item from database?')">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Item">
+                                                    <button type="submit" class="btn btn-xs btn-outline-danger" title="Delete Item">
                                                         <i class="fas fa-trash small"></i>
                                                     </button>
                                                 </form>
@@ -131,6 +147,7 @@
                 </div>
                 {% endif %}
             </div>
+            </form>
         </div>
 
         <div class="col-lg-4">
@@ -301,6 +318,27 @@
 </div>
 {% endif %}
 
+<!-- Bulk Complete Confirmation Modal -->
+<div class="modal fade" id="bulkCompleteConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-body text-center p-4">
+                <div class="text-success mb-3">
+                    <i class="fas fa-check-double fa-3x"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Complete Selected?</h5>
+                <p class="text-muted small mb-4">
+                    Mark <strong id="bulkConfirmCount">0</strong> items as completed? This will move them to the completed list.
+                </p>
+                <div class="d-grid gap-2">
+                    <button type="button" id="confirmBulkCompleteBtn" class="btn btn-success py-2">Yes, Mark Completed</button>
+                    <button type="button" class="btn btn-light py-2" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Custom Confirmation Modal -->
 <div class="modal fade" id="procurementConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -327,6 +365,12 @@
 
 <style>
     .bg-soft-teal { background-color: rgba(38, 166, 154, 0.1); }
+    .btn-xs {
+        padding: 0.1rem 0.3rem;
+        font-size: 0.7rem;
+        line-height: 1;
+        border-radius: 0.2rem;
+    }
 </style>
 
 {% endblock %}
@@ -359,6 +403,53 @@
         const qtyDatalist = document.getElementById('procurementQuantityList');
 
         if (!form || !tbody || !addRowBtn || !rowTemplate) return;
+
+        // Bulk Actions Functions
+        window.toggleAllToBuy = function(master) {
+            const checks = document.querySelectorAll('.to-buy-check');
+            checks.forEach(cb => cb.checked = master.checked);
+            updateBulkBuyCount();
+        };
+
+        window.updateBulkBuyCount = function() {
+            const checked = document.querySelectorAll('.to-buy-check:checked');
+            const count = checked.length;
+            const actionContainer = document.getElementById('bulkActionContainer');
+            const countDisplay = document.getElementById('selectedBuyCount');
+            const masterCheck = document.getElementById('selectAllToBuy');
+            
+            if (countDisplay) countDisplay.textContent = count;
+            if (actionContainer) {
+                if (count > 0) {
+                    actionContainer.classList.remove('d-none');
+                } else {
+                    actionContainer.classList.add('d-none');
+                }
+            }
+            
+            if (masterCheck) {
+                const total = document.querySelectorAll('.to-buy-check').length;
+                masterCheck.checked = (count === total && total > 0);
+            }
+        };
+
+        const bulkModal = new bootstrap.Modal(document.getElementById('bulkCompleteConfirmModal'));
+        const bulkConfirmBtn = document.getElementById('confirmBulkCompleteBtn');
+        const bulkForm = document.getElementById('bulkCompleteForm');
+
+        window.confirmBulkComplete = function() {
+            const checked = document.querySelectorAll('.to-buy-check:checked');
+            document.getElementById('bulkConfirmCount').textContent = checked.length;
+            bulkModal.show();
+        };
+
+        if (bulkConfirmBtn && bulkForm) {
+            bulkConfirmBtn.addEventListener('click', function() {
+                bulkConfirmBtn.disabled = true;
+                bulkConfirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Marking...';
+                bulkForm.submit();
+            });
+        }
 
         function showError(message) {
             if (!errorBox) return;
