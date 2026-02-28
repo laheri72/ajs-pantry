@@ -271,6 +271,16 @@
     .tea-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
     .bg-success-light { background-color: #e8f5e9; color: #2e7d32; }
     .bg-teal-light { background-color: #e0f2f1; }
+
+    /* Dark Theme Overrides */
+    body.dark-theme .tea-card {
+        background: var(--bg-surface);
+        border-color: var(--border-color);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    body.dark-theme .tea-card .text-muted {
+        color: var(--text-muted) !important;
+    }
 </style>
 
 <script>

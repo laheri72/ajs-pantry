@@ -291,6 +291,138 @@ def dashboard():
         morning_brief=morning_brief
     )
 
+def _get_next_team_in_rotation(floor):
+    """
+    Finds the next team in rotation based on non-buffer menu history.
+    """
+    all_teams = tenant_filter(Team.query).filter_by(floor=floor).all()
+    if not all_teams:
+        return None
+    
+    # Get last assignment date for each team (only from non-buffer days)
+    team_last_served = (
+        db.session.query(Menu.assigned_team_id, func.max(Menu.date).label('last_date'))
+        .filter(Menu.floor == floor, Menu.assigned_team_id.isnot(None), Menu.is_buffer == False)
+        .group_by(Menu.assigned_team_id)
+        .all()
+    )
+    
+    last_served_map = {row.assigned_team_id: row.last_date for row in team_last_served}
+    
+    # Sort teams by last_served_date (None first, then oldest date)
+    def sort_key(team):
+        last_date = last_served_map.get(team.id)
+        if last_date is None:
+            return date(1900, 1, 1) # Long ago
+        return last_date
+
+    sorted_teams = sorted(all_teams, key=sort_key)
+    return sorted_teams[0] if sorted_teams else None
+
+@pantry_bp.route('/menus/rotation-sequence')
+def get_rotation_sequence():
+    """
+    Returns a sequence of 7 teams for a rolling week starting from the next team in line.
+    """
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    floor = _get_active_floor(user)
+    all_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.id.asc()).all()
+    if not all_teams:
+        return jsonify({'sequence': []})
+
+    # Find the single next team
+    next_team = _get_next_team_in_rotation(floor)
+    
+    # Find its index in the sorted list
+    start_idx = 0
+    if next_team:
+        for i, t in enumerate(all_teams):
+            if t.id == next_team.id:
+                start_idx = i
+                break
+    
+    # Generate 7-day sequence
+    sequence = []
+    for i in range(7):
+        team = all_teams[(start_idx + i) % len(all_teams)]
+        sequence.append({
+            'id': team.id,
+            'name': team.name,
+            'icon': team.icon
+        })
+        
+    return jsonify({'sequence': sequence})
+
+@pantry_bp.route('/menus/bulk-schedule', methods=['POST'])
+def bulk_schedule():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    data = request.json # List of meal objects
+    if not data or not isinstance(data, list):
+        return jsonify({'error': 'Invalid data format'}), 400
+        
+    floor = _get_active_floor(user)
+    
+    try:
+        for item in data:
+            # Basic validation
+            menu_date = datetime.strptime(item.get('date'), '%Y-%m-%d').date()
+            dish_id = item.get('dish_id')
+            new_dish_name = item.get('new_dish_name')
+            
+            if not dish_id and not new_dish_name: continue 
+
+            # Handle Main Dish creation
+            if not dish_id and new_dish_name:
+                existing = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_dish_name.lower()).first()
+                if existing:
+                    dish_id = existing.id
+                else:
+                    new_dish = Dish(name=new_dish_name, category='main', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
+                    db.session.add(new_dish)
+                    db.session.flush()
+                    dish_id = new_dish.id
+
+            # Handle Side Dish creation
+            side_dish_id = item.get('side_dish_id')
+            new_side_dish_name = item.get('new_side_dish_name')
+            if not side_dish_id and new_side_dish_name:
+                existing_side = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_side_dish_name.lower()).first()
+                if existing_side:
+                    side_dish_id = existing_side.id
+                else:
+                    new_side = Dish(name=new_side_dish_name, category='side', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
+                    db.session.add(new_side)
+                    db.session.flush()
+                    side_dish_id = new_side.id
+
+            menu = Menu(
+                title=item.get('title', 'Bulk Scheduled'),
+                description=item.get('description'),
+                date=menu_date,
+                meal_type='breakfast',
+                dish_id=dish_id,
+                side_dish_id=item.get('side_dish_id'),
+                assigned_team_id=item.get('assigned_team_id'),
+                assigned_to_id=item.get('assigned_to_id'),
+                is_buffer=item.get('is_buffer', False),
+                floor=floor,
+                created_by_id=user.id,
+                tenant_id=getattr(g, 'tenant_id', None)
+            )
+            db.session.add(menu)
+            
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @pantry_bp.route('/home')
 def home():
     user = _require_user()
@@ -663,13 +795,24 @@ def menus():
     floor = _get_active_floor(user)
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
     floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
-    dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
+    
+    # Standardize on 'Dish' (singular) as per models.py
+    main_dishes = tenant_filter(Dish.query).filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    side_dishes = tenant_filter(Dish.query).filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    all_dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
 
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         try:
             menu_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+            meal_type = request.form.get('meal_type', 'breakfast')
         except Exception:
-            flash('Invalid menu date', 'error')
+            flash('Invalid menu date or type', 'error')
+            return redirect(url_for('pantry.menus'))
+
+        # Prevention: Check if this meal time is already scheduled for this date
+        existing_meal = tenant_filter(Menu.query).filter_by(floor=floor, date=menu_date, meal_type=meal_type).first()
+        if existing_meal:
+            flash(f'A {meal_type} is already scheduled for {menu_date}. Please edit or delete the existing one.', 'warning')
             return redirect(url_for('pantry.menus'))
 
         dish = None
@@ -685,26 +828,42 @@ def menus():
                 flash('Invalid dish selected', 'error')
                 return redirect(url_for('pantry.menus'))
             dish = tenant_filter(Dish.query).filter_by(id=dish_id_val).first()
-            if not dish:
-                flash('Dish not found', 'error')
-                return redirect(url_for('pantry.menus'))
         elif new_dish_name:
-            if len(new_dish_name) > 120:
-                flash('Dish name is too long', 'error')
-                return redirect(url_for('pantry.menus'))
             existing = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_dish_name.lower()).first()
             if existing:
                 dish = existing
             else:
-                dish = Dish(name=new_dish_name, created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
+                dish = Dish(name=new_dish_name, category='main', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
                 db.session.add(dish)
                 db.session.flush()
         else:
-            flash('Please select a dish (or create a new one)', 'error')
+            flash('Please select a main dish', 'error')
             return redirect(url_for('pantry.menus'))
 
+        # Side Dish
+        side_dish_id = request.form.get('side_dish_id') or None
+        new_side_dish_name = (request.form.get('new_side_dish_name') or '').strip()
+
+        if new_side_dish_name:
+            existing_side = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_side_dish_name.lower()).first()
+            if existing_side:
+                side_dish_id = existing_side.id
+            else:
+                side_dish = Dish(name=new_side_dish_name, category='side', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
+                db.session.add(side_dish)
+                db.session.flush()
+                side_dish_id = side_dish.id
+        elif side_dish_id:
+            try:
+                side_dish_id = int(side_dish_id)
+            except ValueError:
+                side_dish_id = None
+
+        is_buffer = request.form.get('is_buffer') == 'true'
         assigned_to_id = request.form.get('assigned_to_id') or None
         assigned_team_id = request.form.get('assigned_team_id') or None
+        
+        # ... logic for assignments continues
         if assigned_team_id:
             try:
                 assigned_team_id = int(assigned_team_id)
@@ -727,17 +886,17 @@ def menus():
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
-        menu_title = (dish.name or '').strip() if dish else (request.form.get('title') or '').strip()
-        if not menu_title:
-            menu_title = 'Menu'
+        menu_title = (dish.name or '').strip() if dish else 'Menu'
 
         menu = Menu(
             title=menu_title[:100],
             description=request.form.get('description'),
             date=menu_date,
-            meal_type=request.form.get('meal_type'),
+            meal_type=meal_type,
             dish_type=request.form.get('dish_type') or 'main',
             dish_id=dish.id if dish else None,
+            side_dish_id=side_dish_id,
+            is_buffer=is_buffer,
             assigned_to_id=assigned_to_id,
             assigned_team_id=assigned_team_id,
             floor=floor,
@@ -776,7 +935,7 @@ def menus():
     page = request.args.get('page', 1, type=int)
     menus_pagination = (
         tenant_filter(Menu.query)
-        .options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team), joinedload(Menu.dish))
+        .options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team), joinedload(Menu.dish), joinedload(Menu.side_dish))
         .filter_by(floor=floor)
         .order_by(Menu.date.desc())
         .paginate(page=page, per_page=15, error_out=False)
@@ -800,7 +959,9 @@ def menus():
         weekly_days=weekly_days,
         floor_users=floor_users, 
         floor_teams=floor_teams, 
-        dishes=dishes, 
+        main_dishes=main_dishes,
+        side_dishes=side_dishes,
+        dishes=all_dishes, 
         current_user=user,
         today=today,
         active_floor=floor
@@ -832,12 +993,16 @@ def suggestions():
     if not user:
         return redirect(url_for('auth.login'))
 
+    floor = _get_active_floor(user)
+    dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
+
     if request.method == 'POST':
         suggestion = Suggestion(
             title=request.form.get('title'),
             description=request.form.get('description'),
+            dish_id=request.form.get('dish_id') or None,
             user_id=user.id,
-            floor=user.floor,
+            floor=floor,
             tenant_id=getattr(g, 'tenant_id', None)
         )
         db.session.add(suggestion)
@@ -845,15 +1010,20 @@ def suggestions():
         flash('Suggestion submitted successfully.', 'success')
         return redirect(url_for('pantry.suggestions'))
 
-    floor = _get_active_floor(user)
-    
-    # Calculate vote counts and join for sorting
+    # Correlated subquery for vote counts to avoid GROUP BY issues with joinedload
+    vote_count_subquery = (
+        db.session.query(func.count(SuggestionVote.id))
+        .filter(SuggestionVote.suggestion_id == Suggestion.id)
+        .correlate(Suggestion)
+        .as_scalar()
+    )
+
+    # Fetch suggestions with relationships and vote count
     suggestions_with_votes = (
-        tenant_filter(db.session.query(Suggestion, func.count(SuggestionVote.id).label('vote_count')))
-        .outerjoin(SuggestionVote)
+        tenant_filter(db.session.query(Suggestion, vote_count_subquery.label('vote_count')))
+        .options(joinedload(Suggestion.user), joinedload(Suggestion.dish))
         .filter(Suggestion.floor == floor)
-        .group_by(Suggestion.id)
-        .order_by(func.count(SuggestionVote.id).desc(), Suggestion.created_at.desc())
+        .order_by(vote_count_subquery.desc(), Suggestion.created_at.desc())
         .all()
     )
 
@@ -865,8 +1035,57 @@ def suggestions():
         suggestions_with_votes=suggestions_with_votes, 
         user_voted_ids=user_voted_ids,
         current_user=user,
+        dishes=dishes,
         active_floor=floor
     )
+
+@pantry_bp.route('/menus/dish-insights/<int:dish_id>')
+def get_dish_insights(dish_id):
+    """
+    Expert Intelligence: Returns rating, champion team, and top suggestions for a dish.
+    """
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    floor = _get_active_floor(user)
+
+    # 1. Overall Avg Rating for this dish on this floor
+    avg_rating = db.session.query(func.avg(Feedback.rating)).join(Menu).filter(
+        Menu.dish_id == dish_id, 
+        Menu.floor == floor
+    ).scalar() or 0
+    
+    # 2. Dish Champion: The team with the highest avg rating for this SPECIFIC dish
+    champion_row = (
+        db.session.query(Team.name, func.avg(Feedback.rating).label('avg_score'))
+        .join(Menu, Menu.assigned_team_id == Team.id)
+        .join(Feedback, Feedback.menu_id == Menu.id)
+        .filter(Menu.dish_id == dish_id, Menu.floor == floor)
+        .group_by(Team.id)
+        .order_by(func.avg(Feedback.rating).desc())
+        .first()
+    )
+    
+    champion_name = champion_row[0] if champion_row else "No champion yet"
+    
+    # 3. Top Suggestions: Sorted by votes
+    # Use the same correlated subquery logic for stability
+    vote_count_sub = db.session.query(func.count(SuggestionVote.id)).filter(SuggestionVote.suggestion_id == Suggestion.id).correlate(Suggestion).as_scalar()
+    
+    suggestions = (
+        tenant_filter(db.session.query(Suggestion.description, vote_count_sub.label('v_count')))
+        .filter(Suggestion.dish_id == dish_id, Suggestion.floor == floor)
+        .order_by(vote_count_sub.desc())
+        .limit(3)
+        .all()
+    )
+    
+    return jsonify({
+        'avg_rating': round(float(avg_rating), 1),
+        'champion': champion_name,
+        'suggestions': [s[0] for s in suggestions]
+    })
 
 @pantry_bp.route('/suggestions/<int:suggestion_id>/vote', methods=['POST'])
 def vote_suggestion(suggestion_id):

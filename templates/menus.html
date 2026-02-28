@@ -26,6 +26,11 @@
             </button>
         </li>
         <li class="nav-item ms-2">
+            <button class="nav-link" id="planner-tab" data-bs-toggle="modal" data-bs-target="#bulkPlannerModal" type="button">
+                <i class="fas fa-magic me-1 text-warning"></i> Bulk Week Planner
+            </button>
+        </li>
+        <li class="nav-item ms-2">
             <button class="nav-link" id="all-menus-tab" data-bs-toggle="pill" data-bs-target="#all-menus" type="button">
                 <i class="fas fa-list me-1"></i> All Records
             </button>
@@ -46,13 +51,22 @@
                         <div class="day-body p-2">
                             {% if day.menus %}
                                 {% for menu in day.menus %}
-                                <div class="menu-item-mini mb-2 p-2 rounded border-start border-3 {% if menu.meal_type == 'breakfast' %}border-warning bg-warning-light{% elif menu.meal_type == 'lunch' %}border-success bg-success-light{% else %}border-primary bg-primary-light{% endif %}"
-                                     data-bs-toggle="popover" data-bs-trigger="hover" title="{{ menu.title }}" 
-                                     data-bs-content="{{ menu.description or 'No extra details' }} &bull; Assigned: {{ menu.assigned_team.name if menu.assigned_team else (menu.assigned_to.username if menu.assigned_to else 'Unassigned') }}">
-                                    <div class="small fw-bold text-uppercase" style="font-size: 0.65rem;">{{ menu.meal_type }}</div>
-                                    <div class="small text-truncate fw-semibold">{{ menu.dish.name if menu.dish else menu.title }}</div>
-                                    <div class="text-muted" style="font-size: 0.6rem;">
-                                        <i class="fas fa-user-circle me-1"></i>{{ menu.assigned_team.icon if menu.assigned_team else '' }} {{ menu.assigned_team.name if menu.assigned_team else (menu.assigned_to.username if menu.assigned_to else 'N/A') }}
+                                <div class="menu-item-mini mb-2 p-2 rounded border-start border-3 {% if menu.is_buffer %}border-info bg-info-light{% else %}border-warning bg-warning-light{% endif %}"
+                                     data-bs-toggle="popover" data-bs-trigger="hover" title="{{ menu.dish.name if menu.dish else menu.title }}" 
+                                     data-bs-content="{% if menu.side_dish %}Side: {{ menu.side_dish.name }} &bull; {% endif %}{{ menu.description or 'No extra details' }} &bull; Assigned: {{ menu.assigned_team.name if menu.assigned_team else (menu.assigned_to.username if menu.assigned_to else 'Unassigned') }}">
+                                    
+                                    {% if menu.is_buffer %}
+                                    <div class="small fw-bold text-uppercase text-info" style="font-size: 0.6rem;"><i class="fas fa-star me-1"></i>Buffer</div>
+                                    {% endif %}
+
+                                    <div class="small text-truncate fw-bold">{{ menu.dish.name if menu.dish else menu.title }}</div>
+                                    
+                                    {% if menu.side_dish %}
+                                    <div class="small text-truncate text-muted" style="font-size: 0.7rem;">+ {{ menu.side_dish.name }}</div>
+                                    {% endif %}
+
+                                    <div class="text-teal mt-1" style="font-size: 0.65rem;">
+                                        <i class="fas fa-users me-1"></i>{{ menu.assigned_team.icon if menu.assigned_team else '' }} {{ menu.assigned_team.name if menu.assigned_team else (menu.assigned_to.username if menu.assigned_to else 'N/A') }}
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -96,7 +110,12 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="fw-bold">{{ menu.dish.name if menu.dish else menu.title }}</div>
+                                        <div class="fw-bold">
+                                            {{ menu.dish.name if menu.dish else menu.title }}
+                                            {% if menu.side_dish %}
+                                            <span class="text-muted small fw-normal"> + {{ menu.side_dish.name }}</span>
+                                            {% endif %}
+                                        </div>
                                         <div class="small text-muted">{{ menu.description[:50] }}{% if menu.description|length > 50 %}...{% endif %}</div>
                                     </td>
                                     <td>
@@ -170,12 +189,22 @@
             </div>
             <form method="POST" id="scheduleMealForm">
                 <div class="modal-body p-4">
+                    <!-- Buffer Toggle -->
+                    <div class="form-check form-switch mb-4 p-3 bg-light rounded-3 border">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" id="isBufferToggle" name="is_buffer" value="true">
+                        <label class="form-check-label fw-bold text-primary" for="isBufferToggle">
+                            <i class="fas fa-star me-1 text-warning"></i> Special Buffer Day (Individual Assignment)
+                        </label>
+                        <div class="small text-muted ms-4">Switch this on to assign individuals without affecting team rotation.</div>
+                    </div>
+
                     <div class="row g-3">
+                        <!-- Main Dish -->
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Select Dish</label>
+                            <label class="form-label fw-bold"><i class="fas fa-hotdog me-1 text-teal"></i>Main Dish</label>
                             <select class="form-select shadow-none" name="dish_id" id="dishSelect" required>
-                                <option value="">Choose existing...</option>
-                                {% for d in dishes %}
+                                <option value="">Choose main...</option>
+                                {% for d in main_dishes %}
                                 <option value="{{ d.id }}">{{ d.name }}</option>
                                 {% endfor %}
                             </select>
@@ -186,6 +215,41 @@
                                 <input type="text" class="form-control" name="new_dish_name" id="newDishName" placeholder="Enter new dish name">
                                 <div class="small text-danger mt-1" id="cancelNewDishLink" style="cursor: pointer;">Cancel</div>
                             </div>
+
+                            <!-- Dish Insights Section -->
+                            <div id="dishInsightsWrap" class="mt-3 p-3 rounded-3 border bg-light d-none">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="small fw-bold text-muted text-uppercase">Dish Insights</span>
+                                    <div>
+                                        <span id="insightRating" class="badge bg-warning text-dark me-1">-- <i class="fas fa-star"></i></span>
+                                        <span id="insightChampion" class="badge bg-success small" title="Team with best history for this dish">Champion: --</span>
+                                    </div>
+                                </div>
+                                <div id="insightSuggestions" class="small text-muted italic mb-2">
+                                    No specific suggestions found for this dish.
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0" id="btnCopySuggestions" style="font-size: 0.7rem;">
+                                    <i class="fas fa-copy me-1"></i> Add suggestions to instructions
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Side Dish -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold"><i class="fas fa-cookie me-1 text-muted"></i>Side Dish (Optional)</label>
+                            <select class="form-select shadow-none" name="side_dish_id" id="sideDishSelect">
+                                <option value="">None / No side dish</option>
+                                {% for d in side_dishes %}
+                                <option value="{{ d.id }}">{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="mt-2 small text-muted fw-bold" id="showNewSideDishLink" style="cursor: pointer;">
+                                <i class="fas fa-plus-circle"></i> Create new side entry
+                            </div>
+                            <div class="mt-2 d-none" id="newSideDishWrap">
+                                <input type="text" class="form-control" name="new_side_dish_name" id="newSideDishName" placeholder="Enter new side dish name">
+                                <div class="small text-danger mt-1" id="cancelNewSideDishLink" style="cursor: pointer;">Cancel</div>
+                            </div>
                         </div>
 
                         <div class="col-md-6">
@@ -193,40 +257,36 @@
                             <input type="date" class="form-control shadow-none" name="date" id="menuDateInput" value="{{ today.strftime('%Y-%m-%d') }}" required>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Meal Time</label>
-                            <select class="form-select shadow-none" name="meal_type">
-                                <option value="breakfast" selected>Breakfast</option>
-                                <option value="lunch">Lunch</option>
-                                <option value="dinner">Dinner</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Meal Category</label>
-                            <select class="form-select shadow-none" name="dish_type">
-                                <option value="main" selected>Main Dish</option>
-                                <option value="side">Side Dish</option>
-                            </select>
-                        </div>
+                        <!-- Hidden but present for legacy support -->
+                        <input type="hidden" name="meal_type" value="breakfast">
 
                         <div class="col-12">
                             <label class="form-label fw-bold">Description / Instructions</label>
                             <textarea class="form-control shadow-none" name="description" rows="2" placeholder="e.g. Medium spicy, serve with hot buns..."></textarea>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-teal">Assign Team</label>
+                        <div class="col-md-12">
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0">Assignment</label>
+                                <button type="button" class="btn btn-sm btn-outline-teal" id="btnSuggestTeam">
+                                    <i class="fas fa-magic me-1"></i> Suggest Next Team
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" id="teamAssignmentWrap">
+                            <label class="form-label small fw-bold text-teal">Team (Room)</label>
                             <select class="form-select border-teal shadow-none" id="assignedTeamSelect" name="assigned_team_id">
-                                <option value="">Select Team (Room)</option>
+                                <option value="">Select Team</option>
                                 {% for t in floor_teams %}
                                 <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Or Individual</label>
+                        <div class="col-md-6" id="userAssignmentWrap">
+                            <label class="form-label small fw-bold">Individual</label>
                             <select class="form-select shadow-none" id="assignedUserSelect" name="assigned_to_id">
                                 <option value="">Select User</option>
                                 {% for user in floor_users %}
@@ -324,6 +384,7 @@
 .bg-warning-light { background-color: #fff9db; }
 .bg-success-light { background-color: #ebfbee; }
 .bg-primary-light { background-color: #e7f5ff; }
+.bg-info-light { background-color: #e3fafc; }
 
 /* Custom tooltips for weekly board */
 .popover {
@@ -332,9 +393,57 @@
     border-radius: 8px;
 }
 </style>
-{% endblock %}
+<!-- Bulk Planner Modal -->
+<div class="modal fade" id="bulkPlannerModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="fas fa-magic me-2 text-warning"></i>Weekly Menu Planner</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="col-md-6">
+                        <div class="h5 fw-bold mb-0 text-teal" id="plannerWeekDisplay">
+                            <i class="fas fa-calendar-alt me-2"></i>Loading Week...
+                        </div>
+                        <div class="small text-muted">Automatically scheduled for the upcoming week.</div>
+                        <input type="hidden" id="plannerStartDate">
+                    </div>
+                    <button type="button" class="btn btn-teal" id="btnAutoFillRotation">
+                        <i class="fas fa-sync-alt me-1"></i> Auto-Suggest Rotation
+                    </button>
+                </div>
 
-{% block extra_scripts %}
+                <div class="table-responsive">
+                    <table class="table table-bordered bg-white rounded-3 overflow-hidden" id="bulkPlannerTable">
+                        <thead class="table-teal text-white">
+                            <tr>
+                                <th style="width: 15%;">Day / Date</th>
+                                <th style="width: 35%;">Main Dish & Insights</th>
+                                <th style="width: 25%;">Side Dish</th>
+                                <th style="width: 25%;">Assigned Team</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planner-body">
+                            <!-- JS will generate 7 rows -->
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-muted mb-0"><i class="fas fa-info-circle me-1"></i> You can add multiple meals for the same day after saving using the standard "Schedule" button.</p>
+            </div>
+            <div class="modal-footer bg-white">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-teal px-5" id="btnSaveBulk">Save Weekly Schedule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.table-teal { background-color: var(--teal-primary) !important; }
+#bulkPlannerTable td { vertical-align: middle; }
+</style>
 <script>
 function openAddMenuModal(dateStr) {
     const dateInput = document.getElementById('menuDateInput');
@@ -359,21 +468,105 @@ document.addEventListener('DOMContentLoaded', function () {
     const cancelNewDishLink = document.getElementById('cancelNewDishLink');
     const newDishWrap = document.getElementById('newDishWrap');
     const newDishName = document.getElementById('newDishName');
+    const btnSuggestTeam = document.getElementById('btnSuggestTeam');
+    const isBufferToggle = document.getElementById('isBufferToggle');
 
     if (teamSelect && userSelect) {
         function syncAssignmentSelects() {
-            if (teamSelect.value) {
-                userSelect.value = '';
-                userSelect.disabled = true;
-                userSelect.classList.add('bg-light');
-            } else {
+            if (isBufferToggle.checked) {
+                // Buffer day: Prefer individual, disable team suggest
+                teamSelect.value = '';
+                teamSelect.disabled = true;
+                btnSuggestTeam.disabled = true;
                 userSelect.disabled = false;
                 userSelect.classList.remove('bg-light');
+            } else {
+                // Standard day: Prefer team
+                teamSelect.disabled = false;
+                btnSuggestTeam.disabled = false;
+                if (teamSelect.value) {
+                    userSelect.value = '';
+                    userSelect.disabled = true;
+                    userSelect.classList.add('bg-light');
+                } else {
+                    userSelect.disabled = false;
+                    userSelect.classList.remove('bg-light');
+                }
             }
         }
+        
         teamSelect.addEventListener('change', syncAssignmentSelects);
+        isBufferToggle.addEventListener('change', syncAssignmentSelects);
         syncAssignmentSelects();
     }
+
+    if (btnSuggestTeam) {
+        btnSuggestTeam.addEventListener('click', function() {
+            btnSuggestTeam.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finding...';
+            fetch('/menus/next-team')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.id) {
+                        teamSelect.value = data.id;
+                        syncAssignmentSelects();
+                        // Flash success
+                        teamSelect.classList.add('is-valid');
+                        setTimeout(() => teamSelect.classList.remove('is-valid'), 2000);
+                    } else {
+                        alert("No teams found on this floor. Create a team first!");
+                    }
+                })
+                .finally(() => {
+                    btnSuggestTeam.innerHTML = '<i class="fas fa-magic me-1"></i> Suggest Next Team';
+                });
+        });
+    }
+
+    if (dishSelect) {
+        dishSelect.addEventListener('change', function() {
+            const dishId = this.value;
+            const wrap = document.getElementById('dishInsightsWrap');
+            const ratingEl = document.getElementById('insightRating');
+            const championEl = document.getElementById('insightChampion');
+            const suggestionsEl = document.getElementById('insightSuggestions');
+            const descField = document.querySelector('textarea[name="description"]');
+
+            if (!dishId) {
+                wrap.classList.add('d-none');
+                return;
+            }
+
+            fetch(`/menus/dish-insights/${dishId}`)
+                .then(res => res.json())
+                .then(data => {
+                    wrap.classList.remove('d-none');
+                    ratingEl.innerHTML = `${data.avg_rating || '0.0'} <i class="fas fa-star"></i>`;
+                    championEl.innerText = `Champion: ${data.champion}`;
+                    
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        const sList = data.suggestions.map(s => `- ${s}`).join('\n');
+                        suggestionsEl.innerHTML = '<ul class="ps-3 mb-0">' + 
+                            data.suggestions.map(s => `<li class="mb-1">${s}</li>`).join('') + 
+                            '</ul>';
+                        
+                        document.getElementById('btnCopySuggestions').onclick = () => {
+                            descField.value = (descField.value + "\n\nSuggestions to implement:\n" + sList).trim();
+                            // Visual feedback
+                            document.getElementById('btnCopySuggestions').classList.replace('btn-outline-primary', 'btn-success');
+                            setTimeout(() => document.getElementById('btnCopySuggestions').classList.replace('btn-success', 'btn-outline-primary'), 1000);
+                        };
+                        document.getElementById('btnCopySuggestions').classList.remove('d-none');
+                    } else {
+                        suggestionsEl.innerHTML = 'No specific suggestions found for this dish.';
+                        document.getElementById('btnCopySuggestions').classList.add('d-none');
+                    }
+                });
+        });
+    }
+    const showNewSideDishLink = document.getElementById('showNewSideDishLink');
+    const cancelNewSideDishLink = document.getElementById('cancelNewSideDishLink');
+    const newSideDishWrap = document.getElementById('newSideDishWrap');
+    const newSideDishName = document.getElementById('newSideDishName');
 
     if (showNewDishLink) {
         showNewDishLink.addEventListener('click', function (e) {
@@ -393,6 +586,23 @@ document.addEventListener('DOMContentLoaded', function () {
             newDishWrap.classList.add('d-none');
             newDishName.required = false;
             newDishName.value = '';
+        });
+    }
+
+    if (showNewSideDishLink) {
+        showNewSideDishLink.addEventListener('click', function (e) {
+            sideDishSelect.value = '';
+            sideDishSelect.disabled = true;
+            newSideDishWrap.classList.remove('d-none');
+            newSideDishName.focus();
+        });
+    }
+
+    if (cancelNewSideDishLink) {
+        cancelNewSideDishLink.addEventListener('click', function (e) {
+            sideDishSelect.disabled = false;
+            newSideDishWrap.classList.add('d-none');
+            newSideDishName.value = '';
         });
     }
 
@@ -419,6 +629,180 @@ document.addEventListener('DOMContentLoaded', function () {
             scheduleForm.submit();
         });
     }
+    // Bulk Planner JS Logic
+    const mainDishOptions = `{% for d in main_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
+    const sideDishOptions = `{% for d in side_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
+    const teamOptions = `{% for t in floor_teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}`;
+
+    function updatePlannerDates() {
+        const startVal = document.getElementById('plannerStartDate').value;
+        if (!startVal) return;
+        const parts = startVal.split('-');
+        const startDate = new Date(parts[0], parts[1]-1, parts[2]);
+        
+        const tbody = document.getElementById('planner-body');
+        tbody.innerHTML = '';
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        for (let i = 0; i < 7; i++) {
+            const current = new Date(startDate);
+            current.setDate(startDate.getDate() + i);
+            const dateStr = current.toISOString().split('T')[0];
+            const displayDate = current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <div class="fw-bold">${days[i]}</div>
+                    <div class="small text-muted">${displayDate}</div>
+                    <input type="hidden" class="row-date" value="${dateStr}">
+                </td>
+                <td>
+                    <select class="form-select form-select-sm row-main-dish mb-1">
+                        <option value="">Choose Existing...</option>
+                        ${mainDishOptions}
+                    </select>
+                    <input type="text" class="form-control form-control-sm row-new-main" placeholder="OR New Main Name">
+                    
+                    <!-- Row Insight -->
+                    <div class="row-insight mt-2 d-none" style="font-size: 0.75rem;">
+                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                            <span class="badge bg-warning text-dark row-rating"></span>
+                            <span class="badge bg-success row-champion"></span>
+                        </div>
+                        <div class="text-muted row-suggestion-text italic mt-1" style="line-height: 1;"></div>
+                    </div>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm row-side-dish mb-1">
+                        <option value="">Choose Existing...</option>
+                        ${sideDishOptions}
+                    </select>
+                    <input type="text" class="form-control form-control-sm row-new-side" placeholder="OR New Side Name">
+                </td>
+                <td>
+                    <select class="form-select form-select-sm row-team">
+                        <option value="">Select Team...</option>
+                        ${teamOptions}
+                    </select>
+                </td>
+            `;
+            tbody.appendChild(tr);
+
+            // Add listener for row insights
+            const select = tr.querySelector('.row-main-dish');
+            select.addEventListener('change', function() {
+                const dishId = this.value;
+                const row = this.closest('td');
+                const insightWrap = row.querySelector('.row-insight');
+                const ratingBadge = row.querySelector('.row-rating');
+                const suggestText = row.querySelector('.row-suggestion-text');
+
+                if (!dishId) {
+                    insightWrap.classList.add('d-none');
+                    return;
+                }
+
+                fetch(`/menus/dish-insights/${dishId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        insightWrap.classList.remove('d-none');
+                        ratingBadge.innerHTML = `${data.avg_rating || '0.0'} <i class="fas fa-star"></i>`;
+                        row.querySelector('.row-champion').innerText = `Best: ${data.champion}`;
+                        suggestText.innerText = data.suggestions.length > 0 ? `Tip: ${data.suggestions[0]}` : 'No tips.';
+                    });
+            });
+        }
+        // Update display text
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        document.getElementById('plannerWeekDisplay').innerHTML = `
+            <i class="fas fa-calendar-alt me-2"></i>
+            ${startDate.toLocaleDateString('en-GB', {day:'2-digit', month:'short'})} - ${endDate.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})}
+        `;
+    }
+
+    // Expert Logic: Set default to the UPCOMING Monday
+    function setUpcomingMonday() {
+        const d = new Date();
+        const day = d.getDay(); 
+        const diff = (day === 0 ? 1 : 8 - day); 
+        d.setDate(d.getDate() + diff);
+        document.getElementById('plannerStartDate').value = d.toISOString().split('T')[0];
+        updatePlannerDates();
+    }
+    
+    setUpcomingMonday();
+
+    document.getElementById('btnAutoFillRotation').addEventListener('click', function() {
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        fetch('/menus/rotation-sequence')
+            .then(res => res.json())
+            .then(data => {
+                const teamSelects = document.querySelectorAll('.row-team');
+                data.sequence.forEach((team, i) => {
+                    if (teamSelects[i]) teamSelects[i].value = team.id;
+                });
+            })
+            .finally(() => {
+                this.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Auto-Suggest Rotation';
+            });
+    });
+
+    document.getElementById('btnSaveBulk').addEventListener('click', function() {
+        const rows = document.querySelectorAll('#planner-body tr');
+        const payload = [];
+        rows.forEach(row => {
+            const dishId = row.querySelector('.row-main-dish').value;
+            const newMain = row.querySelector('.row-new-main').value.trim();
+            const sideId = row.querySelector('.row-side-dish').value;
+            const newSide = row.querySelector('.row-new-side').value.trim();
+            if (dishId || newMain) {
+                const mainDishText = newMain || row.querySelector('.row-main-dish').options[row.querySelector('.row-main-dish').selectedIndex].text;
+                payload.push({
+                    date: row.querySelector('.row-date').value,
+                    dish_id: dishId || null,
+                    new_dish_name: newMain || null,
+                    side_dish_id: sideId || null,
+                    new_side_dish_name: newSide || null,
+                    assigned_team_id: row.querySelector('.row-team').value || null,
+                    title: mainDishText
+                });
+            }
+        });
+
+        if (payload.length === 0) {
+            alert("Please select at least one dish.");
+            return;
+        }
+
+        // Use custom confirmation
+        const confirmBtn = document.getElementById('confirmScheduleBtn');
+        const originalConfirmText = confirmBtn.innerHTML;
+        
+        confirmBtn.onclick = function() {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...';
+            
+            fetch('/menus/bulk-schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert("Error: " + data.error);
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalConfirmText;
+                }
+            });
+        };
+        
+        customConfirmModal.show();
+    });
 });
 </script>
 {% endblock %}
