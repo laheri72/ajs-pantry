@@ -347,14 +347,65 @@ def get_rotation_sequence():
     # Generate 7-day sequence
     sequence = []
     for i in range(7):
+        target_date = date.today() + timedelta(days=i) # Approximation for sequence
         team = all_teams[(start_idx + i) % len(all_teams)]
+        
+        # Conflict Check: Are any team members absent?
+        absent_members = db.session.query(User.full_name).join(TeamMember, TeamMember.user_id == User.id).join(Request, Request.user_id == User.id).filter(
+            TeamMember.team_id == team.id,
+            Request.status == 'approved',
+            Request.request_type == 'absence',
+            Request.start_date <= target_date,
+            Request.end_date >= target_date
+        ).all()
+        
         sequence.append({
             'id': team.id,
             'name': team.name,
-            'icon': team.icon
+            'icon': team.icon,
+            'conflicts': [m[0] for m in absent_members]
         })
         
     return jsonify({'sequence': sequence})
+
+@pantry_bp.route('/menus/next-team')
+def get_next_team():
+    """
+    Expert Logic: Returns the single next team in rotation with conflict check for a given date.
+    """
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    floor = _get_active_floor(user)
+    target_date_str = request.args.get('date')
+    if target_date_str:
+        try:
+            target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            target_date = date.today()
+    else:
+        target_date = date.today()
+
+    team = _get_next_team_in_rotation(floor)
+    if not team:
+        return jsonify({'error': 'No teams found'})
+
+    # Conflict Check: Are any team members absent?
+    absent_members = db.session.query(User.full_name).join(TeamMember, TeamMember.user_id == User.id).join(Request, Request.user_id == User.id).filter(
+        TeamMember.team_id == team.id,
+        Request.status == 'approved',
+        Request.request_type == 'absence',
+        Request.start_date <= target_date,
+        Request.end_date >= target_date
+    ).all()
+
+    return jsonify({
+        'id': team.id,
+        'name': team.name,
+        'icon': team.icon,
+        'conflicts': [m[0] for m in absent_members]
+    })
 
 @pantry_bp.route('/menus/bulk-schedule', methods=['POST'])
 def bulk_schedule():

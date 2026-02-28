@@ -808,6 +808,10 @@
                     onclick="generateCustomPrintReport()">
                     <i class="fas fa-file-pdf me-2"></i>Generate PDF
                 </button>
+                <button type="button" class="btn btn-outline-success px-4 d-none" id="exportExcelBtn"
+                    onclick="exportReportToExcel()">
+                    <i class="fas fa-file-excel me-2"></i>Export to Excel
+                </button>
             </div>
         </div>
     </div>
@@ -985,11 +989,13 @@
         const prevBtn = document.getElementById('prevStepBtn');
         const nextBtn = document.getElementById('nextStepBtn');
         const genBtn = document.getElementById('generateReportBtn');
+        const excelBtn = document.getElementById('exportExcelBtn');
         const summary = document.getElementById('step-summary');
 
         if (prevBtn) prevBtn.classList.toggle('d-none', step === 1);
         if (nextBtn) nextBtn.classList.toggle('d-none', step === 3);
         if (genBtn) genBtn.classList.toggle('d-none', step !== 3);
+        if (excelBtn) excelBtn.classList.toggle('d-none', step !== 3);
         if (summary) summary.classList.toggle('d-none', step !== 3);
     }
 
@@ -1269,6 +1275,119 @@
         } catch (error) {
             console.error(error);
             alert('An error occurred while preparing the report data.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    async function exportReportToExcel() {
+        const btn = document.getElementById('exportExcelBtn');
+        const originalHtml = btn.innerHTML;
+        
+        const reportTitle = document.getElementById('reportTitleInput').value.trim() || 'Expense Report';
+        const customBudget = parseFloat(document.getElementById('printBudgetInput').value || 0);
+        const selectedItems = [];
+        let totalSpent = 0;
+
+        const checkedGroups = document.querySelectorAll('.bill-group-check:checked');
+        const legacyChecked = document.querySelectorAll('.legacy-item-check:checked');
+
+        if (checkedGroups.length === 0 && legacyChecked.length === 0) {
+            alert('Please select at least one record to export.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Preparing CSV...';
+
+        try {
+            for (const group of checkedGroups) {
+                const billId = group.getAttribute('data-bill-id');
+                if (!loadedBills.has(billId)) {
+                    const response = await fetch(`/bills/${billId}/items`);
+                    const data = await response.json();
+                    if (data.items) {
+                        data.items.forEach(item => {
+                            selectedItems.push({
+                                date: data.bill_date,
+                                bill: data.bill_no,
+                                desc: item.item_name,
+                                qty: item.quantity,
+                                amount: item.actual_cost
+                            });
+                            totalSpent += item.actual_cost;
+                        });
+                    }
+                } else {
+                    const items = document.querySelectorAll(`.item-of-bill-${billId}:checked`);
+                    items.forEach(cb => {
+                        const amt = parseFloat(cb.getAttribute('data-amount') || 0);
+                        selectedItems.push({
+                            date: cb.getAttribute('data-date'),
+                            bill: cb.getAttribute('data-bill'),
+                            desc: cb.getAttribute('data-desc'),
+                            qty: cb.getAttribute('data-qty'),
+                            amount: amt
+                        });
+                        totalSpent += amt;
+                    });
+                }
+            }
+
+            legacyChecked.forEach(cb => {
+                const amt = parseFloat(cb.getAttribute('data-amount') || 0);
+                selectedItems.push({
+                    date: cb.getAttribute('data-date'),
+                    bill: cb.getAttribute('data-bill'),
+                    desc: cb.getAttribute('data-desc'),
+                    qty: cb.getAttribute('data-qty'),
+                    amount: amt
+                });
+                totalSpent += amt;
+            });
+
+            if (selectedItems.length === 0) {
+                alert('No specific items found in the selected bills.');
+                return;
+            }
+
+            selectedItems.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Generate CSV content
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += `Report Title: ${reportTitle}\r\n`;
+            csvContent += `Date,Bill No.,Item Description,Quantity,Amount (INR)\r\n`;
+
+            selectedItems.forEach(item => {
+                const row = [
+                    item.date,
+                    item.bill !== 'N/A' ? item.bill : '-',
+                    `"${item.desc.replace(/"/g, '""')}"`,
+                    `"${item.qty.replace(/"/g, '""')}"`,
+                    item.amount.toFixed(2)
+                ];
+                csvContent += row.join(",") + "\r\n";
+            });
+
+            csvContent += `\r\n`;
+            csvContent += `Summary\r\n`;
+            csvContent += `Budget Allocation,,${customBudget.toFixed(2)}\r\n`;
+            csvContent += `Total Spent,,${totalSpent.toFixed(2)}\r\n`;
+            csvContent += `Balance,,${(customBudget - totalSpent).toFixed(2)}\r\n`;
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            const filename = `Expense_Report_${new Date().toISOString().split('T')[0]}.csv`;
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (error) {
+            console.error(error);
+            alert('An error occurred while preparing the CSV data.');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
