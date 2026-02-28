@@ -55,6 +55,7 @@ class User(db.Model, TenantMixin):
 class Dish(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
+    category = db.Column(db.String(20), default='main')  # main, side, both
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -68,6 +69,8 @@ class Menu(db.Model, TenantMixin):
     meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, dinner
     dish_type = db.Column(db.String(20), nullable=False, default='main')  # main, side
     dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'))
+    side_dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'))
+    is_buffer = db.Column(db.Boolean, default=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -75,6 +78,7 @@ class Menu(db.Model, TenantMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     dish = db.relationship('Dish', foreign_keys=[dish_id])
+    side_dish = db.relationship('Dish', foreign_keys=[side_dish_id])
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     assigned_team = db.relationship('Team', foreign_keys=[assigned_team_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
@@ -107,10 +111,12 @@ class Suggestion(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    dish = db.relationship('Dish', foreign_keys=[dish_id])
     user = db.relationship('User', backref='suggestions')
 
 class SuggestionVote(db.Model, TenantMixin):
