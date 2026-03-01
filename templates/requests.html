@@ -40,9 +40,11 @@
                         {% endif %}
                     </p>
                     {% endif %}
+                    {% if current_user.role in ['admin', 'pantryHead'] %}
                     <p class="text-muted">
                         <i class="fas fa-user"></i> {{ req.user.full_name or req.user.username or req.user.email }}
                     </p>
+                    {% endif %}
                     {% if current_user.role == 'admin' %}
                     <p class="text-muted">
                         <i class="fas fa-building"></i> Floor {{ req.floor }}
@@ -129,14 +131,14 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="start_date" class="form-label">Start Date (Optional)</label>
-                                <input type="date" class="form-control" name="start_date">
+                                <label for="start_date" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" name="start_date" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="end_date" class="form-label">End Date (Optional)</label>
-                                <input type="date" class="form-control" name="end_date">
+                                <label for="end_date" class="form-label">End Date</label>
+                                <input type="date" class="form-control" name="end_date" required>
                             </div>
                         </div>
                     </div>

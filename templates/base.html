@@ -99,11 +99,13 @@
                             <i class="fas fa-bell"></i> Requests
                         </a>
                     </li>
+                    {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('ops.procurement') }}">
                             <i class="fas fa-shopping-cart"></i> Procurement
                         </a>
                     </li>
+                    {% endif %}
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('finance.lend_borrow') }}">
