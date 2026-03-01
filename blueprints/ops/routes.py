@@ -362,9 +362,9 @@ def requests():
     elif user.role == 'pantryHead':
         requests_pagination = tenant_filter(Request.query).filter_by(floor=user.floor).order_by(Request.created_at.desc()).paginate(page=page, per_page=15, error_out=False)
     else:
+        # Member only sees their own requests
         requests_pagination = (
-            tenant_filter(Request.query).filter_by(floor=user.floor)
-            .filter(or_(Request.status == 'approved', Request.user_id == user.id))
+            tenant_filter(Request.query).filter_by(user_id=user.id)
             .order_by(Request.created_at.desc())
             .paginate(page=page, per_page=15, error_out=False)
         )

@@ -25,11 +25,13 @@
                 <i class="fas fa-calendar-week me-1"></i> Weekly Board
             </button>
         </li>
+        {% if current_user.role in ['admin', 'pantryHead'] %}
         <li class="nav-item ms-2">
             <button class="nav-link" id="planner-tab" data-bs-toggle="modal" data-bs-target="#bulkPlannerModal" type="button">
                 <i class="fas fa-magic me-1 text-warning"></i> Bulk Week Planner
             </button>
         </li>
+        {% endif %}
         <li class="nav-item ms-2">
             <button class="nav-link" id="all-menus-tab" data-bs-toggle="pill" data-bs-target="#all-menus" type="button">
                 <i class="fas fa-list me-1"></i> All Records
@@ -393,6 +395,7 @@
     border-radius: 8px;
 }
 </style>
+{% if current_user.role in ['admin', 'pantryHead'] %}
 <!-- Bulk Planner Modal -->
 <div class="modal fade" id="bulkPlannerModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -439,6 +442,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <style>
 .table-teal { background-color: var(--teal-primary) !important; }
@@ -637,6 +641,7 @@ document.addEventListener('DOMContentLoaded', function () {
             scheduleForm.submit();
         });
     }
+    {% if current_user.role in ['admin', 'pantryHead'] %}
     // Bulk Planner JS Logic
     const mainDishOptions = `{% for d in main_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
     const sideDishOptions = `{% for d in side_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
@@ -828,6 +833,7 @@ document.addEventListener('DOMContentLoaded', function () {
         
         customConfirmModal.show();
     });
+    {% endif %}
 });
 </script>
 {% endblock %}
