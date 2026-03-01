@@ -167,6 +167,16 @@ def inject_current_user():
         "is_super_admin": getattr(g, 'is_super_admin', False)
     }
 
+@app.route('/favicon.ico')
+def favicon():
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<text y=".9em" font-size="90">🍳</text>'
+        '</svg>',
+        200,
+        {'Content-Type': 'image/svg+xml'}
+    )
+
 from blueprints.auth import auth_bp
 from blueprints.pantry import pantry_bp
 from blueprints.finance import finance_bp

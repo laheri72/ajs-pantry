@@ -140,11 +140,18 @@ body.dark-theme .table th {
     background-color: transparent !important; /* Allow the table/row bg to show through */
 }
 
-/* Ensure nested elements in tables like small, span, div also use main text color */
-body.dark-theme .table td *,
-body.dark-theme .table th * {
+/* Ensure nested elements in tables like small, span, div also use main text color unless they have a specific text class */
+body.dark-theme .table td *:not([class*="text-"]),
+body.dark-theme .table th *:not([class*="text-"]) {
     color: inherit !important;
 }
+
+/* Specific text color overrides for dark mode */
+body.dark-theme .text-danger { color: #E57373 !important; }
+body.dark-theme .text-success { color: #81C784 !important; }
+body.dark-theme .text-warning { color: #FFD54F !important; }
+body.dark-theme .text-info { color: #90CAF9 !important; }
+body.dark-theme .text-primary { color: #64B5F6 !important; }
 
 /* Specific fix for elements that might have their own bg-light/bg-white inside tables */
 body.dark-theme .table .bg-light,
