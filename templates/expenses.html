@@ -203,14 +203,17 @@
                                                 <span class="mx-2 text-muted">&bull;</span>
                                                 <span class="small text-muted">{{ bill.shop_name }}</span>
                                                 {% endif %}
+                                                {% if bill.is_archived %}
+                                                <span class="badge bg-secondary ms-2">Archived</span>
+                                                {% endif %}
                                             </div>
                                             <div class="fw-bold">&#8377;{{ "%.2f"|format(bill.total_amount) }}</div>
                                         </div>
-                                    </button>
-                                </h2>
-                                <div id="bill-{{ bill.id }}" class="accordion-collapse collapse"
-                                    data-bs-parent="#billsAccordion">
-                                    <div class="accordion-body p-0">
+                                        </button>
+                                        </h2>
+                                        <div id="bill-{{ bill.id }}" class="accordion-collapse collapse"
+                                        data-bs-parent="#billsAccordion">
+                                        <div class="accordion-body p-0">
                                         <table class="table table-sm table-borderless bg-light mb-0">
                                             <thead>
                                                 <tr class="small text-muted">
@@ -243,8 +246,13 @@
                                                 <tr>
                                                     <td colspan="3" class="text-end p-2 border-top">
                                                         <div class="d-flex justify-content-end gap-3">
-                                                            <form action="{{ url_for('finance.delete_bill', bill_id=bill.id) }}"
-                                                                method="POST"
+                                                            <form action="{{ url_for('finance.archive_bill', bill_id=bill.id) }}"
+                                                                method="POST">
+                                                                <button type="submit" class="btn btn-sm btn-link text-muted text-decoration-none">
+                                                                    <i class="fas fa-archive me-1"></i> {{ 'Restore' if bill.is_archived else 'Archive' }}
+                                                                </button>
+                                                            </form>
+                                                            <form action="{{ url_for('finance.delete_bill', bill_id=bill.id) }}"                                                                method="POST"
                                                                 onsubmit="return confirm('Remove this bill record? Items will return to pending list with costs reset.')">
                                                                 <button type="submit"
                                                                     class="btn btn-sm btn-link text-muted text-decoration-none">
@@ -713,7 +721,7 @@
 
                     <div class="accordion accordion-selection border rounded overflow-auto mb-3"
                         style="max-height: 350px;" id="billSelectionAccordion">
-                        {% for bill in bills %}
+                        {% for bill in bills if not bill.is_archived %}
                         <div class="accordion-item border-0 border-bottom">
                             <div class="accordion-header d-flex align-items-center px-3 py-2 bg-light">
                                 <div class="form-check me-2">

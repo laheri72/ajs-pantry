@@ -168,6 +168,22 @@ def expenses():
         active_floor=floor
     )
 
+@finance_bp.route('/bills/<int:bill_id>/archive', methods=['POST'])
+def archive_bill(bill_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    bill = tenant_filter(Bill.query).filter_by(id=bill_id).first_or_404()
+    if user.role != 'admin' and bill.floor != user.floor:
+        abort(403)
+
+    bill.is_archived = not bill.is_archived
+    db.session.commit()
+    status = "archived" if bill.is_archived else "restored"
+    flash(f'Bill {bill.bill_no} has been {status}.', 'success')
+    return redirect(url_for('finance.expenses'))
+
 @finance_bp.route('/bills/<int:bill_id>/delete', methods=['POST'])
 def delete_bill(bill_id):
     user = _require_user()

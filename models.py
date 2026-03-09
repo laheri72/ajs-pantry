@@ -167,6 +167,7 @@ class Bill(db.Model, TenantMixin):
     floor = db.Column(db.Integer, nullable=False)
     source = db.Column(db.String(50), default='manual')
     original_filename = db.Column(db.String(255), nullable=True)
+    is_archived = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationship to items
