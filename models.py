@@ -75,6 +75,7 @@ class Menu(db.Model, TenantMixin):
     assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     floor = db.Column(db.Integer, nullable=False)
+    skip_notifications = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     dish = db.relationship('Dish', foreign_keys=[dish_id])

@@ -12,6 +12,7 @@ from ..utils import (
     _display_name_for,
     tenant_filter,
     send_push_notification,
+    send_email_notification,
     FLOOR_MIN,
     FLOOR_MAX
 )
@@ -420,10 +421,30 @@ def bulk_schedule():
     floor = _get_active_floor(user)
     
     try:
+        # Pre-cleanup: Delete existing menus for the range if we are doing a full week refresh
+        if len(data) >= 5:
+            dates = [datetime.strptime(item.get('date'), '%Y-%m-%d').date() for item in data if item.get('date')]
+            if dates:
+                start_d, end_d = min(dates), max(dates)
+                tenant_filter(Menu.query).filter(
+                    Menu.floor == floor,
+                    Menu.date >= start_d,
+                    Menu.date <= end_d
+                ).delete(synchronize_session=False)
+
+        # Assignment map for consolidated mailing: {user_id: [menu_details]}
+        recipient_map = {}
+
         for item in data:
             # Basic validation
             menu_date = datetime.strptime(item.get('date'), '%Y-%m-%d').date()
+            
             dish_id = item.get('dish_id')
+            if isinstance(dish_id, str) and dish_id.strip():
+                try: dish_id = int(dish_id)
+                except: dish_id = None
+            else: dish_id = None if not dish_id else dish_id
+
             new_dish_name = item.get('new_dish_name')
             
             if not dish_id and not new_dish_name: continue 
@@ -441,6 +462,11 @@ def bulk_schedule():
 
             # Handle Side Dish creation
             side_dish_id = item.get('side_dish_id')
+            if isinstance(side_dish_id, str) and side_dish_id.strip():
+                try: side_dish_id = int(side_dish_id)
+                except: side_dish_id = None
+            else: side_dish_id = None if not side_dish_id else side_dish_id
+
             new_side_dish_name = item.get('new_side_dish_name')
             if not side_dish_id and new_side_dish_name:
                 existing_side = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_side_dish_name.lower()).first()
@@ -452,26 +478,101 @@ def bulk_schedule():
                     db.session.flush()
                     side_dish_id = new_side.id
 
+            assigned_team_id = item.get('assigned_team_id')
+            if isinstance(assigned_team_id, str) and assigned_team_id.strip():
+                try: assigned_team_id = int(assigned_team_id)
+                except: assigned_team_id = None
+            
+            assigned_to_id = item.get('assigned_to_id')
+            if isinstance(assigned_to_id, str) and assigned_to_id.strip():
+                try: assigned_to_id = int(assigned_to_id)
+                except: assigned_to_id = None
+
             menu = Menu(
-                title=item.get('title', 'Bulk Scheduled'),
-                description=item.get('description'),
+                title=item.get('title') or 'Bulk Scheduled',
+                description=item.get('description') or '',
                 date=menu_date,
                 meal_type='breakfast',
                 dish_id=dish_id,
-                side_dish_id=item.get('side_dish_id'),
-                assigned_team_id=item.get('assigned_team_id'),
-                assigned_to_id=item.get('assigned_to_id'),
+                side_dish_id=side_dish_id,
+                assigned_team_id=assigned_team_id,
+                assigned_to_id=assigned_to_id,
                 is_buffer=item.get('is_buffer', False),
                 floor=floor,
+                skip_notifications=True, # Disable individual Supabase triggers
                 created_by_id=user.id,
                 tenant_id=getattr(g, 'tenant_id', None)
             )
             db.session.add(menu)
+
+            # --- Consolidate Assignments for Mailing ---
+            recipients = []
+            if assigned_to_id:
+                recipients.append(assigned_to_id)
+            elif assigned_team_id:
+                # RESOLVED: Use tenant_filter for safety and consistent data access
+                members = tenant_filter(TeamMember.query).filter_by(team_id=assigned_team_id).all()
+                recipients.extend([m.user_id for m in members])
+            
+            dish_obj = tenant_filter(Dish.query).filter_by(id=dish_id).first() if dish_id else None
+            side_obj = tenant_filter(Dish.query).filter_by(id=side_dish_id).first() if side_dish_id else None
+            dish_label = f"{dish_obj.name if dish_obj else menu.title}{' + ' + side_obj.name if side_obj else ''}"
+
+            print(f"DEBUG: Found {len(recipients)} recipients for date {menu_date}")
+            for rid in set(recipients):
+                if rid not in recipient_map: recipient_map[rid] = []
+                recipient_map[rid].append({
+                    'date': menu_date,
+                    'meal': dish_label,
+                    'note': menu.description or ''
+                })
             
         db.session.commit()
+
+        # --- Trigger Consolidated Edge Function ---
+        if recipient_map:
+            payload = {"recipient_map": {}}
+            for rid, assignments in recipient_map.items():
+                target_user = db.session.get(User, rid)
+                if target_user and target_user.email:
+                    payload["recipient_map"][rid] = {
+                        "email": target_user.email,
+                        "name": target_user.full_name or target_user.username,
+                        "assignments": [
+                            {
+                                "date": a['date'].isoformat(),
+                                "meal": a['meal'],
+                                "note": a['note']
+                            } for a in assignments
+                        ]
+                    }
+            
+            try:
+                import requests
+                import os
+                print(f"DEBUG: Calling bulk edge function for {len(payload['recipient_map'])} users")
+                
+                # Retrieve the key from environment variables
+                sb_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+                headers = {
+                    "Authorization": f"Bearer {sb_key}",
+                    "Content-Type": "application/json"
+                } if sb_key else {}
+
+                requests.post(
+                    "https://nowdhtfvhrhdkmwnerth.supabase.co/functions/v1/notify-bulk-menu-assignment",
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+            except Exception as e:
+                print(f"ERROR: Failed to trigger bulk edge function: {e}")
+
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @pantry_bp.route('/home')
@@ -1003,11 +1104,22 @@ def menus():
             "menus": day_menus
         })
 
+    # Calculate if the UPCOMING week (starting next Monday) is already planned
+    next_monday = (today - timedelta(days=today.weekday())) + timedelta(days=7)
+    next_sunday = next_monday + timedelta(days=6)
+    
+    is_next_week_planned = (
+        tenant_filter(Menu.query)
+        .filter(Menu.floor == floor, Menu.date >= next_monday, Menu.date <= next_sunday)
+        .first() is not None
+    )
+
     return render_template(
         'menus.html', 
         menus=floor_menus,
         pagination=menus_pagination,
         weekly_days=weekly_days,
+        is_next_week_planned=is_next_week_planned,
         floor_users=floor_users, 
         floor_teams=floor_teams, 
         main_dishes=main_dishes,
