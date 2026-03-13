@@ -550,21 +550,35 @@ def bulk_schedule():
             try:
                 import requests
                 import os
-                print(f"DEBUG: Calling bulk edge function for {len(payload['recipient_map'])} users")
                 
-                # Retrieve the key from environment variables
+                # Retrieve the key
                 sb_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
-                headers = {
-                    "Authorization": f"Bearer {sb_key}",
-                    "Content-Type": "application/json"
-                } if sb_key else {}
+                
+                if not sb_key:
+                    print("WARNING: SUPABASE_SERVICE_ROLE_KEY not found in environment!")
+                    # Try to fallback to any other supabase key if available
+                    sb_key = os.environ.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_KEY')
 
-                requests.post(
+                headers = {
+                    "Content-Type": "application/json"
+                }
+                
+                if sb_key:
+                    headers["Authorization"] = f"Bearer {sb_key}"
+                    print(f"DEBUG: Triggering bulk function with Auth header (Key length: {len(sb_key)})")
+                else:
+                    print("ERROR: No Supabase key found. Request will likely fail with 401.")
+
+                response = requests.post(
                     "https://nowdhtfvhrhdkmwnerth.supabase.co/functions/v1/notify-bulk-menu-assignment",
                     json=payload,
                     headers=headers,
-                    timeout=10
+                    timeout=15
                 )
+                print(f"DEBUG: Bulk function response status: {response.status_code}")
+                if response.status_code != 200:
+                    print(f"DEBUG: Bulk function error body: {response.text}")
+                    
             except Exception as e:
                 print(f"ERROR: Failed to trigger bulk edge function: {e}")
 
