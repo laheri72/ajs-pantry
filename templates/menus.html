@@ -788,9 +788,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function setUpcomingMonday() {
         const d = new Date();
         const day = d.getDay(); 
+        // If today is Sunday (0), next Monday is 1 day away.
+        // If today is Mon-Sat (1-6), next Monday is (8 - day) days away.
         const diff = (day === 0 ? 1 : 8 - day); 
         d.setDate(d.getDate() + diff);
-        document.getElementById('plannerStartDate').value = d.toISOString().split('T')[0];
+        
+        // Format as YYYY-MM-DD using local time
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const date = String(d.getDate()).padStart(2, '0');
+        document.getElementById('plannerStartDate').value = `${y}-${m}-${date}`;
         updatePlannerDates();
     }
     
