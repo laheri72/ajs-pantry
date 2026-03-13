@@ -27,8 +27,17 @@
         </li>
         {% if current_user.role in ['admin', 'pantryHead'] %}
         <li class="nav-item ms-2">
-            <button class="nav-link" id="planner-tab" data-bs-toggle="modal" data-bs-target="#bulkPlannerModal" type="button">
-                <i class="fas fa-magic me-1 text-warning"></i> Bulk Week Planner
+            <button class="nav-link {% if is_next_week_planned %}opacity-50{% endif %}" 
+                    id="planner-tab" 
+                    {% if is_next_week_planned %}
+                        disabled 
+                        title="Upcoming week is already planned. Delete existing records to use bulk planner again."
+                    {% else %}
+                        data-bs-toggle="modal" data-bs-target="#bulkPlannerModal"
+                    {% endif %} 
+                    type="button">
+                <i class="fas fa-magic me-1 {% if is_next_week_planned %}text-muted{% else %}text-warning{% endif %}"></i> 
+                Bulk Week Planner {% if is_next_week_planned %}(Planned){% endif %}
             </button>
         </li>
         {% endif %}
@@ -118,7 +127,7 @@
                                             <span class="text-muted small fw-normal"> + {{ menu.side_dish.name }}</span>
                                             {% endif %}
                                         </div>
-                                        <div class="small text-muted">{{ menu.description[:50] }}{% if menu.description|length > 50 %}...{% endif %}</div>
+                                        <div class="small text-muted">{{ (menu.description|string if menu.description else '')|truncate(50) }}</div>
                                     </td>
                                     <td>
                                         {% if menu.assigned_team %}
@@ -300,7 +309,7 @@
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-teal px-4">Schedule</button>
+                    <button type="button" class="btn btn-teal px-4" id="btnSubmitSingleMenu">Schedule</button>
                 </div>
             </form>
         </div>
@@ -405,34 +414,36 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4 bg-light">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div class="col-md-6">
-                        <div class="h5 fw-bold mb-0 text-teal" id="plannerWeekDisplay">
-                            <i class="fas fa-calendar-alt me-2"></i>Loading Week...
+                <form id="bulkPlannerForm" onsubmit="return false;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div class="col-md-6">
+                            <div class="h5 fw-bold mb-0 text-teal" id="plannerWeekDisplay">
+                                <i class="fas fa-calendar-alt me-2"></i>Loading Week...
+                            </div>
+                            <div class="small text-muted">Automatically scheduled for the upcoming week.</div>
+                            <input type="hidden" id="plannerStartDate">
                         </div>
-                        <div class="small text-muted">Automatically scheduled for the upcoming week.</div>
-                        <input type="hidden" id="plannerStartDate">
+                        <button type="button" class="btn btn-teal" id="btnAutoFillRotation">
+                            <i class="fas fa-sync-alt me-1"></i> Auto-Suggest Rotation
+                        </button>
                     </div>
-                    <button type="button" class="btn btn-teal" id="btnAutoFillRotation">
-                        <i class="fas fa-sync-alt me-1"></i> Auto-Suggest Rotation
-                    </button>
-                </div>
 
-                <div class="table-responsive">
-                    <table class="table table-bordered bg-white rounded-3 overflow-hidden" id="bulkPlannerTable">
-                        <thead class="table-teal text-white">
-                            <tr>
-                                <th style="width: 15%;">Day / Date</th>
-                                <th style="width: 35%;">Main Dish & Insights</th>
-                                <th style="width: 25%;">Side Dish</th>
-                                <th style="width: 25%;">Assigned Team</th>
-                            </tr>
-                        </thead>
-                        <tbody id="planner-body">
-                            <!-- JS will generate 7 rows -->
-                        </tbody>
-                    </table>
-                </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered bg-white rounded-3 overflow-hidden" id="bulkPlannerTable">
+                            <thead class="table-teal text-white">
+                                <tr>
+                                    <th style="width: 15%;">Day / Date</th>
+                                    <th style="width: 35%;">Main Dish & Insights</th>
+                                    <th style="width: 25%;">Side Dish</th>
+                                    <th style="width: 25%;">Assigned Team</th>
+                                </tr>
+                            </thead>
+                            <tbody id="planner-body">
+                                <!-- JS will generate 7 rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
                 <p class="small text-muted mb-0"><i class="fas fa-info-circle me-1"></i> You can add multiple meals for the same day after saving using the standard "Schedule" button.</p>
             </div>
             <div class="modal-footer bg-white">
@@ -623,26 +634,64 @@ document.addEventListener('DOMContentLoaded', function () {
     const customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
     const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
     let isConfirmed = false;
+    let pendingAction = null; // 'single' or 'bulk'
 
-    if (scheduleForm) {
-        scheduleForm.addEventListener('submit', function (e) {
-            if (!isConfirmed) {
+    // Prevent accidental 'Enter' key submissions everywhere when modals are open
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const activeModal = document.querySelector('.modal.show');
+            if (activeModal) {
+                // Completely block Enter key in modals to prevent accidental form submissions
                 e.preventDefault();
-                customConfirmModal.show();
+                return false;
             }
+        }
+    });
+
+    const btnSubmitSingleMenu = document.getElementById('btnSubmitSingleMenu');
+    if (btnSubmitSingleMenu && scheduleForm) {
+        btnSubmitSingleMenu.addEventListener('click', function(e) {
+            e.preventDefault();
+            // Trigger browser validation manually
+            if (!scheduleForm.checkValidity()) {
+                scheduleForm.reportValidity();
+                return;
+            }
+            pendingAction = 'single';
+            confirmScheduleBtn.disabled = false;
+            confirmScheduleBtn.innerHTML = 'Yes, Confirm & Send';
+            customConfirmModal.show();
         });
     }
 
     if (confirmScheduleBtn) {
         confirmScheduleBtn.addEventListener('click', function () {
-            confirmScheduleBtn.disabled = true;
-            confirmScheduleBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...';
-            isConfirmed = true;
-            scheduleForm.submit();
+            if (pendingAction === 'single') {
+                confirmScheduleBtn.disabled = true;
+                confirmScheduleBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Scheduling...';
+                isConfirmed = true;
+                scheduleForm.submit();
+            } else if (pendingAction === 'bulk') {
+                // The actual bulk fetch is triggered by the custom handler assigned in btnSaveBulk.click
+            }
         });
     }
     {% if current_user.role in ['admin', 'pantryHead'] %}
     // Bulk Planner JS Logic
+    // Prevent accidental 'Enter' key submissions in the entire document when modals are open
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const activeModal = document.querySelector('.modal.show');
+            if (activeModal) {
+                const target = e.target;
+                // If we're in an input or select, just blur it or move to next, but don't submit
+                if (target.tagName === 'INPUT' || target.tagName === 'SELECT') {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        }
+    });
     const mainDishOptions = `{% for d in main_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
     const sideDishOptions = `{% for d in side_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
     const teamOptions = `{% for t in floor_teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}`;
