@@ -548,3 +548,19 @@ body.dark-theme .nav-pills .nav-link.active {
     background-color: var(--teal-primary) !important;
     color: var(--fixed-white) !important;
 }
+
+/* Bread/Roti Subtle Badge Overrides */
+body.dark-theme .bg-primary-subtle {
+    background-color: rgba(100, 181, 246, 0.15) !important;
+    color: #90CAF9 !important;
+}
+body.dark-theme .border-primary {
+    border-color: rgba(100, 181, 246, 0.4) !important;
+}
+body.dark-theme .bg-teal-subtle {
+    background-color: rgba(77, 182, 172, 0.15) !important;
+    color: #80CBC4 !important;
+}
+body.dark-theme .border-teal {
+    border-color: rgba(77, 182, 172, 0.4) !important;
+}

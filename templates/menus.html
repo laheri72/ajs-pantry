@@ -55,7 +55,15 @@
                 {% for day in weekly_days %}
                 <div class="col">
                     <div class="weekly-day-card h-100 {% if day.is_today %}today-highlight{% endif %}">
-                        <div class="day-header text-center">
+                        <div class="day-header text-center position-relative">
+                            {% set day_num = day.date.strftime('%w')|int %}
+                            <div class="position-absolute top-0 end-0 mt-1 me-1">
+                                {% if day_num == 2 or day_num == 5 %}
+                                <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary" style="font-size: 0.55rem; padding: 2px 6px;">Bread</span>
+                                {% else %}
+                                <span class="badge rounded-pill bg-teal-subtle text-teal border border-teal" style="font-size: 0.55rem; padding: 2px 6px;">Roti</span>
+                                {% endif %}
+                            </div>
                             <div class="day-name fw-bold">{{ day.date.strftime('%a') }}</div>
                             <div class="day-date small text-muted">{{ day.date.strftime('%b %d') }}</div>
                         </div>
@@ -265,7 +273,10 @@
 
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Date</label>
-                            <input type="date" class="form-control shadow-none" name="date" id="menuDateInput" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="date" class="form-control shadow-none" name="date" id="menuDateInput" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                                <span id="dayTypeChip" class="badge rounded-pill px-3 py-1 border d-none" style="font-size: 0.75rem;"></span>
+                            </div>
                         </div>
 
                         <!-- Hidden but present for legacy support -->
@@ -470,6 +481,37 @@ function openAddMenuModal(dateStr) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    // Bread/Roti indicator logic
+    const menuDateInput = document.getElementById('menuDateInput');
+    const dayTypeChip = document.getElementById('dayTypeChip');
+
+    function updateDayTypeChip() {
+        if (!menuDateInput || !dayTypeChip) return;
+        const val = menuDateInput.value;
+        if (!val) {
+            dayTypeChip.classList.add('d-none');
+            return;
+        }
+        const parts = val.split('-');
+        const date = new Date(parts[0], parts[1]-1, parts[2]);
+        const day = date.getDay(); // 0:Sun, 1:Mon, 2:Tue... 5:Fri
+
+        dayTypeChip.classList.remove('d-none', 'bg-primary-subtle', 'text-primary', 'border-primary', 'bg-teal-subtle', 'text-teal', 'border-teal');
+        
+        if (day === 2 || day === 5) {
+            dayTypeChip.innerText = 'Bread Day';
+            dayTypeChip.classList.add('bg-primary-subtle', 'text-primary', 'border-primary');
+        } else {
+            dayTypeChip.innerText = 'Roti Day';
+            dayTypeChip.classList.add('bg-teal-subtle', 'text-teal', 'border-teal');
+        }
+    }
+
+    if (menuDateInput) {
+        menuDateInput.addEventListener('change', updateDayTypeChip);
+        updateDayTypeChip();
+    }
+
     // Initialize Popovers
     const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
     const popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
@@ -712,10 +754,19 @@ document.addEventListener('DOMContentLoaded', function () {
             const dateStr = current.toISOString().split('T')[0];
             const displayDate = current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 
+            const dayOfWeek = current.getDay();
+            const type = (dayOfWeek === 2 || dayOfWeek === 5) ? 'Bread' : 'Roti';
+            const typeBadge = type === 'Bread' 
+                ? `<span class="badge rounded-pill bg-primary-subtle text-primary border border-primary ms-1" style="font-size: 0.6rem;">Bread</span>`
+                : `<span class="badge rounded-pill bg-teal-subtle text-teal border border-teal ms-1" style="font-size: 0.6rem;">Roti</span>`;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>
-                    <div class="fw-bold">${days[i]}</div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="fw-bold">${days[i]}</div>
+                        ${typeBadge}
+                    </div>
                     <div class="small text-muted">${displayDate}</div>
                     <input type="hidden" class="row-date" value="${dateStr}">
                 </td>
