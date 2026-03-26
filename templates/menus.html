@@ -718,7 +718,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
-    {% if current_user.role in ['admin', 'pantryHead'] %}
+    // {% if current_user.role in ['admin', 'pantryHead'] %}
     // Bulk Planner JS Logic
     // Prevent accidental 'Enter' key submissions in the entire document when modals are open
     document.addEventListener('keydown', function(e) {
@@ -940,7 +940,7 @@ document.addEventListener('DOMContentLoaded', function () {
         
         customConfirmModal.show();
     });
-    {% endif %}
+    // {% endif %}
 });
 </script>
 {% endblock %}

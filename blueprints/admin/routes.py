@@ -282,7 +282,14 @@ def admin():
     
     floor_data = []
     for f in range(FLOOR_MIN, FLOOR_MAX + 1):
-        ph = tenant_filter(User.query).filter_by(floor=f, role='pantryHead').first()
+        # Fetch all pantry heads for this floor to handle multiple assignments
+        phs = tenant_filter(User.query).filter_by(floor=f, role='pantryHead').all()
+        ph_display = 'Not Assigned'
+        if phs:
+            # Show the first one with a valid name/email
+            ph = phs[0]
+            ph_display = ph.full_name or ph.username or ph.email or 'Pantry Head'
+
         f_user_count = tenant_filter(User.query).filter_by(floor=f).count()
         f_budget = float(tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(Budget.floor == f).scalar() or 0)
         f_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.floor == f, ProcurementItem.status == 'completed').scalar() or 0)
@@ -293,7 +300,7 @@ def admin():
         floor_data.append({
             'floor': f,
             'user_count': f_user_count,
-            'pantry_head': ph.full_name if ph and ph.full_name else (ph.username if ph else 'Not Assigned'),
+            'pantry_head': ph_display,
             'budget': f_budget,
             'spent': f_spent,
             'remaining': f_budget - f_spent,
