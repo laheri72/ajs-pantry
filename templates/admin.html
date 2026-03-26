@@ -134,19 +134,37 @@
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <h5 class="mb-0 fw-bold text-teal"><i class="fas fa-users-cog me-2"></i>Member Directory</h5>
-                    <div class="d-flex gap-2">
-                        <input type="text" id="memberSearch" class="form-control form-control-sm" placeholder="Search TR or Name..." style="width: 200px;">
-                        <button class="btn btn-sm btn-teal" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <div class="input-group input-group-sm" style="width: 220px;">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" id="memberSearch" class="form-control border-start-0" placeholder="Search TR or Name...">
+                        </div>
+                        <select id="floorFilter" class="form-select form-select-sm" style="width: 120px;">
+                            <option value="all">All Floors</option>
+                            {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+                        </select>
+                        <select id="roleFilter" class="form-select form-select-sm" style="width: 130px;">
+                            <option value="all">All Roles</option>
+                            <option value="admin">Admin</option>
+                            <option value="pantryHead">Pantry Head</option>
+                            <option value="teaManager">Tea Manager</option>
+                            <option value="member">Member</option>
+                        </select>
+                        <button class="btn btn-sm btn-teal" data-bs-toggle="modal" data-bs-target="#addMemberModal" title="Add Single Member">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>
                 </div>
                 <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+                        <div class="small text-muted ps-2" id="filterSummary">Showing all {{ all_users|length }} members</div>
+                        <button class="btn btn-sm btn-link text-teal text-decoration-none py-0 d-none" id="resetFilters">Reset Filters</button>
+                    </div>
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                         <table class="table table-hover align-middle mb-0" id="usersTable">
-                            <thead class="bg-light sticky-top">
+                            <thead class="bg-light sticky-top" style="z-index: 10;">
                                 <tr>
                                     <th>TR Number</th>
                                     <th>Member Name</th>
@@ -158,14 +176,17 @@
                             </thead>
                             <tbody>
                                 {% for admin_user in all_users %}
-                                <tr class="user-row" data-search="{{ admin_user.tr_number }} {{ admin_user.full_name }} {{ admin_user.email }}">
+                                <tr class="user-row" 
+                                    data-search="{{ admin_user.tr_number }} {{ admin_user.full_name }} {{ admin_user.email }}"
+                                    data-floor="{{ admin_user.floor }}"
+                                    data-role="{{ admin_user.role }}">
                                     <td class="fw-bold text-teal">{{ admin_user.tr_number or 'N/A' }}</td>
                                     <td>
                                         <div class="fw-bold">{{ admin_user.full_name or 'New Member' }}</div>
                                         <div class="small text-muted">{{ admin_user.email }}</div>
                                     </td>
                                     <td>
-                                        <span class="badge {% if admin_user.role == 'admin' %}bg-dark{% elif admin_user.role == 'pantryHead' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                        <span class="badge {% if admin_user.role == 'admin' %}bg-dark{% elif admin_user.role == 'pantryHead' %}bg-primary{% elif admin_user.role == 'teaManager' %}bg-info{% else %}bg-secondary{% endif %}">
                                             {{ admin_user.role }}
                                         </span>
                                     </td>
@@ -378,15 +399,54 @@ Example:
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Member Search Logic
+        // Multi-Criteria Member Filter Logic
         const searchInput = document.getElementById('memberSearch');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                const term = e.target.value.toLowerCase();
-                document.querySelectorAll('.user-row').forEach(row => {
-                    const content = row.getAttribute('data-search').toLowerCase();
-                    row.style.display = content.includes(term) ? '' : 'none';
-                });
+        const floorFilter = document.getElementById('floorFilter');
+        const roleFilter = document.getElementById('roleFilter');
+        const resetBtn = document.getElementById('resetFilters');
+        const summary = document.getElementById('filterSummary');
+        const userRows = document.querySelectorAll('.user-row');
+        const totalCount = userRows.length;
+
+        function applyFilters() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const floorTerm = floorFilter.value;
+            const roleTerm = roleFilter.value;
+            let visibleCount = 0;
+
+            userRows.forEach(row => {
+                const searchContent = row.getAttribute('data-search').toLowerCase();
+                const floor = row.getAttribute('data-floor');
+                const role = row.getAttribute('data-role');
+
+                const matchesSearch = searchContent.includes(searchTerm);
+                const matchesFloor = floorTerm === 'all' || floor === floorTerm;
+                const matchesRole = roleTerm === 'all' || role === roleTerm;
+
+                if (matchesSearch && matchesFloor && matchesRole) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update summary and reset button
+            summary.innerText = `Showing ${visibleCount} of ${totalCount} members`;
+            const isFiltered = searchTerm !== '' || floorTerm !== 'all' || roleTerm !== 'all';
+            resetBtn.classList.toggle('d-none', !isFiltered);
+        }
+
+        if (searchInput) searchInput.addEventListener('input', applyFilters);
+        if (floorFilter) floorFilter.addEventListener('change', applyFilters);
+        if (roleFilter) roleFilter.addEventListener('change', applyFilters);
+        
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                floorFilter.value = 'all';
+                roleFilter.value = 'all';
+                applyFilters();
             });
         }
 
