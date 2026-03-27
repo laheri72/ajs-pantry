@@ -192,6 +192,13 @@
     .calendar-event.bg-warning {
         color: #000 !important;
     }
+    .italic-quote {
+        font-style: italic;
+        color: var(--dark-gray);
+        position: relative;
+        padding-left: 0.8rem;
+        border-left: 3px solid var(--warning);
+    }
 </style>
 
 <script>
@@ -216,21 +223,104 @@ function showEventDetail(type, data) {
     if (editBtn) editBtn.style.display = 'none';
     if (deleteBtn) deleteBtn.style.display = 'none';
     
-    date.textContent = new Date(data.date).toLocaleDateString('en-US', { 
+    const dateObj = new Date(data.date + 'T00:00:00');
+    date.textContent = dateObj.toLocaleDateString('en-US', { 
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
     });
 
     if (type === 'menu') {
         header.classList.add('bg-teal');
-        title.textContent = data.title;
-        desc.textContent = data.description || 'No description provided.';
+        title.innerHTML = `<i class="fas fa-utensils me-2"></i>${data.title}`;
+        desc.innerHTML = `<div class="p-3 mb-3 bg-light rounded border-start border-4 border-teal">
+            <label class="small text-muted text-uppercase fw-bold d-block mb-1">Instructions / Notes</label>
+            ${data.description || 'No specific instructions provided.'}
+        </div>`;
+
+        // Determine Day Type
+        const dayNum = dateObj.getDay();
+        const isBreadDay = (dayNum === 2 || dayNum === 5);
+        const dayTypeBadge = isBreadDay 
+            ? '<span class="badge bg-primary-subtle text-primary border border-primary"><i class="fas fa-bread-slice me-1"></i>Bread Day</span>'
+            : '<span class="badge bg-teal-subtle text-teal border border-teal"><i class="fas fa-circle me-1"></i>Roti Day</span>';
+
         meta.innerHTML = `
-            <div class="d-flex flex-column gap-2">
-                <div class="small"><i class="fas fa-utensils me-2 text-teal"></i><strong>Dish Type:</strong> ${data.dish_type.charAt(0).toUpperCase() + data.dish_type.slice(1)}</div>
-                <div class="small"><i class="fas fa-clock me-2 text-teal"></i><strong>Meal:</strong> ${data.meal_type.charAt(0).toUpperCase() + data.meal_type.slice(1)}</div>
-                <div class="small"><i class="fas fa-user me-2 text-teal"></i><strong>Assigned:</strong> ${data.assigned_to_label || 'Unassigned'}</div>
+            <div class="dish-insight-container">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    ${dayTypeBadge}
+                    <div id="insightRating" class="text-warning">
+                        <i class="fas fa-spinner fa-spin text-muted"></i>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-white h-100 text-center">
+                            <label class="small text-muted d-block">Main Dish</label>
+                            <span class="fw-bold">${data.title}</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-white h-100 text-center">
+                            <label class="small text-muted d-block">Side Dish</label>
+                            <span class="fw-bold text-teal">${data.side_dish_name || 'None'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-2 border rounded bg-white mb-3 d-flex align-items-center">
+                    <div class="me-3 ps-2"><i class="fas fa-user-check text-teal fa-lg"></i></div>
+                    <div>
+                        <label class="small text-muted d-block">Chef / Team Assigned</label>
+                        <span class="fw-bold">${data.assigned_to_label || 'Unassigned'}</span>
+                    </div>
+                </div>
+
+                <div id="extendedInsights">
+                    <div class="text-center py-2"><i class="fas fa-spinner fa-spin text-teal"></i> <span class="small text-muted">Fetching dish history...</span></div>
+                </div>
             </div>
         `;
+
+        // Fetch Extended Insights
+        if (data.dish_id) {
+            fetch(`/menus/dish-insights/${data.dish_id}`)
+                .then(res => res.json())
+                .then(insight => {
+                    // Update Rating
+                    const ratingEl = document.getElementById('insightRating');
+                    let stars = '';
+                    const fullStars = Math.floor(insight.avg_rating);
+                    for(let i=0; i<5; i++) {
+                        stars += `<i class="fas fa-star ${i < fullStars ? 'text-warning' : 'text-muted opacity-25'}"></i>`;
+                    }
+                    ratingEl.innerHTML = `${stars} <span class="ms-1 fw-bold text-dark">${insight.avg_rating}</span>`;
+
+                    // Update Extended Insights
+                    const extEl = document.getElementById('extendedInsights');
+                    extEl.innerHTML = `
+                        <div class="p-2 border rounded bg-success-subtle border-success mb-3 d-flex align-items-center">
+                            <div class="me-3 ps-2"><i class="fas fa-trophy text-success fa-lg"></i></div>
+                            <div>
+                                <label class="small text-success d-block fw-bold">Champion Team</label>
+                                <span class="fw-bold text-dark">${insight.champion}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <label class="small text-muted text-uppercase fw-bold d-block mb-2">Top Member Suggestions</label>
+                            <div id="topSuggestionsList">
+                                ${insight.suggestions.length > 0 
+                                    ? insight.suggestions.map(s => `<div class="small mb-2 p-2 bg-white border rounded shadow-sm italic-quote"><i class="fas fa-lightbulb text-warning me-2"></i>${s}</div>`).join('')
+                                    : '<div class="small text-muted italic">No suggestions yet. Be the first!</div>'}
+                            </div>
+                        </div>
+                    `;
+                });
+        } else {
+            document.getElementById('insightRating').innerHTML = '<span class="small text-muted">No ratings</span>';
+            document.getElementById('extendedInsights').innerHTML = '<div class="small text-muted italic text-center">New dish - no history yet.</div>';
+        }
+
     } else if (type === 'tea') {
         header.classList.add('bg-warning');
         header.classList.remove('text-white');
@@ -315,7 +405,11 @@ function generateCalendar(year, month) {
             dayNumber.textContent = currentDay.getDate();
             dayCell.appendChild(dayNumber);
 
-            const dateStr = currentDay.toISOString().split('T')[0];
+            // Format local date string as YYYY-MM-DD
+            const yyyy = currentDay.getFullYear();
+            const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
+            const dd = String(currentDay.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
 
             // Render Menus
             menus.filter(m => m.date === dateStr).forEach(menu => {
