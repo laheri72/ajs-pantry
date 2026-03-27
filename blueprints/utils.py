@@ -23,7 +23,15 @@ def _extract_first_name(full_name):
     full_name = full_name.strip()
     if not full_name:
         return None
-    return full_name.split()[0][:64]
+    
+    parts = full_name.split()
+    if not parts:
+        return None
+        
+    if len(parts) > 1 and parts[0].lower() == 'mulla':
+        return parts[1][:64]
+    
+    return parts[0][:64]
 
 def _make_unique_username(base, exclude_user_id=None):
     base = (base or '').strip()

@@ -114,6 +114,7 @@ def change_password():
         return redirect(url_for('auth.login'))
         
     if request.method == 'POST':
+        full_name = request.form.get('full_name')
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
@@ -121,6 +122,9 @@ def change_password():
             flash('Passwords do not match', 'error')
             return render_template('change_password.html')
             
+        user.full_name = full_name
+        _ensure_username_from_full_name(user, db.session)
+        
         user.password_hash = generate_password_hash(new_password)
         user.is_first_login = False
         db.session.commit()
