@@ -794,19 +794,28 @@ def calendar():
         next_month_start = date(current_year, current_month + 1, 1)
     end_bound = next_month_start + timedelta(days=14)
 
-    floor_menus = tenant_filter(Menu.query).options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team)).filter(
+    floor_menus = tenant_filter(Menu.query).options(
+        joinedload(Menu.assigned_to), 
+        joinedload(Menu.assigned_team),
+        joinedload(Menu.dish),
+        joinedload(Menu.side_dish)
+    ).filter(
         Menu.floor == floor,
         Menu.date >= start_bound,
         Menu.date <= end_bound
     ).all()
     
-    floor_tea_tasks = tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter(
+    floor_tea_tasks = tenant_filter(TeaTask.query).options(
+        joinedload(TeaTask.assigned_to)
+    ).filter(
         TeaTask.floor == floor,
         TeaTask.date >= start_bound,
         TeaTask.date <= end_bound
     ).all()
-    
-    floor_special_events = tenant_filter(SpecialEvent.query).options(joinedload(SpecialEvent.created_by)).filter(
+
+    floor_special_events = tenant_filter(SpecialEvent.query).options(
+        joinedload(SpecialEvent.created_by)
+    ).filter(
         SpecialEvent.floor == floor,
         SpecialEvent.date >= start_bound,
         SpecialEvent.date <= end_bound
@@ -817,10 +826,10 @@ def calendar():
             "id": m.id,
             "type": "menu",
             "title": m.title,
+            "dish_id": m.dish_id,
+            "side_dish_name": m.side_dish.name if m.side_dish else None,
             "description": m.description,
             "date": m.date.isoformat() if m.date else None,
-            "meal_type": m.meal_type,
-            "dish_type": getattr(m, "dish_type", "main"),
             "assigned_to_id": m.assigned_to_id,
             "assigned_to_label": (
                 (
@@ -957,6 +966,10 @@ def menus():
     user = _require_user()
     if not user:
         return redirect(url_for('auth.login'))
+
+    # Expert UI decision: Members use the Calendar for all meal viewing.
+    if user.role == 'member':
+        return redirect(url_for('pantry.calendar'))
 
     floor = _get_active_floor(user)
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
