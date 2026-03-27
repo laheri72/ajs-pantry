@@ -1356,10 +1356,6 @@ def feedbacks():
             flash('You can only evaluate menus from today or earlier', 'error')
             return redirect(url_for('pantry.feedbacks'))
 
-        if not (menu.assigned_team_id or menu.assigned_to_id):
-            flash('This menu is not assigned to a team/person yet', 'error')
-            return redirect(url_for('pantry.feedbacks'))
-
         try:
             rating = int(request.form.get('rating') or 0)
         except ValueError:
@@ -1420,7 +1416,6 @@ def feedbacks():
     menu_options = (
         tenant_filter(Menu.query).filter_by(floor=floor)
         .filter(Menu.date >= menu_window_start, Menu.date <= today)
-        .filter(or_(Menu.assigned_team_id.isnot(None), Menu.assigned_to_id.isnot(None)))
         .order_by(Menu.date.desc())
         .limit(80)
         .all()

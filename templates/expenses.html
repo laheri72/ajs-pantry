@@ -459,7 +459,7 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Bill No. / Receipt #</label>
-                            <input type="text" name="bill_no" class="form-control" required placeholder="e.g. INV-101">
+                            <input type="text" name="bill_no" class="form-control" value="{{ suggested_bill_no }}" required placeholder="e.g. INV-101">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Bill Date</label>
@@ -525,7 +525,7 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Bill/Receipt No.</label>
-                            <input type="text" id="db_bill_no" class="form-control" required placeholder="e.g. INV-202">
+                            <input type="text" id="db_bill_no" class="form-control" value="{{ suggested_bill_no }}" required placeholder="e.g. INV-202">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Date</label>

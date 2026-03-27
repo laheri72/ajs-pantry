@@ -150,6 +150,26 @@ def expenses():
     ).distinct().order_by(Bill.shop_name).all()
     unique_shops = [s[0] for s in unique_shops]
 
+    # Calculate suggested next bill number
+    last_bill = tenant_filter(Bill.query).filter_by(floor=floor).order_by(Bill.created_at.desc()).first()
+    suggested_bill_no = "1001"
+    if last_bill and last_bill.bill_no:
+        try:
+            # Try to increment if it's purely numeric
+            if last_bill.bill_no.isdigit():
+                suggested_bill_no = str(int(last_bill.bill_no) + 1)
+            else:
+                # Handle cases like INV-1001 by finding the numeric part at the end
+                import re
+                match = re.search(r'(\d+)$', last_bill.bill_no)
+                if match:
+                    number_part = match.group(1)
+                    prefix = last_bill.bill_no[:-len(number_part)]
+                    new_number = str(int(number_part) + 1).zfill(len(number_part))
+                    suggested_bill_no = prefix + new_number
+        except (ValueError, TypeError):
+            pass
+
     return render_template(
         'expenses.html',
         total_budget=total_budget,
@@ -162,6 +182,7 @@ def expenses():
         legacy_expenses=legacy_expenses,
         legacy_pagination=legacy_pagination,
         unique_shops=unique_shops,
+        suggested_bill_no=suggested_bill_no,
         is_manager=is_manager,
         today=date.today(),
         current_user=user,
