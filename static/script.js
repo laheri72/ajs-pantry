@@ -11,6 +11,9 @@ function initializeApp() {
     // Initialize form validation
     initializeFormValidation();
     
+    // Initialize silent password matching
+    initializeSilentPasswordMatching();
+    
     // Initialize offline functionality
     initializeOfflineSupport();
     
@@ -25,6 +28,40 @@ function initializeApp() {
     
     // Save last page for return navigation
     saveCurrentPage();
+}
+
+function initializeSilentPasswordMatching() {
+    const newPassword = document.getElementById('new_password');
+    const confirmPassword = document.getElementById('confirm_password');
+    const statusDiv = document.getElementById('passwordMatchStatus');
+
+    if (!newPassword || !confirmPassword || !statusDiv) return;
+
+    function updateStatus() {
+        const val1 = newPassword.value;
+        const val2 = confirmPassword.value;
+
+        if (!val1 && !val2) {
+            statusDiv.style.display = 'none';
+            return;
+        }
+
+        statusDiv.style.display = 'block';
+        if (val1 === val2 && val1 !== '') {
+            statusDiv.textContent = '✓ Passwords match';
+            statusDiv.className = 'small mt-2 text-center py-1 rounded bg-success-subtle text-success border border-success';
+            statusDiv.style.backgroundColor = '#d1e7dd';
+        } else if (val2 === '') {
+            statusDiv.style.display = 'none';
+        } else {
+            statusDiv.textContent = '✗ Passwords do not match';
+            statusDiv.className = 'small mt-2 text-center py-1 rounded bg-danger-subtle text-danger border border-danger';
+            statusDiv.style.backgroundColor = '#f8d7da';
+        }
+    }
+
+    newPassword.addEventListener('input', updateStatus);
+    confirmPassword.addEventListener('input', updateStatus);
 }
 
 // Theme Management
@@ -68,7 +105,7 @@ function initializeFormValidation() {
     // Password confirmation validation
     const passwordInputs = document.querySelectorAll('input[name="confirm_password"]');
     passwordInputs.forEach(input => {
-        input.addEventListener('input', validatePasswordMatch);
+        // Validation moved to form submission to prevent premature error messages
     });
     
     // Form submission validation
@@ -99,8 +136,19 @@ function validateEmailRealTime(event) {
 }
 
 function validatePasswordMatch(event) {
+    if (!event || !event.target) return true;
+    
     const confirmPassword = event.target.value;
-    const password = document.querySelector('input[name="password"]').value;
+    const passwordElement = document.querySelector('input[name="password"]') || 
+                            document.querySelector('input[name="new_password"]') ||
+                            document.getElementById('new_password');
+    
+    if (!passwordElement) {
+        console.warn('Password element not found for matching');
+        return true;
+    }
+    
+    const password = passwordElement.value || '';
     
     if (confirmPassword && password !== confirmPassword) {
         showFieldError(event.target, 'Passwords do not match');
