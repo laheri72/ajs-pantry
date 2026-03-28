@@ -24,10 +24,15 @@ def dashboard():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
-    today = date.today()
+    
+    # IST is UTC+5:30
+    now_utc = datetime.utcnow()
+    ist_now = now_utc + timedelta(hours=5, minutes=30)
+    today = ist_now.date()
+    
     upcoming_until = today + timedelta(days=2)
-    since_dt = datetime.utcnow() - timedelta(days=2)
-    stars_since_dt = datetime.utcnow() - timedelta(days=7)
+    since_dt = now_utc - timedelta(days=2)
+    stars_since_dt = now_utc - timedelta(days=7)
     
     # Stats and restricted data
     is_privileged = user.role in ['admin', 'pantryHead']
@@ -64,9 +69,14 @@ def dashboard():
         ),
     }
 
+    # Upcoming Dish Logic: Show today's dish only if before 8 AM IST, else show next day's
+    dish_query_date = today
+    if ist_now.hour >= 8:
+        dish_query_date = today + timedelta(days=1)
+
     upcoming_dish = (
         tenant_filter(Menu.query).options(joinedload(Menu.dish)).filter_by(floor=floor)
-        .filter(Menu.date >= today)
+        .filter(Menu.date >= dish_query_date)
         .order_by(Menu.date.asc())
         .first()
     )
