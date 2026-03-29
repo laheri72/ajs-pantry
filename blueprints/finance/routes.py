@@ -131,10 +131,19 @@ def expenses():
         floor=floor, status='completed', bill_id=None
     ).order_by(ProcurementItem.created_at.desc()).all()
     
-    # Get all bills for this floor (PAGINATED)
+    # Get all bills for this floor (PAGINATED - ACTIVE ONLY)
     bills_page = request.args.get('bills_page', 1, type=int)
-    bills_pagination = tenant_filter(Bill.query).options(joinedload(Bill.items)).filter_by(floor=floor).order_by(Bill.bill_date.desc()).paginate(page=bills_page, per_page=15, error_out=False)
+    bills_pagination = tenant_filter(Bill.query).options(joinedload(Bill.items)).filter_by(
+        floor=floor, is_archived=False
+    ).order_by(Bill.bill_date.desc()).paginate(page=bills_page, per_page=15, error_out=False)
     bills = bills_pagination.items
+    
+    # Get all archived bills for this floor (PAGINATED)
+    archived_page = request.args.get('archived_page', 1, type=int)
+    archived_pagination = tenant_filter(Bill.query).options(joinedload(Bill.items)).filter_by(
+        floor=floor, is_archived=True
+    ).order_by(Bill.bill_date.desc()).paginate(page=archived_page, per_page=15, error_out=False)
+    archived_bills = archived_pagination.items
     
     # Get budget history
     budgets = tenant_filter(Budget.query).filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
@@ -178,6 +187,8 @@ def expenses():
         pending_procurements=pending_procurements,
         bills=bills,
         bills_pagination=bills_pagination,
+        archived_bills=archived_bills,
+        archived_pagination=archived_pagination,
         budgets=budgets,
         legacy_expenses=legacy_expenses,
         legacy_pagination=legacy_pagination,
@@ -204,6 +215,33 @@ def archive_bill(bill_id):
     status = "archived" if bill.is_archived else "restored"
     flash(f'Bill {bill.bill_no} has been {status}.', 'success')
     return redirect(url_for('finance.expenses'))
+
+@finance_bp.route('/bills/bulk-archive', methods=['POST'])
+def bulk_archive_bills():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    bill_ids = data.get('bill_ids', [])
+    
+    if not bill_ids:
+        return jsonify({'error': 'No bill IDs provided'}), 400
+
+    try:
+        bills = tenant_filter(Bill.query).filter(Bill.id.in_(bill_ids)).all()
+        archived_count = 0
+        for bill in bills:
+            # Floor check for PH
+            if user.role == 'admin' or bill.floor == user.floor:
+                bill.is_archived = True
+                archived_count += 1
+        
+        db.session.commit()
+        return jsonify({'success': True, 'count': archived_count})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @finance_bp.route('/bills/<int:bill_id>/delete', methods=['POST'])
 def delete_bill(bill_id):
