@@ -116,7 +116,11 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link py-1" id="recorded-tab" data-bs-toggle="tab"
-                                data-bs-target="#recorded-pane" type="button" role="tab">Bills History</button>
+                                data-bs-target="#recorded-pane" type="button" role="tab">Current Bills</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1" id="old-tab" data-bs-toggle="tab"
+                                data-bs-target="#old-pane" type="button" role="tab">Old bills</button>
                         </li>
                     </ul>
                 </div>
@@ -304,6 +308,114 @@
                                     {% endfor %}
                                     <li class="page-item {% if not bills_pagination.has_next %}disabled{% endif %}">
                                         <a class="page-link" href="{{ url_for('finance.expenses', bills_page=bills_pagination.next_num) if bills_pagination.has_next else '#' }}">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Old Bills Tab -->
+                    <div class="tab-pane fade" id="old-pane" role="tabpanel">
+                        <div class="accordion accordion-flush" id="oldBillsAccordion">
+                            {% for bill in archived_bills %}
+                            <div class="accordion-item border-bottom">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-3" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#old-bill-{{ bill.id }}">
+                                        <div class="d-flex justify-content-between w-100 align-items-center me-3">
+                                            <div>
+                                                <span class="fw-bold text-muted">#{{ bill.bill_no }}</span>
+                                                <span class="mx-2 text-muted">|</span>
+                                                <span>{{ bill.bill_date.strftime('%b %d, %Y') }}</span>
+                                                {% if bill.shop_name %}
+                                                <span class="mx-2 text-muted">&bull;</span>
+                                                <span class="small text-muted">{{ bill.shop_name }}</span>
+                                                {% endif %}
+                                                <span class="badge bg-secondary ms-2">Old</span>
+                                            </div>
+                                            <div class="fw-bold text-muted">&#8377;{{ "%.2f"|format(bill.total_amount) }}</div>
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div id="old-bill-{{ bill.id }}" class="accordion-collapse collapse"
+                                    data-bs-parent="#oldBillsAccordion">
+                                    <div class="accordion-body p-0">
+                                        <table class="table table-sm table-borderless bg-light mb-0">
+                                            <thead>
+                                                <tr class="small text-muted">
+                                                    <th class="ps-4">Item</th>
+                                                    <th>Qty</th>
+                                                    <th class="text-end pe-4">Cost</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for item in bill.items %}
+                                                <tr>
+                                                    <td class="ps-4">{{ item.item_name }}</td>
+                                                    <td>{{ item.quantity }}</td>
+                                                    <td class="text-end pe-4 fw-bold text-teal">
+                                                        &#8377;{{ "%.2f"|format(item.actual_cost or 0) }}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                            {% if is_manager %}
+                                            <tfoot>
+                                                <tr>
+                                                    <td colspan="3" class="text-end p-2 border-top">
+                                                        <div class="d-flex justify-content-end gap-3">
+                                                            <form action="{{ url_for('finance.archive_bill', bill_id=bill.id) }}"
+                                                                method="POST">
+                                                                <button type="submit" class="btn btn-sm btn-link text-teal text-decoration-none">
+                                                                    <i class="fas fa-undo-alt me-1"></i> Restore to History
+                                                                </button>
+                                                            </form>
+                                                            <form action="{{ url_for('finance.delete_bill_permanent', bill_id=bill.id) }}"
+                                                                method="POST"
+                                                                onsubmit="return confirm('PERMANENTLY DELETE this bill? This cannot be undone.')">
+                                                                <button type="submit"
+                                                                    class="btn btn-sm btn-link text-danger text-decoration-none fw-bold">
+                                                                    <i class="fas fa-trash-alt me-1"></i> Permanent Delete
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                            {% endif %}
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% if not archived_bills %}
+                            <div class="p-4 text-center text-muted">No old bills found.</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Archived Bills Pagination -->
+                        {% if archived_pagination and archived_pagination.pages > 1 %}
+                        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+                            <div class="small text-muted">
+                                Showing {{ (archived_pagination.page - 1) * archived_pagination.per_page + 1 }} to {{ [archived_pagination.page * archived_pagination.per_page, archived_pagination.total]|min }} of {{ archived_pagination.total }} old bills
+                            </div>
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item {% if not archived_pagination.has_prev %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('finance.expenses', archived_page=archived_pagination.prev_num) if archived_pagination.has_prev else '#' }}">Previous</a>
+                                    </li>
+                                    {% for page in archived_pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                                        {% if page %}
+                                            <li class="page-item {% if page == archived_pagination.page %}active{% endif %}">
+                                                <a class="page-link" href="{{ url_for('finance.expenses', archived_page=page) }}">{{ page }}</a>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <li class="page-item {% if not archived_pagination.has_next %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('finance.expenses', archived_page=archived_pagination.next_num) if archived_pagination.has_next else '#' }}">Next</a>
                                     </li>
                                 </ul>
                             </nav>
@@ -815,6 +927,9 @@
                                 <h6 class="fw-bold mb-0 text-teal"><i class="fas fa-receipt me-2"></i>Vouchers to Print After Report</h6>
 
                                 <div class="small text-muted mt-1">These bills will be printed as official purchase vouchers appended after the ledger &mdash; 10&ndash;15 per page.</div>
+                                <div class="mt-1" style="font-size: 0.7rem; color: #00796b; font-weight: 500;">
+                                    <i class="fas fa-info-circle me-1"></i> Tip: Don't select D-Mart Bills for vouchers if you already have physical copy available to save printing pages.
+                                </div>
 
                             </div>
 
@@ -828,11 +943,11 @@
 
                         </div>
 
-                        <div class="border rounded overflow-auto" style="max-height: 190px; background: #fafafa;">
+                        <div class="border rounded overflow-auto mb-3" style="max-height: 190px;">
 
                             {% for bill in active_bills_vch %}
 
-                            <div class="d-flex align-items-center px-3 py-2 border-bottom">
+                            <div class="d-flex align-items-center px-3 py-2 border-bottom bg-light">
 
                                 <div class="form-check me-3 mb-0">
 
@@ -908,6 +1023,52 @@
                     onclick="exportReportToExcel()">
                     <i class="fas fa-file-excel me-2"></i>Export to Excel
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Archive Confirmation Modal -->
+<div class="modal fade" id="archiveConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-teal text-white border-0 py-3">
+                <h5 class="modal-title fw-bold"><i class="fas fa-archive me-2"></i>Archive Used Bills?</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="mb-3 text-teal">
+                    <i class="fas fa-file-invoice-dollar fa-3x"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Clean up your workspace?</h5>
+                <p class="text-muted mb-0">Do you want to archive (hide) these bills for future reports? This keeps your Current Bills ledger clean and smooth.</p>
+            </div>
+            <div class="modal-footer border-0 p-3 justify-content-center">
+                <button type="button" class="btn btn-outline-secondary px-4 me-2" id="confirmArchiveNo">No, Keep Them</button>
+                <button type="button" class="btn btn-teal px-4" id="confirmArchiveYes">Yes, Archive</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom 'Are You Sure' Warning Modal -->
+<div class="modal fade" id="archiveWarningModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning text-dark border-0 py-3">
+                <h5 class="modal-title fw-bold"><i class="fas fa-exclamation-triangle me-2"></i>Are You Sure?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="mb-3 text-warning">
+                    <i class="fas fa-question-circle fa-3x"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Not Recommended!</h5>
+                <p class="text-muted mb-0">Will you really use these bills again? Keeping them visible makes report printing slower and more cluttered. We highly recommend archiving used bills.</p>
+            </div>
+            <div class="modal-footer border-0 p-3 justify-content-center">
+                <button type="button" class="btn btn-teal px-4 me-2" id="warningArchiveYes">Wait, Archive Them</button>
+                <button type="button" class="btn btn-outline-danger px-4" id="warningArchiveNo">I'm Sure, Skip</button>
             </div>
         </div>
     </div>
@@ -1501,7 +1662,15 @@
             w.document.close();
 
             w.focus();
-            setTimeout(function () { w.print(); w.close(); }, 700);
+            setTimeout(function () { 
+                w.print(); 
+                w.close(); 
+                
+                // AFTER PRINT: Trigger Auto-Archive Flow
+                setTimeout(() => {
+                    handlePostPrintArchival(checkedGroups);
+                }, 1000);
+            }, 700);
 
         } catch (error) {
             console.error(error);
@@ -1632,6 +1801,71 @@
         });
 
         return html;
+    }
+
+    async function handlePostPrintArchival(checkedGroups) {
+        if (!checkedGroups || checkedGroups.length === 0) return;
+        const billIds = Array.from(checkedGroups).map(cb => cb.getAttribute('data-bill-id'));
+
+        // First Confirmation Modal
+        const archiveModal = new bootstrap.Modal(document.getElementById('archiveConfirmModal'));
+        archiveModal.show();
+
+        const userAction = await new Promise((resolve) => {
+            document.getElementById('confirmArchiveYes').onclick = () => {
+                archiveModal.hide();
+                resolve('archive');
+            };
+            document.getElementById('confirmArchiveNo').onclick = () => {
+                archiveModal.hide();
+                resolve('warn');
+            };
+        });
+
+        if (userAction === 'archive') {
+            await bulkArchiveBills(billIds);
+        } else if (userAction === 'warn') {
+            // Second "Are you sure" Modal
+            const warningModal = new bootstrap.Modal(document.getElementById('archiveWarningModal'));
+            warningModal.show();
+
+            const finalAction = await new Promise((resolve) => {
+                document.getElementById('warningArchiveYes').onclick = () => {
+                    warningModal.hide();
+                    resolve('archive');
+                };
+                document.getElementById('warningArchiveNo').onclick = () => {
+                    warningModal.hide();
+                    resolve('skip');
+                };
+            });
+
+            if (finalAction === 'archive') {
+                await bulkArchiveBills(billIds);
+            }
+        }
+    }
+
+    async function bulkArchiveBills(billIds) {
+        try {
+            const response = await fetch('/bills/bulk-archive', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ bill_ids: billIds })
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert(`${result.count} bills have been moved to 'Old bills'.`);
+                window.location.reload();
+            } else {
+                // Silent fail or brief alert
+                console.error('Archive error:', result.error);
+            }
+        } catch (error) {
+            console.error('Archive error:', error);
+        }
     }
 
     async function exportReportToExcel() {
