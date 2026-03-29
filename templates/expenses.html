@@ -738,6 +738,13 @@
                                                                      <input type="number" step="0.01" id="review-total-amount-input" class="form-control form-control-sm text-end fw-bold">
                                                                  </td>
                                                              </tr>
+                                                             <tr>
+                                                                 <td colspan="3" class="text-start bg-light rounded-bottom">
+                                                                     <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addManualReviewItem()">
+                                                                         <i class="fas fa-plus me-1"></i> Add Missing Item
+                                                                     </button>
+                                                                 </td>
+                                                             </tr>
                                                          </tfoot>
                             
                         </table>
@@ -2059,7 +2066,7 @@
                 const bestMatch = unbilledItems.find(i => i.name.toLowerCase().includes(item.name.toLowerCase()) || item.name.toLowerCase().includes(i.name.toLowerCase()));
                 
                 tr.innerHTML = `<td>
-                                    <input type="text" class="form-control form-control-sm review-item-name" value="${item.name}" data-index="${index}">
+                                    <input type="text" class="form-control form-control-sm review-item-name" value="${item.name}" data-index="${index}" data-qty="${item.quantity}">
                                     <div class="text-muted" style="font-size: 0.75rem;">Qty: ${item.quantity}</div>
                                 </td>
                                 <td>
@@ -2092,6 +2099,41 @@
         }
     }
 
+    function addManualReviewItem() {
+        var tbody = document.getElementById('review-items-body');
+        var tr = document.createElement('tr');
+        
+        // Generate dropdown options from existing unbilledItems
+        const options = unbilledItems.map(i => `<option value="${i.id}">${i.name} (${i.quantity}) - ${i.status}</option>`).join('');
+
+        tr.innerHTML = `<td>
+                            <input type="text" class="form-control form-control-sm review-item-name" placeholder="Item Name" required>
+                            <input type="text" class="form-control form-control-sm review-item-qty mt-1" placeholder="Qty" value="1" style="max-width: 80px;" required>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm procurement-match-select">
+                                <option value="">-- Create as New --</option>
+                                ${options}
+                            </select>
+                            <button type="button" class="btn btn-sm btn-link text-danger p-0 mt-1" onclick="this.closest('tr').remove(); updateTotal();"><i class="fas fa-trash-alt me-1"></i>Remove</button>
+                        </td>
+                        <td class="text-end">
+                            <input type="number" step="0.01" class="form-control form-control-sm text-end review-item-cost" value="0.00" oninput="updateTotal()" required>
+                        </td>`;
+        tbody.appendChild(tr);
+    }
+
+    function updateTotal() {
+        let total = 0;
+        document.querySelectorAll('.review-item-cost').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        const totalInput = document.getElementById('review-total-amount-input');
+        if (totalInput) {
+            totalInput.value = total.toFixed(2);
+        }
+    }
+
     function saveImportedBill() {
         if (!currentImportedData) return;
 
@@ -2100,9 +2142,19 @@
         
         const rows = document.querySelectorAll('#review-items-body tr');
         rows.forEach(row => {
-            const name = row.querySelector('.review-item-name').value;
+            const nameEl = row.querySelector('.review-item-name');
+            if (!nameEl || !nameEl.value.trim()) return; // Skip empty rows
+            const name = nameEl.value;
             const cost = parseFloat(row.querySelector('.review-item-cost').value) || 0;
             const procId = row.querySelector('.procurement-match-select').value;
+            
+            let qty = '1';
+            const qtyInput = row.querySelector('.review-item-qty');
+            if (qtyInput) {
+                qty = qtyInput.value;
+            } else {
+                qty = nameEl.getAttribute('data-qty') || '1';
+            }
             
             if (procId) {
                 reconciliationData.push({
@@ -2113,7 +2165,7 @@
             } else {
                 newItemsData.push({
                     name: name,
-                    quantity: '1',
+                    quantity: qty,
                     cost: cost
                 });
             }

@@ -44,16 +44,22 @@ class DMartParser(BaseParser):
                 pass
 
         # 3. Extract Items
-        # New Format Strategy: Look for HSN (6-10 digits) followed by Particulars and the 5 numeric columns.
-        # We use re.finditer to find these blocks across the whole text.
-        # Pattern: [HSN] [MashedName] [Qty] [Rate] [Value] [Discount] [NetValue]
-        # Note: We allow newlines in the name section and handle the "no space" after HSN.
-        new_item_pattern = re.compile(
-            r'(\d{6,10})\s*(.*?)\s+(\d+(?:\.\d+)?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+\.\d{2})', 
-            re.DOTALL
+        # Self-Pickup / New Tax Invoice Format checks
+        # Format A: 5 numeric columns (Qty Rate Value Discount NetValue)
+        new_item_pattern_5col = re.compile(
+            r'(?m)^\s*(\d{6,14})\s*(.*?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})'
+        )
+        # Format B: 3 numeric columns (Qty Rate Value)
+        new_item_pattern_3col = re.compile(
+            r'(?m)^\s*(\d{6,14})\s*(.*?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})'
         )
         
-        matches = list(new_item_pattern.finditer(text))
+        matches = list(new_item_pattern_5col.finditer(text))
+        col_type = 5
+        if not matches:
+            matches = list(new_item_pattern_3col.finditer(text))
+            col_type = 3
+            
         if matches:
             for match in matches:
                 name_raw = match.group(2).strip()
@@ -64,10 +70,11 @@ class DMartParser(BaseParser):
                 if not name or "CGST@" in name or "SGST@" in name or "TOTAL" in name.upper():
                     continue
                     
+                cost_str = match.group(7) if col_type == 5 else match.group(5)
                 data.items.append({
                     'name': name,
                     'quantity': match.group(3),
-                    'cost': float(match.group(7))
+                    'cost': float(cost_str.replace(',', ''))
                 })
         
         # Fallback to Old Format if no items found with the new pattern
