@@ -200,10 +200,15 @@
                                     </td>
                                     <td class="text-end">
                                         {% if admin_user.id != current_user.id %}
+                                        <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Reset password to maskan1447 for this user?')">
+                                            <input type="hidden" name="action" value="reset_password">
+                                            <input type="hidden" name="user_id" value="{{ admin_user.id }}">
+                                            <button type="submit" class="btn btn-sm btn-link text-warning" title="Reset Password"><i class="fas fa-key"></i></button>
+                                        </form>
                                         <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this user?')">
                                             <input type="hidden" name="action" value="delete_user">
                                             <input type="hidden" name="user_id" value="{{ admin_user.id }}">
-                                            <button type="submit" class="btn btn-sm btn-link text-danger"><i class="fas fa-user-minus"></i></button>
+                                            <button type="submit" class="btn btn-sm btn-link text-danger" title="Delete User"><i class="fas fa-user-minus"></i></button>
                                         </form>
                                         {% endif %}
                                     </td>
