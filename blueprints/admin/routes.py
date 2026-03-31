@@ -268,6 +268,26 @@ def admin():
 
             flash('User deleted successfully', 'success')
             return redirect(url_for('admin_panel.admin'))
+
+        if action == 'reset_password':
+            try:
+                target_user_id = int(request.form.get('user_id') or '')
+            except Exception:
+                flash('Invalid user selected', 'error')
+                return redirect(url_for('admin_panel.admin'))
+            
+            target = tenant_filter(User.query).filter_by(id=target_user_id).first()
+            if not target:
+                flash('User not found', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
+            target.password_hash = generate_password_hash('maskan1447')
+            # Optional: if you want them to be forced to change it on next login, uncomment below
+            # target.is_first_login = True 
+            db.session.commit()
+
+            flash(f"Password for {target.full_name or target.email} has been reset to 'maskan1447'.", 'success')
+            return redirect(url_for('admin_panel.admin'))
             
     all_users = tenant_filter(User.query).all()
     
