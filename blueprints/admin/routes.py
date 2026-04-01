@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, session, g
 from werkzeug.security import generate_password_hash
 from app import db
-from models import User, Team, TeamMember, Announcement, Garamat, Budget, ProcurementItem, Expense, Feedback, Menu, TeaTask, Request, Suggestion
+from models import User, Team, TeamMember, Announcement, Garamat, Budget, ProcurementItem, Expense, Feedback, Menu, TeaTask, Request, Suggestion, Bill, FloorLendBorrow
 from datetime import datetime, date
 from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError
@@ -300,6 +300,15 @@ def admin():
     
     system_avg_rating = tenant_filter(db.session.query(func.avg(Feedback.rating))).scalar() or 0
     
+    # New metrics
+    now = datetime.utcnow()
+    first_of_month = date(now.year, now.month, 1)
+    
+    total_bills = tenant_filter(Bill.query).count()
+    menus_this_month = tenant_filter(Menu.query).filter(Menu.created_at >= first_of_month).count()
+    proc_items_this_month = tenant_filter(ProcurementItem.query).filter(ProcurementItem.created_at >= first_of_month).count()
+    pending_lend_borrows = tenant_filter(FloorLendBorrow.query).filter(FloorLendBorrow.status == 'pending').count()
+    
     floor_data = []
     for f in range(FLOOR_MIN, FLOOR_MAX + 1):
         # Fetch all pantry heads for this floor to handle multiple assignments
@@ -335,6 +344,10 @@ def admin():
         total_budget_all=total_budget_all,
         total_spent_all=total_spent_all,
         system_avg_rating=round(float(system_avg_rating), 1),
+        total_bills=total_bills,
+        menus_this_month=menus_this_month,
+        proc_items_this_month=proc_items_this_month,
+        pending_lend_borrows=pending_lend_borrows,
         floor_data=floor_data,
         current_user=user
     )
