@@ -373,6 +373,26 @@ body {
     color: var(--white);
 }
 
+.stat-card.bg-indigo {
+    background: linear-gradient(135deg, #3F51B5, #303F9F) !important;
+    color: var(--white);
+}
+
+.stat-card.bg-orange {
+    background: linear-gradient(135deg, #FF9800, #F57C00) !important;
+    color: var(--white);
+}
+
+.stat-card.bg-purple {
+    background: linear-gradient(135deg, #9C27B0, #7B1FA2) !important;
+    color: var(--white);
+}
+
+.stat-card.bg-info {
+    background: linear-gradient(135deg, #2196F3, #1976D2) !important;
+    color: var(--white);
+}
+
 .stat-icon {
     font-size: 2.5rem;
     margin-right: 1rem;

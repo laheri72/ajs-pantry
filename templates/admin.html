@@ -64,6 +64,46 @@
         </div>
     </div>
 
+    <!-- Operational System Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="stat-card bg-indigo h-100 text-white">
+                <div class="stat-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                <div class="stat-content">
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Total Verified Bills</p>
+                    <h3 class="fw-bold">{{ total_bills }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-info h-100 text-white">
+                <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-content">
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Menus (This Month)</p>
+                    <h3 class="fw-bold">{{ menus_this_month }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-orange h-100 text-white">
+                <div class="stat-icon"><i class="fas fa-truck-loading"></i></div>
+                <div class="stat-content">
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Procurement (Month)</p>
+                    <h3 class="fw-bold">{{ proc_items_this_month }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card bg-purple h-100 text-white">
+                <div class="stat-icon"><i class="fas fa-handshake-slash"></i></div>
+                <div class="stat-content">
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Pending Borrowings</p>
+                    <h3 class="fw-bold">{{ pending_lend_borrows }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Floor-wise Analytics Table -->
     <div class="row mb-4">
         <div class="col-12">
