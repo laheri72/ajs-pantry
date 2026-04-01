@@ -22,8 +22,8 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}?v=1.2">
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -165,12 +165,17 @@
     <!-- Main Content -->
     <main class="{% if current_user %}main-content{% endif %}">
         <!-- Modern Floating Flash Messages -->
+        <style>
+            .flash-toast { min-width: 300px; }
+            .flash-toast-success { border-left: 5px solid #2E7D32 !important; }
+            .flash-toast-error { border-left: 5px solid #C62828 !important; }
+        </style>
         <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show shadow-lg mb-3 auto-dismiss"
-                    role="alert" style="min-width: 300px; border-left: 5px solid {{ '#C62828' if category == 'error' else '#2E7D32' }};">
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show shadow-lg mb-3 auto-dismiss flash-toast flash-toast-{{ 'error' if category == 'error' else 'success' }}"
+                    role="alert">
                     <div class="d-flex align-items-center">
                         <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-3 fs-4"></i>
                         <div>{{ message }}</div>

@@ -353,6 +353,26 @@ body {
     transform: translateY(-2px);
 }
 
+.bg-indigo {
+    background: linear-gradient(135deg, #3F51B5, #303F9F) !important;
+    color: var(--white) !important;
+}
+
+.bg-orange {
+    background: linear-gradient(135deg, #FF9800, #F57C00) !important;
+    color: var(--white) !important;
+}
+
+.bg-purple {
+    background: linear-gradient(135deg, #9C27B0, #7B1FA2) !important;
+    color: var(--white) !important;
+}
+
+.bg-info-custom {
+    background: linear-gradient(135deg, #2196F3, #1976D2) !important;
+    color: var(--white) !important;
+}
+
 .stat-card.bg-primary {
     background: linear-gradient(135deg, var(--info), #1976D2) !important;
     color: var(--white);
