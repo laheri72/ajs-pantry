@@ -433,13 +433,22 @@
             <div class="card-header bg-white py-3">
                 <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-teal"></i>Budget Timeline</h5>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
                 <div class="list-group list-group-flush">
                     {% for b in budgets %}
                     <div class="list-group-item">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="badge bg-teal-light text-teal">{{ b.allocation_type.title() }}</span>
-                            <span class="fw-bold text-success">+&#8377;{{ b.amount_allocated }}</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-success">+&#8377;{{ b.amount_allocated }}</span>
+                                {% if is_manager %}
+                                <form action="{{ url_for('finance.delete_budget', budget_id=b.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this budget entry? This will affect the remaining balance.');">
+                                    <button type="submit" class="btn btn-sm btn-link text-danger p-0 ms-1" title="Delete Budget">
+                                        <i class="fas fa-trash-alt small"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="small text-muted">
                             From {{ b.start_date.strftime('%b %d') }} {% if b.end_date %}to {{ b.end_date.strftime('%b
@@ -512,7 +521,12 @@
                 <h5 class="modal-title fw-bold">Allocate Budget (Floor {{ active_floor }})</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ url_for('finance.add_budget') }}" method="POST">
+            <form action="{{ url_for('finance.add_budget') }}" method="POST" onsubmit="
+                const btn = this.querySelector('button[type=submit]');
+                btn.disabled = true;
+                btn.innerHTML = '<i class=\'fas fa-spinner fa-spin me-1\'></i>Allocating...';
+                return true;
+            ">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Amount Allocated (&#8377;)</label>
