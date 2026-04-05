@@ -18,6 +18,10 @@
     <div class="col-lg-5">
         <div class="faculty-card p-4 h-100">
             <h5 class="fw-bold mb-3">Submission Snapshot</h5>
+            {% if submission.print_report %}
+            <div class="small text-muted mb-2">Saved Print Report</div>
+            <div class="mb-3">{{ submission.print_report.report_title }}</div>
+            {% endif %}
             <div class="small text-muted mb-2">Status</div>
             <div class="mb-3">
                 <span class="badge {% if submission.status == 'verified' %}bg-success{% elif submission.status == 'rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
@@ -43,7 +47,7 @@
         </div>
     </div>
     <div class="col-lg-7">
-        <div class="faculty-card p-4 mb-4">
+        <div class="faculty-card p-4">
             <h5 class="fw-bold mb-3">Linked Bills</h5>
             <div class="table-responsive">
                 <table class="table align-middle">
@@ -65,31 +69,6 @@
                         </tr>
                         {% else %}
                         <tr><td colspan="4" class="text-muted">No bill rows linked.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="faculty-card p-4">
-            <h5 class="fw-bold mb-3">Linked Legacy Expenses</h5>
-            <div class="table-responsive">
-                <table class="table align-middle">
-                    <thead class="small text-uppercase text-muted">
-                        <tr>
-                            <th>Description</th>
-                            <th>Date</th>
-                            <th class="text-end">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for expense in linked_expenses %}
-                        <tr>
-                            <td>{{ expense.description }}</td>
-                            <td>{{ expense.date.strftime('%d %b %Y') }}</td>
-                            <td class="text-end">&#8377;{{ "%.2f"|format(expense.amount) }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="3" class="text-muted">No legacy expense rows linked.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

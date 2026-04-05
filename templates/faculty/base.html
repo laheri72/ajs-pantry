@@ -103,6 +103,9 @@
                 <a class="nav-link {% if request.endpoint == 'faculty.cycles' or request.endpoint == 'faculty.cycle_detail' %}active{% endif %}" href="{{ url_for('faculty.cycles') }}">
                     <i class="fas fa-layer-group me-2"></i> Budget Cycles
                 </a>
+                <a class="nav-link {% if request.endpoint == 'faculty.profile' %}active{% endif %}" href="{{ url_for('faculty.profile') }}">
+                    <i class="fas fa-user-gear me-2"></i> Profile
+                </a>
             </nav>
             <div class="mt-4 pt-4 border-top border-light border-opacity-10">
                 <div class="small text-white-50 mb-2">Signed in as</div>

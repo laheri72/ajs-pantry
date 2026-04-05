@@ -1,0 +1,60 @@
+{% extends "faculty/base.html" %}
+
+{% block title %}Faculty Profile - AJS Pantry{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-8">
+        <div class="faculty-card p-4 p-md-5">
+            <div class="mb-4">
+                <h2 class="fw-bold mb-1">Faculty Profile</h2>
+                <div class="text-muted">Update your details and reset your password from inside the Faculty portal.</div>
+            </div>
+            <form method="POST">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Full Name</label>
+                        <input type="text" class="form-control rounded-4" name="full_name" value="{{ user.full_name or '' }}" placeholder="Enter your full name">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Phone Number</label>
+                        <input type="text" class="form-control rounded-4" name="phone_number" value="{{ user.phone_number or '' }}" placeholder="Enter your phone number">
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Email</label>
+                        <input type="text" class="form-control rounded-4" value="{{ user.email }}" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">TR Number</label>
+                        <input type="text" class="form-control rounded-4" value="{{ user.tr_number or 'N/A' }}" readonly>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Role</label>
+                        <input type="text" class="form-control rounded-4" value="Faculty" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Scope</label>
+                        <input type="text" class="form-control rounded-4" value="Cross-floor tenant finance" readonly>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">New Password</label>
+                    <input type="password" class="form-control rounded-4" name="new_password" placeholder="Leave blank to keep your current password">
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-success rounded-pill px-4">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -258,6 +258,7 @@ class FacultyBudgetCycle(db.Model, TenantMixin):
 class FacultyReportSubmission(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     cycle_id = db.Column(db.Integer, db.ForeignKey('faculty_budget_cycle.id'), nullable=False, index=True)
+    print_report_id = db.Column(db.Integer, db.ForeignKey('expense_print_report.id'), nullable=True, index=True)
     floor = db.Column(db.Integer, nullable=False, index=True)
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     report_title = db.Column(db.String(150), nullable=False)
@@ -277,8 +278,42 @@ class FacultyReportSubmission(db.Model, TenantMixin):
 
     uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
     verified_by = db.relationship('User', foreign_keys=[verified_by_id])
+    print_report = db.relationship('ExpensePrintReport', foreign_keys=[print_report_id])
     bills = db.relationship('Bill', backref='report_submission', lazy=True)
     expenses = db.relationship('Expense', backref='report_submission', lazy=True)
+
+
+class ExpensePrintReport(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    cycle_id = db.Column(db.Integer, db.ForeignKey('faculty_budget_cycle.id'), nullable=True, index=True)
+    floor = db.Column(db.Integer, nullable=False, index=True)
+    report_title = db.Column(db.String(150), nullable=False)
+    report_budget = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    total_spent = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    remaining_balance = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    cycle = db.relationship('FacultyBudgetCycle', foreign_keys=[cycle_id])
+    bill_links = db.relationship(
+        'ExpensePrintReportBill',
+        backref=db.backref('print_report', lazy=True),
+        cascade='all, delete-orphan',
+        lazy=True,
+    )
+
+
+class ExpensePrintReportBill(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    print_report_id = db.Column(db.Integer, db.ForeignKey('expense_print_report.id'), nullable=False, index=True)
+    bill_id = db.Column(db.Integer, db.ForeignKey('bill.id'), nullable=False, index=True)
+    include_in_summary = db.Column(db.Boolean, nullable=False, default=False)
+    include_as_voucher = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    bill = db.relationship('Bill', foreign_keys=[bill_id])
 
 
 class FloorLendBorrow(db.Model, TenantMixin):

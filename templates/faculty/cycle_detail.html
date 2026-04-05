@@ -19,6 +19,9 @@
             <button class="btn btn-outline-dark rounded-pill px-4">Close Cycle</button>
         </form>
         {% endif %}
+        <form method="POST" action="{{ url_for('faculty.delete_cycle', cycle_id=cycle.id) }}" onsubmit="return confirm('Delete this cycle and all its budgets, saved print reports, linked submissions, and stored PDFs? This cannot be undone.');">
+            <button class="btn btn-outline-danger rounded-pill px-4">Delete Cycle</button>
+        </form>
     </div>
 </div>
 
