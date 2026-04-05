@@ -4,8 +4,9 @@
 
 AJS Pantry is a production-hardened, multi-tenant Flask web application designed to manage pantry operations (menus, tea tasks, expenses, feedback, procurement) across multiple residential or office floors.
 
-The system provides **role-based access control (RBAC)** with five primary roles:
+The system provides **role-based access control (RBAC)** with six primary roles:
 *   **Super Admin:** Platform-level management and tenant provisioning.
+*   **Faculty:** Tenant-wide finance office role for budget cycles and report verification.
 *   **Admin:** System-wide management for a specific tenant.
 *   **Pantry Head:** Floor-level management (Menus, Procurement, Penalties).
 *   **Tea Manager:** Specialized floor role for tea duty scheduling.
@@ -49,9 +50,10 @@ User → Firebase Hosting Domain → HTTPS (Let’s Encrypt)
     *   `auth/` → Session management and user security.
     *   `pantry/` → Menus, Calendar, Dishes, and Community Board.
     *   `finance/` → Expenses, Bills, Budgets, and Receipt OCR.
-    *   `ops/` → Tea Tasks, Procurement, and User Requests.
-    *   `admin/` → PH/Admin controls, Teams, and Penalties.
-    *   `super_admin/` → SaaS Platform management.
+*   `ops/` → Tea Tasks, Procurement, and User Requests.
+*   `admin/` → PH/Admin controls, Teams, and Penalties.
+*   `faculty/` → Faculty portal, cycle management, report review, and floor submissions.
+*   `super_admin/` → SaaS Platform management.
 *   `migrations/` → DB version history (managed via `flask db`).
 *   `static/` → PWA assets, dark theme overrides, and core `script.js`.
 *   `templates/` → Organized Jinja2 views matching blueprint domains.
@@ -93,6 +95,14 @@ Integrated PWA Push system using VAPID keys. Notifications are triggered server-
 *   **N+1 Prevention:** Core routes (`Dashboard`, `People`, `Calendar`) must use `joinedload` for related entities (Users, Teams, Dishes).
 *   **DB Indexing:** `tenant_id` and `floor` are indexed on all primary tables to ensure sub-100ms response times.
 *   **Logging:** Level set to `INFO` in production to prevent disk bloat while maintaining auditability.
+
+---
+
+## 7A. Current Memory Context
+
+For the full Faculty rollout, storage notes, auth edge cases, print-report submission flow, combined Feedbacks page, and mobile Faculty portal changes, read:
+
+*   `FACULTY_REVAMP_MEMORY.md`
 
 ---
 

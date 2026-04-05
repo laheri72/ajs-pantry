@@ -54,10 +54,10 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/special-events/<id>/delete`| `delete_special_event` | POST | Remove a special event |
 | `/menus` | `menus` | GET, POST | View/Manage daily breakfast plans |
 | `/menus/<id>/delete` | `delete_menu` | POST | Remove a menu entry |
-| `/suggestions` | `suggestions` | GET, POST | Community idea board |
+| `/suggestions` | `suggestions` | GET, POST | Backward-compatible suggestion endpoint; GET redirects into the combined Feedbacks page |
 | `/suggestions/<id>/vote`| `vote_suggestion` | POST | Upvote/Toggle ideas |
 | `/suggestions/<id>/delete`| `delete_suggestion`| POST | Remove an idea |
-| `/feedbacks` | `feedbacks` | GET, POST | Meal rating and performance feedback |
+| `/feedbacks` | `feedbacks` | GET, POST | Combined feedback hub for meal evaluations plus suggestions |
 | `/feedbacks/<id>/delete` | `delete_feedback` | POST | Remove evaluation |
 
 ---
@@ -69,7 +69,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 |:---|:---|:---|:---|
 | `/expenses` | `expenses` | GET, POST | Financial ledger and bill recording |
 | `/bills/<id>/delete` | `delete_bill` | POST | Remove a bill & revert items to pending |
-| `/budgets/add` | `add_budget` | POST | Allocate funds to a floor |
+| `/budgets/add` | `add_budget` | POST | Disabled floor-side budget allocation endpoint (Faculty now owns allocations) |
 | `/expenses/<id>/delete` | `delete_expense` | POST | Remove legacy expense entry |
 | `/lend-borrow` | `lend_borrow` | GET | Inter-floor item lending dashboard |
 | `/lend-borrow/create` | `create_lend_borrow` | POST | Log a new lending transaction |
