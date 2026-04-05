@@ -28,7 +28,13 @@
     </div>
 
     <!-- Calendar Grid -->
-    <div class="calendar-container">
+    <div class="calendar-container" id="calendarGridContainer"
+         data-year="{{ current_year }}"
+         data-month="{{ current_month }}"
+         data-user-role="{{ current_user.role }}"
+         data-menus="{{ menus | tojson | forceescape }}"
+         data-tea-tasks="{{ tea_tasks | tojson | forceescape }}"
+         data-special-events="{{ special_events | tojson | forceescape }}">
         <div class="calendar-header">
             <div class="calendar-day-header">Sun</div>
             <div class="calendar-day-header">Mon</div>
@@ -226,10 +232,15 @@
 </style>
 
 <script>
-let currentDate = new Date({{ current_year }}, {{ current_month }} - 1, 1);
-const menus = {{ menus | tojson }};
-const teaTasks = {{ tea_tasks | tojson }};
-const specialEvents = {{ special_events | tojson }};
+const calContainer = document.getElementById('calendarGridContainer');
+const currentYear = parseInt(calContainer.dataset.year);
+const currentMonth = parseInt(calContainer.dataset.month);
+const currentUserRole = calContainer.dataset.userRole;
+
+let currentDate = new Date(currentYear, currentMonth - 1, 1);
+const menus = JSON.parse(calContainer.dataset.menus);
+const teaTasks = JSON.parse(calContainer.dataset.teaTasks);
+const specialEvents = JSON.parse(calContainer.dataset.specialEvents);
 
 function showEventDetail(type, data) {
     const modalElement = document.getElementById('eventDetailModal');
@@ -462,16 +473,16 @@ function generateCalendar(year, month) {
                 dayCell.appendChild(event);
             });
 
-            {% if current_user.role in ['admin', 'pantryHead'] %}
-            dayCell.onclick = () => {
-                selectedActionDate = dateStr;
-                const dObj = new Date(dateStr + 'T00:00:00');
-                document.getElementById('actionDateDisplay').textContent = dObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                const modal = new bootstrap.Modal(document.getElementById('actionSelectModal'));
-                modal.show();
-            };
-            dayCell.style.cursor = 'pointer';
-            {% endif %}
+            if (['admin', 'pantryHead'].includes(currentUserRole)) {
+                dayCell.onclick = () => {
+                    selectedActionDate = dateStr;
+                    const dObj = new Date(dateStr + 'T00:00:00');
+                    document.getElementById('actionDateDisplay').textContent = dObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    const modal = new bootstrap.Modal(document.getElementById('actionSelectModal'));
+                    modal.show();
+                };
+                dayCell.style.cursor = 'pointer';
+            }
 
             weekRow.appendChild(dayCell);
         }
@@ -485,8 +496,8 @@ function generateCalendar(year, month) {
 }
 
 function previousMonth() {
-    let month = {{ current_month }};
-    let year = {{ current_year }};
+    let month = currentMonth;
+    let year = currentYear;
     month--;
     if (month < 1) {
         month = 12;
@@ -496,8 +507,8 @@ function previousMonth() {
 }
 
 function nextMonth() {
-    let month = {{ current_month }};
-    let year = {{ current_year }};
+    let month = currentMonth;
+    let year = currentYear;
     month++;
     if (month > 12) {
         month = 1;
