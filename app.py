@@ -129,13 +129,25 @@ def enforce_tenancy():
     if request.endpoint in public_endpoints or (request.endpoint and request.endpoint.startswith('static')) or request.path.startswith('/platform-admin'):
         return
 
+    shared_staff_endpoints = {'faculty.reports_page', 'faculty.download_floor_submission'}
+    is_faculty_route = bool(
+        request.endpoint
+        and request.endpoint.startswith('faculty.')
+        and request.endpoint not in shared_staff_endpoints
+    )
+
     user_id = session.get("user_id")
     if user_id:
         from models import User, Tenant
         user = User.query.get(user_id)
         
         if not user:
+            was_faculty = session.get('role') == 'faculty' or is_faculty_route or request.path.startswith('/faculty')
             session.clear()
+            if was_faculty:
+                from flask import flash
+                flash('Your Faculty session expired. Please sign in again.', 'error')
+                return redirect(url_for('faculty.login'))
             return redirect(url_for('auth.login'))
 
         # Super Admin Bypass (tenant_id is NULL)
@@ -155,6 +167,11 @@ def enforce_tenancy():
         g.tenant_name = tenant.name
         g.is_super_admin = False
         session['tenant_id'] = str(user.tenant_id)
+    elif is_faculty_route or request.path.startswith('/faculty'):
+        from flask import flash
+        session.clear()
+        flash('Your Faculty session expired. Please sign in again.', 'error')
+        return redirect(url_for('faculty.login'))
 
 @app.context_processor
 def inject_current_user():

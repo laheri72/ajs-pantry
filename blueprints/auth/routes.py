@@ -172,6 +172,9 @@ def profile():
 
 @auth_bp.route('/logout')
 def logout():
+    was_faculty = session.get('role') == 'faculty'
     session.clear()
     flash('Logged out successfully', 'success')
+    if was_faculty:
+        return redirect(url_for('faculty.login'))
     return redirect(url_for('auth.login'))
