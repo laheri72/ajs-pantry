@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Reports Submission - AJS Pantry{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+        <div>
+            <h2 class="fw-bold text-teal"><i class="fas fa-file-upload me-2"></i>Faculty Report Submission</h2>
+            <div class="text-muted">Upload the final combined PDF generated from Expenses, then link the vouchers and legacy rows included in it.</div>
+        </div>
+        <a href="{{ url_for('finance.expenses') }}" class="btn btn-outline-teal rounded-pill px-4">
+            <i class="fas fa-print me-2"></i>Open Expenses Report Tool
+        </a>
+    </div>
+
+    {% if active_cycle and allocation %}
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="stat-card bg-primary h-100">
+                <div class="stat-content">
+                    <p class="text-uppercase small fw-bold mb-1 opacity-75">Allocated Budget</p>
+                    <h3 class="fw-bold mb-0">&#8377;{{ "%.2f"|format(allocation.amount_allocated) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card bg-warning h-100 text-white">
+                <div class="stat-content">
+                    <p class="text-uppercase small fw-bold mb-1 opacity-75">Submission Deadline</p>
+                    <h3 class="fw-bold mb-0">{{ active_cycle.submission_deadline.strftime('%d %b %Y') }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card {% if submission and submission.status == 'verified' %}bg-success{% else %}bg-info-custom{% endif %} h-100 text-white">
+                <div class="stat-content">
+                    <p class="text-uppercase small fw-bold mb-1 opacity-75">Current Status</p>
+                    <h3 class="fw-bold mb-0">{{ submission.status|title if submission else 'Awaiting Upload' }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-light border rounded-4 mb-4">
+        <div class="fw-bold mb-1">{{ active_cycle.title }}</div>
+        <div class="small text-muted mb-1">Term: {{ active_cycle.start_date.strftime('%d %b %Y') }} to {{ active_cycle.end_date.strftime('%d %b %Y') }}</div>
+        <div class="small text-muted">Faculty Note: {{ allocation.faculty_note or 'No faculty note added for this floor.' }}</div>
+        {% if submission %}
+        <div class="small mt-2"><a href="{{ url_for('faculty.download_floor_submission', submission_id=submission.id) }}" class="text-decoration-none">Download current submitted PDF</a></div>
+        {% endif %}
+        {% if submission and submission.review_notes %}
+        <hr>
+        <div class="small"><strong>Latest Faculty Review:</strong> {{ submission.review_notes }}</div>
+        {% endif %}
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+            {% if submission and submission.status == 'verified' %}
+            <div class="alert alert-success rounded-4 mb-0">
+                This report has already been verified by Faculty. No further upload is required for this cycle.
+            </div>
+            {% else %}
+            <form method="POST" enctype="multipart/form-data">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Report Title</label>
+                        <input name="report_title" class="form-control rounded-4" value="{{ submission.report_title if submission else active_cycle.title ~ ' - Floor ' ~ active_floor }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Combined PDF</label>
+                        <input type="file" name="report_pdf" accept=".pdf,application/pdf" class="form-control rounded-4" required>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Submission Notes</label>
+                    <textarea name="submission_notes" class="form-control rounded-4" rows="3" placeholder="Optional note for Faculty">{{ submission.submission_notes if submission and submission.status == 'rejected' else '' }}</textarea>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <div class="fw-bold mb-3">Bills Included In This PDF</div>
+                            <div style="max-height: 320px; overflow-y: auto;">
+                                {% for bill in selectable_bills %}
+                                <label class="d-flex align-items-center justify-content-between border rounded-4 p-3 mb-2">
+                                    <div>
+                                        <div class="fw-bold">#{{ bill.bill_no }}</div>
+                                        <div class="small text-muted">{{ bill.bill_date.strftime('%d %b %Y') }} • {{ bill.shop_name or 'N/A' }}</div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="small fw-bold">&#8377;{{ "%.2f"|format(bill.total_amount) }}</span>
+                                        <input type="checkbox" name="bill_ids" value="{{ bill.id }}" {% if submission and bill.report_submission_id == submission.id %}checked{% endif %}>
+                                    </div>
+                                </label>
+                                {% else %}
+                                <div class="text-muted small">No eligible bills available.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="border rounded-4 p-3 h-100">
+                            <div class="fw-bold mb-3">Legacy Expenses Included</div>
+                            <div style="max-height: 320px; overflow-y: auto;">
+                                {% for expense in selectable_expenses %}
+                                <label class="d-flex align-items-center justify-content-between border rounded-4 p-3 mb-2">
+                                    <div>
+                                        <div class="fw-bold">{{ expense.description }}</div>
+                                        <div class="small text-muted">{{ expense.date.strftime('%d %b %Y') }}</div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="small fw-bold">&#8377;{{ "%.2f"|format(expense.amount) }}</span>
+                                        <input type="checkbox" name="expense_ids" value="{{ expense.id }}" {% if submission and expense.report_submission_id == submission.id %}checked{% endif %}>
+                                    </div>
+                                </label>
+                                {% else %}
+                                <div class="text-muted small">No eligible legacy expenses available.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-end">
+                    <button class="btn btn-teal rounded-pill px-4">
+                        <i class="fas fa-paper-plane me-2"></i>{% if submission and submission.status == 'rejected' %}Re-submit to Faculty{% else %}Submit to Faculty{% endif %}
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light border rounded-4">
+        No active Faculty cycle is available for this floor yet. Once Faculty activates a budget cycle, the report submission form will appear here.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

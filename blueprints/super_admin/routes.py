@@ -3,7 +3,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from app import db
 from models import User, Tenant, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow
 from . import super_admin_bp
-from ..utils import require_super_admin
+from ..utils import require_super_admin, visible_budget_condition
 from sqlalchemy import func
 from datetime import datetime, timedelta
 
@@ -44,7 +44,9 @@ def dashboard():
     active_infrastructure = db.session.query(func.sum(Tenant.floor_count)).scalar() or 0
     
     # 2. Financial Utilization
-    total_budget = db.session.query(func.sum(Budget.amount_allocated)).scalar() or 0
+    total_budget = db.session.query(func.sum(Budget.amount_allocated)).filter(
+        visible_budget_condition()
+    ).scalar() or 0
     total_spent_proc = db.session.query(func.sum(ProcurementItem.actual_cost)).filter(ProcurementItem.status == 'completed').scalar() or 0
     total_spent_legacy = db.session.query(func.sum(Expense.amount)).scalar() or 0
     total_spent = float(total_spent_proc or 0) + float(total_spent_legacy or 0)
@@ -167,6 +169,7 @@ def tenant_detail(tenant_id):
     require_super_admin()
     tenant = Tenant.query.get_or_404(tenant_id)
     users = User.query.filter_by(tenant_id=tenant_id).order_by(User.role.asc()).all()
+    faculty_user = User.query.filter_by(tenant_id=tenant_id, role='faculty').first()
     
     floor_stats = []
     for f in range(1, tenant.floor_count + 1):
@@ -174,7 +177,7 @@ def tenant_detail(tenant_id):
         m_count = Menu.query.filter_by(tenant_id=tenant_id, floor=f).count()
         floor_stats.append({'floor': f, 'users': u_count, 'menus': m_count})
         
-    return render_template('super_admin/tenant_view.html', tenant=tenant, users=users, floor_stats=floor_stats)
+    return render_template('super_admin/tenant_view.html', tenant=tenant, users=users, floor_stats=floor_stats, faculty_user=faculty_user)
 
 @super_admin_bp.route('/platform-admin/tenants/provision', methods=['POST'])
 def provision_tenant():
@@ -232,3 +235,78 @@ def toggle_tenant(tenant_id):
     log_platform_action('toggle_tenant', f'Set tenant "{tenant.name}" to {status}.')
     db.session.commit()
     return redirect(request.referrer or url_for('super_admin.dashboard'))
+
+
+@super_admin_bp.route('/platform-admin/tenants/<uuid:tenant_id>/faculty', methods=['POST'])
+def manage_faculty(tenant_id):
+    require_super_admin()
+    tenant = Tenant.query.get_or_404(tenant_id)
+    action = (request.form.get('action') or 'provision').strip()
+    faculty_user = User.query.filter_by(tenant_id=tenant_id, role='faculty').first()
+
+    email = (request.form.get('faculty_email') or '').strip()
+    if email and '@' not in email:
+        email = f"{email}@jameasaifiyah.edu"
+    password = (request.form.get('faculty_password') or '').strip()
+    full_name = (request.form.get('faculty_name') or '').strip() or None
+    tr_number = (request.form.get('faculty_tr_number') or '').strip() or None
+
+    if action == 'provision':
+        if faculty_user:
+            flash('A Faculty account already exists for this tenant.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+        if not email or not password:
+            flash('Faculty email and password are required.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+        if User.query.filter(User.email == email).first():
+            flash('That Faculty email is already in use.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+        if tr_number and User.query.filter(User.tr_number == tr_number).first():
+            flash('That Faculty TR number is already in use.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+        faculty_user = User(
+            email=email,
+            password_hash=generate_password_hash(password),
+            role='faculty',
+            floor=None,
+            is_verified=True,
+            is_first_login=True,
+            full_name=full_name,
+            tr_number=tr_number,
+            tenant_id=tenant.id,
+        )
+        db.session.add(faculty_user)
+        db.session.commit()
+        log_platform_action('provision_faculty', f'Provisioned Faculty account for tenant "{tenant.name}".')
+        flash('Faculty account provisioned successfully.', 'success')
+        return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+    if action == 'reset_password':
+        if not faculty_user:
+            flash('No Faculty account exists for this tenant yet.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+        if not password:
+            flash('Please provide a new Faculty password.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+        faculty_user.password_hash = generate_password_hash(password)
+        faculty_user.is_first_login = True
+        if email and email != faculty_user.email:
+            if User.query.filter(User.email == email, User.id != faculty_user.id).first():
+                flash('That Faculty email is already in use.', 'error')
+                return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+            faculty_user.email = email
+        if tr_number and tr_number != faculty_user.tr_number:
+            if User.query.filter(User.tr_number == tr_number, User.id != faculty_user.id).first():
+                flash('That Faculty TR number is already in use.', 'error')
+                return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+            faculty_user.tr_number = tr_number
+        faculty_user.full_name = full_name or faculty_user.full_name
+        db.session.commit()
+        log_platform_action('reset_faculty_password', f'Reset Faculty password for tenant "{tenant.name}".')
+        flash('Faculty password reset successfully.', 'success')
+        return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+    flash('Invalid Faculty action.', 'error')
+    return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))

@@ -33,7 +33,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-teal fixed-top">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('pantry.dashboard') }}">
+            <a class="navbar-brand" href="{{ url_for('faculty.dashboard') if current_user.role == 'faculty' else url_for('pantry.dashboard') }}">
                 <i class="fas fa-utensils me-2"></i>{% if tenant_name %}{{ tenant_name }}{% else %}Maskan Breakfast{% endif %}
             </a>
 
@@ -43,6 +43,18 @@
 
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
+                    {% if current_user.role == 'faculty' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('faculty.dashboard') }}">
+                            <i class="fas fa-chart-line"></i> Faculty Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('faculty.cycles') }}">
+                            <i class="fas fa-layer-group"></i> Budget Cycles
+                        </a>
+                    </li>
+                    {% else %}
                     {% if is_super_admin %}
                     <li class="nav-item">
                         <a class="nav-link text-warning fw-bold" href="{{ url_for('super_admin.dashboard') }}">
@@ -83,6 +95,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('finance.expenses') }}">
                             <i class="fas fa-money-bill"></i> Expenses
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('faculty.reports_page') }}">
+                            <i class="fas fa-file-upload"></i> Reports
                         </a>
                     </li>
                     {% endif %}
@@ -127,6 +144,7 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% endif %}
                 </ul>
 
                 {% if current_user.role == 'admin' %}
@@ -147,6 +165,10 @@
                             <i class="fas fa-user-circle"></i> {{ display_name }}
                         </a>
                         <ul class="dropdown-menu">
+                            {% if current_user.role == 'faculty' %}
+                            <li><a class="dropdown-item" href="{{ url_for('faculty.dashboard') }}">Faculty Portal</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
                             <li>
                                 <hr class="dropdown-divider">

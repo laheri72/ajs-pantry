@@ -14,7 +14,8 @@ from ..utils import (
     send_push_notification,
     send_email_notification,
     FLOOR_MIN,
-    FLOOR_MAX
+    FLOOR_MAX,
+    visible_budget_condition,
 )
 
 @pantry_bp.route('/dashboard')
@@ -251,7 +252,8 @@ def dashboard():
         active_budgets = tenant_filter(Budget.query).filter(
             Budget.floor == floor,
             Budget.start_date <= end_of_week,
-            or_(Budget.end_date >= start_of_week, Budget.end_date.is_(None))
+            or_(Budget.end_date >= start_of_week, Budget.end_date.is_(None)),
+            visible_budget_condition(),
         ).all()
         
         if active_budgets:

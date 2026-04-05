@@ -27,6 +27,10 @@ if not app.secret_key:
 # Session Security for Shared PCs
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
 app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+app.config["REPORT_STORAGE_ROOT"] = os.environ.get(
+    "REPORT_STORAGE_ROOT",
+    os.path.join(os.path.expanduser("~"), "ajs-pantry-data", "reports")
+)
 
 def get_db_url():
     # Read both possible env names
@@ -121,7 +125,7 @@ from blueprints.utils import _get_current_user, _get_active_floor, _display_name
 @app.before_request
 def enforce_tenancy():
     # Public routes and Platform Admin portal
-    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login', 'send_email']
+    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login', 'faculty.login', 'send_email']
     if request.endpoint in public_endpoints or (request.endpoint and request.endpoint.startswith('static')) or request.path.startswith('/platform-admin'):
         return
 
@@ -164,7 +168,8 @@ def inject_current_user():
         "floor_options": _get_floor_options_for_admin() if current_user and current_user.role in ['admin', 'super_admin'] else [],
         "now": datetime.utcnow(),
         "tenant_name": getattr(g, 'tenant_name', None),
-        "is_super_admin": getattr(g, 'is_super_admin', False)
+        "is_super_admin": getattr(g, 'is_super_admin', False),
+        "is_faculty": bool(current_user and current_user.role == 'faculty')
     }
 
 @app.route('/favicon.ico')
@@ -184,6 +189,7 @@ from blueprints.ops import ops_bp
 from blueprints.admin import admin_bp
 from blueprints.main import main_bp
 from blueprints.super_admin import super_admin_bp
+from blueprints.faculty import faculty_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(pantry_bp)
@@ -192,6 +198,7 @@ app.register_blueprint(ops_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(main_bp)
 app.register_blueprint(super_admin_bp)
+app.register_blueprint(faculty_bp)
 
 @app.route("/internal/send-email", methods=["POST"])
 def send_email():

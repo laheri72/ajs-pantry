@@ -15,6 +15,9 @@ from ..utils import (
 @auth_bp.route('/')
 def index():
     if 'user_id' in session:
+        user = _get_current_user()
+        if user and user.role == 'faculty':
+            return redirect(url_for('faculty.dashboard'))
         return redirect(url_for('pantry.dashboard'))
     return redirect(url_for('auth.login'))
 
@@ -137,6 +140,8 @@ def change_password():
             session['active_floor'] = user.floor
         
         flash('Password updated successfully', 'success')
+        if user.role == 'faculty':
+            return redirect(url_for('faculty.dashboard'))
         return redirect(url_for('pantry.dashboard'))
         
     return render_template('change_password.html')
@@ -159,6 +164,9 @@ def profile():
             
         db.session.commit()
         flash('Profile updated successfully', 'success')
+
+        if user.role == 'faculty':
+            return redirect(url_for('faculty.dashboard'))
         
     return render_template('profile.html', user=user, current_user=user)
 

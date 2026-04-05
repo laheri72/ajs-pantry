@@ -1,0 +1,78 @@
+{% extends "faculty/base.html" %}
+
+{% block title %}Cycle Detail - Faculty Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+    <div>
+        <a href="{{ url_for('faculty.cycles') }}" class="small text-decoration-none text-muted"><i class="fas fa-arrow-left me-1"></i>Back to cycles</a>
+        <h2 class="fw-bold mt-2 mb-1">{{ cycle.title }}</h2>
+        <div class="text-muted">{{ cycle.start_date.strftime('%d %b %Y') }} to {{ cycle.end_date.strftime('%d %b %Y') }} • Deadline {{ cycle.submission_deadline.strftime('%d %b %Y') }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if cycle.status == 'draft' %}
+        <form method="POST" action="{{ url_for('faculty.activate_cycle', cycle_id=cycle.id) }}">
+            <button class="btn btn-success rounded-pill px-4">Activate Cycle</button>
+        </form>
+        {% elif cycle.status == 'active' %}
+        <form method="POST" action="{{ url_for('faculty.close_cycle', cycle_id=cycle.id) }}">
+            <button class="btn btn-outline-dark rounded-pill px-4">Close Cycle</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="faculty-card p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0">Floor Allocations and Submission Tracking</h5>
+        <span class="badge {% if cycle.status == 'active' %}bg-success{% elif cycle.status == 'draft' %}bg-secondary{% else %}bg-dark{% endif %}">{{ cycle.status|title }}</span>
+    </div>
+    {% if cycle.notes %}
+    <div class="alert alert-light border rounded-4">{{ cycle.notes }}</div>
+    {% endif %}
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead class="small text-uppercase text-muted">
+                <tr>
+                    <th>Floor</th>
+                    <th>Budget</th>
+                    <th>Faculty Note</th>
+                    <th>Report Status</th>
+                    <th>Submitted</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in floor_rows %}
+                <tr>
+                    <td class="fw-bold">Floor {{ row.floor }}</td>
+                    <td>&#8377;{{ "%.2f"|format(row.budget.amount_allocated) }}</td>
+                    <td class="small text-muted">{{ row.budget.faculty_note or 'No note' }}</td>
+                    <td>
+                        {% if row.submission %}
+                        <span class="badge {% if row.submission.status == 'verified' %}bg-success{% elif row.submission.status == 'rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                            {{ row.submission.status|title }}
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary">Awaiting Upload</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted">
+                        {% if row.submission %}
+                        {{ row.submission.submitted_at.strftime('%d %b %Y %H:%M') }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if row.submission %}
+                        <a href="{{ url_for('faculty.report_detail', submission_id=row.submission.id) }}" class="btn btn-sm btn-outline-success rounded-pill">Review</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
