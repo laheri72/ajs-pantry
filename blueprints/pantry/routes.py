@@ -1198,51 +1198,27 @@ def suggestions():
     if not user:
         return redirect(url_for('auth.login'))
 
+    if request.method == 'GET':
+        return redirect(url_for('pantry.feedbacks') + '#suggestions')
+
     floor = _get_active_floor(user)
-    dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
-
-    if request.method == 'POST':
-        suggestion = Suggestion(
-            title=request.form.get('title'),
-            description=request.form.get('description'),
-            dish_id=request.form.get('dish_id') or None,
-            user_id=user.id,
-            floor=floor,
-            tenant_id=getattr(g, 'tenant_id', None)
-        )
-        db.session.add(suggestion)
-        db.session.commit()
-        flash('Suggestion submitted successfully.', 'success')
-        return redirect(url_for('pantry.suggestions'))
-
-    # Correlated subquery for vote counts to avoid GROUP BY issues with joinedload
-    vote_count_subquery = (
-        db.session.query(func.count(SuggestionVote.id))
-        .filter(SuggestionVote.suggestion_id == Suggestion.id)
-        .correlate(Suggestion)
-        .as_scalar()
+    suggestion = Suggestion(
+        title=(request.form.get('title') or '').strip(),
+        description=(request.form.get('description') or '').strip(),
+        dish_id=request.form.get('dish_id') or None,
+        user_id=user.id,
+        floor=floor,
+        tenant_id=getattr(g, 'tenant_id', None)
     )
 
-    # Fetch suggestions with relationships and vote count
-    suggestions_with_votes = (
-        tenant_filter(db.session.query(Suggestion, vote_count_subquery.label('vote_count')))
-        .options(joinedload(Suggestion.user), joinedload(Suggestion.dish))
-        .filter(Suggestion.floor == floor)
-        .order_by(vote_count_subquery.desc(), Suggestion.created_at.desc())
-        .all()
-    )
+    if not suggestion.title or not suggestion.description:
+        flash('Please provide both a title and description for your suggestion.', 'error')
+        return redirect(url_for('pantry.feedbacks') + '#suggestions')
 
-    # Get the IDs of suggestions the current user has voted for
-    user_voted_ids = {v.suggestion_id for v in tenant_filter(SuggestionVote.query).filter_by(user_id=user.id).all()}
-
-    return render_template(
-        'suggestions.html', 
-        suggestions_with_votes=suggestions_with_votes, 
-        user_voted_ids=user_voted_ids,
-        current_user=user,
-        dishes=dishes,
-        active_floor=floor
-    )
+    db.session.add(suggestion)
+    db.session.commit()
+    flash('Suggestion submitted successfully.', 'success')
+    return redirect(url_for('pantry.feedbacks') + '#suggestions')
 
 @pantry_bp.route('/menus/dish-insights/<int:dish_id>')
 def get_dish_insights(dish_id):
@@ -1346,8 +1322,33 @@ def feedbacks():
     if not user:
         return redirect(url_for('auth.login'))
 
+    floor = _get_active_floor(user)
+
     if request.method == 'POST':
-        floor = _get_active_floor(user)
+        form_type = (request.form.get('form_type') or 'feedback').strip()
+
+        if form_type == 'suggestion':
+            title = (request.form.get('title') or '').strip()
+            description = (request.form.get('description') or '').strip()
+            dish_id = request.form.get('dish_id') or None
+
+            if not title or not description:
+                flash('Please provide both a title and description for your suggestion.', 'error')
+                return redirect(url_for('pantry.feedbacks') + '#suggestions')
+
+            suggestion = Suggestion(
+                title=title,
+                description=description,
+                dish_id=dish_id,
+                user_id=user.id,
+                floor=floor,
+                tenant_id=getattr(g, 'tenant_id', None)
+            )
+            db.session.add(suggestion)
+            db.session.commit()
+            flash('Suggestion submitted successfully.', 'success')
+            return redirect(url_for('pantry.feedbacks') + '#suggestions')
+
         menu_id_raw = (request.form.get('menu_id') or '').strip()
         if not menu_id_raw:
             flash('Please select a menu to evaluate', 'error')
@@ -1414,7 +1415,6 @@ def feedbacks():
         flash('Evaluation saved successfully.', 'success')
         return redirect(url_for('pantry.feedbacks'))
 
-    floor = _get_active_floor(user)
     page = request.args.get('page', 1, type=int)
     
     feedbacks_pagination = (
@@ -1440,7 +1440,34 @@ def feedbacks():
         f.menu_id for f in tenant_filter(Feedback.query).filter_by(user_id=user.id).filter(Feedback.menu_id.isnot(None)).all()
     }
 
-    return render_template('feedbacks.html', feedbacks=visible_feedbacks, pagination=feedbacks_pagination, menu_options=menu_options, rated_menu_ids=rated_menu_ids, current_user=user)
+    dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
+    vote_count_subquery = (
+        db.session.query(func.count(SuggestionVote.id))
+        .filter(SuggestionVote.suggestion_id == Suggestion.id)
+        .correlate(Suggestion)
+        .as_scalar()
+    )
+    suggestions_with_votes = (
+        tenant_filter(db.session.query(Suggestion, vote_count_subquery.label('vote_count')))
+        .options(joinedload(Suggestion.user), joinedload(Suggestion.dish))
+        .filter(Suggestion.floor == floor)
+        .order_by(vote_count_subquery.desc(), Suggestion.created_at.desc())
+        .all()
+    )
+    user_voted_ids = {v.suggestion_id for v in tenant_filter(SuggestionVote.query).filter_by(user_id=user.id).all()}
+
+    return render_template(
+        'feedbacks.html',
+        feedbacks=visible_feedbacks,
+        pagination=feedbacks_pagination,
+        menu_options=menu_options,
+        rated_menu_ids=rated_menu_ids,
+        suggestions_with_votes=suggestions_with_votes,
+        user_voted_ids=user_voted_ids,
+        dishes=dishes,
+        active_floor=floor,
+        current_user=user
+    )
 
 @pantry_bp.route('/feedbacks/<int:feedback_id>/delete', methods=['POST'])
 def delete_feedback(feedback_id):

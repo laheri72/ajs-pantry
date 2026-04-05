@@ -3,11 +3,11 @@
 {% block title %}Report Review - Faculty Portal{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4 faculty-stack-mobile">
     <div>
         <a href="{{ url_for('faculty.cycle_detail', cycle_id=cycle.id) }}" class="small text-decoration-none text-muted"><i class="fas fa-arrow-left me-1"></i>Back to cycle</a>
         <h2 class="fw-bold mt-2 mb-1">Floor {{ submission.floor }} Report Review</h2>
-        <div class="text-muted">{{ submission.report_title }} • Revision {{ submission.revision_no }}</div>
+        <div class="text-muted">{{ submission.report_title }} &bull; Revision {{ submission.revision_no }}</div>
     </div>
     <a href="{{ url_for('faculty.download_report', submission_id=submission.id) }}" class="btn btn-success rounded-pill px-4">
         <i class="fas fa-download me-2"></i>Download PDF
@@ -15,7 +15,7 @@
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-5">
+    <div class="col-xl-5">
         <div class="faculty-card p-4 h-100">
             <h5 class="fw-bold mb-3">Submission Snapshot</h5>
             {% if submission.print_report %}
@@ -37,20 +37,20 @@
             <form method="POST" action="{{ url_for('faculty.verify_report', submission_id=submission.id) }}" class="mb-3">
                 <label class="form-label fw-bold">Faculty Review Notes</label>
                 <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Add optional review notes or final approval context">{{ submission.review_notes or '' }}</textarea>
-                <button class="btn btn-success rounded-pill px-4">Verify Report</button>
+                <button class="btn btn-success rounded-pill px-4 w-100">Verify Report</button>
             </form>
             <form method="POST" action="{{ url_for('faculty.reject_report', submission_id=submission.id) }}">
                 <label class="form-label fw-bold">Reject with Notes</label>
                 <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Explain what must be fixed">{{ submission.review_notes if submission.status == 'rejected' else '' }}</textarea>
-                <button class="btn btn-outline-danger rounded-pill px-4">Reject Report</button>
+                <button class="btn btn-outline-danger rounded-pill px-4 w-100">Reject Report</button>
             </form>
         </div>
     </div>
-    <div class="col-lg-7">
+    <div class="col-xl-7">
         <div class="faculty-card p-4">
             <h5 class="fw-bold mb-3">Linked Bills</h5>
-            <div class="table-responsive">
-                <table class="table align-middle">
+            <div class="table-responsive faculty-table-mobile">
+                <table class="table align-middle mb-0">
                     <thead class="small text-uppercase text-muted">
                         <tr>
                             <th>Bill No</th>
@@ -62,13 +62,15 @@
                     <tbody>
                         {% for bill in linked_bills %}
                         <tr>
-                            <td class="fw-bold">{{ bill.bill_no }}</td>
-                            <td>{{ bill.bill_date.strftime('%d %b %Y') }}</td>
-                            <td>{{ bill.shop_name or 'N/A' }}</td>
-                            <td class="text-end">&#8377;{{ "%.2f"|format(bill.total_amount) }}</td>
+                            <td class="fw-bold" data-label="Bill No">{{ bill.bill_no }}</td>
+                            <td data-label="Date">{{ bill.bill_date.strftime('%d %b %Y') }}</td>
+                            <td data-label="Vendor">{{ bill.shop_name or 'N/A' }}</td>
+                            <td class="text-end" data-label="Amount">&#8377;{{ "%.2f"|format(bill.total_amount) }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-muted">No bill rows linked.</td></tr>
+                        <tr>
+                            <td colspan="4" class="text-muted" data-label="Bills">No bill rows linked.</td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>

@@ -15,6 +15,7 @@ from flask import (
     url_for,
 )
 from sqlalchemy import func
+from werkzeug.exceptions import Forbidden, Unauthorized
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
@@ -42,6 +43,45 @@ from ..utils import (
     tenant_filter,
     visible_budget_condition,
 )
+
+
+@faculty_bp.before_request
+def _faculty_auth_guard():
+    shared_staff_endpoints = {'faculty.reports_page', 'faculty.download_floor_submission'}
+    if request.endpoint == 'faculty.login' or request.endpoint in shared_staff_endpoints:
+        return None
+
+    user = _require_user()
+    if not user:
+        session.clear()
+        flash('Your Faculty session expired. Please sign in again.', 'error')
+        return redirect(url_for('faculty.login'))
+
+    if user.role != 'faculty':
+        flash('Please sign in with a Faculty account to access the Faculty portal.', 'error')
+        return redirect(url_for('faculty.login'))
+
+    return None
+
+
+@faculty_bp.errorhandler(Unauthorized)
+@faculty_bp.errorhandler(401)
+def _faculty_unauthorized(_error):
+    session.clear()
+    flash('Your Faculty session expired. Please sign in again.', 'error')
+    return redirect(url_for('faculty.login'))
+
+
+@faculty_bp.errorhandler(Forbidden)
+@faculty_bp.errorhandler(403)
+def _faculty_forbidden(_error):
+    user = _require_user()
+    if user and user.role == 'faculty':
+        flash('You do not have permission to access that Faculty page.', 'error')
+    else:
+        session.clear()
+        flash('Please sign in with a Faculty account to access the Faculty portal.', 'error')
+    return redirect(url_for('faculty.login'))
 
 
 def _tenant_slug():
@@ -492,7 +532,10 @@ def delete_cycle(cycle_id):
 @faculty_bp.route('/reports', methods=['GET', 'POST'])
 def reports_page():
     user = _require_user()
-    if not user or user.role not in {'admin', 'pantryHead'}:
+    if not user:
+        flash('Your staff session expired. Please sign in again.', 'error')
+        return redirect(url_for('auth.staff_login'))
+    if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
     floor = _get_active_floor(user)
@@ -691,7 +734,10 @@ def download_report(submission_id):
 @faculty_bp.route('/reports/<int:submission_id>/download')
 def download_floor_submission(submission_id):
     user = _require_user()
-    if not user or user.role not in {'admin', 'pantryHead'}:
+    if not user:
+        flash('Your staff session expired. Please sign in again.', 'error')
+        return redirect(url_for('auth.staff_login'))
+    if user.role not in {'admin', 'pantryHead'}:
         abort(403)
 
     submission = tenant_filter(FacultyReportSubmission.query).filter_by(id=submission_id).first_or_404()
