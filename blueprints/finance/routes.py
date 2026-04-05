@@ -459,6 +459,21 @@ def add_budget():
     flash('Budget allocation added.', 'success')
     return redirect(url_for('finance.expenses'))
 
+@finance_bp.route('/budgets/<int:budget_id>/delete', methods=['POST'])
+def delete_budget(budget_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+
+    budget = tenant_filter(Budget.query).filter_by(id=budget_id).first_or_404()
+    if user.role != 'admin' and budget.floor != user.floor:
+        abort(403)
+
+    db.session.delete(budget)
+    db.session.commit()
+    flash('Budget allocation deleted successfully.', 'success')
+    return redirect(url_for('finance.expenses'))
+
 @finance_bp.route('/expenses/<int:expense_id>/delete', methods=['POST'])
 def delete_expense(expense_id):
     user = _require_user()
