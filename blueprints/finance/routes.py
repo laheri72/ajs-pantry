@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g
 from app import db
-from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill
+from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, FacultyBudgetCycle
 from .services.parser_factory import ParserFactory
 from datetime import datetime, date
 from sqlalchemy import or_, func
@@ -11,7 +11,8 @@ from ..utils import (
     _require_user,
     _get_active_floor,
     _get_floor_options_for_admin,
-    tenant_filter
+    tenant_filter,
+    visible_budget_condition,
 )
 
 @finance_bp.route('/expenses', methods=['GET', 'POST'])
@@ -108,7 +109,10 @@ def expenses():
 
     # 2. Financial Calculations
     # Total Budget Allocated
-    total_budget = tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(Budget.floor == floor).scalar() or 0
+    total_budget = tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
+        Budget.floor == floor,
+        visible_budget_condition(),
+    ).scalar() or 0
     
     # Total Spent (Current System: Billed Procurements with Costs)
     # We only count items that are officially recorded in a bill to match user expectations
@@ -146,7 +150,24 @@ def expenses():
     archived_bills = archived_pagination.items
     
     # Get budget history
-    budgets = tenant_filter(Budget.query).filter_by(floor=floor).order_by(Budget.start_date.desc()).all()
+    budgets = tenant_filter(Budget.query).filter(
+        Budget.floor == floor,
+        visible_budget_condition(),
+    ).order_by(Budget.start_date.desc(), Budget.created_at.desc()).all()
+
+    active_cycle = (
+        tenant_filter(FacultyBudgetCycle.query)
+        .filter_by(status='active')
+        .order_by(FacultyBudgetCycle.start_date.desc())
+        .first()
+    )
+    active_cycle_allocation = None
+    if active_cycle:
+        active_cycle_allocation = tenant_filter(Budget.query).filter(
+            Budget.cycle_id == active_cycle.id,
+            Budget.floor == floor,
+            visible_budget_condition(),
+        ).first()
     
     # Legacy expenses for reference (PAGINATED)
     legacy_page = request.args.get('legacy_page', 1, type=int)
@@ -195,6 +216,8 @@ def expenses():
         unique_shops=unique_shops,
         suggested_bill_no=suggested_bill_no,
         is_manager=is_manager,
+        active_cycle=active_cycle,
+        active_cycle_allocation=active_cycle_allocation,
         today=date.today(),
         current_user=user,
         active_floor=floor
@@ -431,48 +454,11 @@ def atomic_reconcile_full():
 
 @finance_bp.route('/budgets/add', methods=['POST'])
 def add_budget():
-    user = _require_user()
-    if not user or user.role not in ['admin', 'pantryHead']:
-        abort(403)
-
-    floor = _get_active_floor(user)
-    try:
-        amount = float(request.form.get('amount') or 0)
-        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
-        end_date_raw = request.form.get('end_date')
-        end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date() if end_date_raw else None
-    except Exception:
-        flash('Invalid budget data', 'error')
-        return redirect(url_for('finance.expenses'))
-
-    budget = Budget(
-        floor=floor,
-        amount_allocated=amount,
-        allocation_type=request.form.get('allocation_type'),
-        start_date=start_date,
-        end_date=end_date,
-        notes=request.form.get('notes'),
-        tenant_id=getattr(g, 'tenant_id', None)
-    )
-    db.session.add(budget)
-    db.session.commit()
-    flash('Budget allocation added.', 'success')
-    return redirect(url_for('finance.expenses'))
+    abort(403)
 
 @finance_bp.route('/budgets/<int:budget_id>/delete', methods=['POST'])
 def delete_budget(budget_id):
-    user = _require_user()
-    if not user or user.role not in ['admin', 'pantryHead']:
-        abort(403)
-
-    budget = tenant_filter(Budget.query).filter_by(id=budget_id).first_or_404()
-    if user.role != 'admin' and budget.floor != user.floor:
-        abort(403)
-
-    db.session.delete(budget)
-    db.session.commit()
-    flash('Budget allocation deleted successfully.', 'success')
-    return redirect(url_for('finance.expenses'))
+    abort(403)
 
 @finance_bp.route('/expenses/<int:expense_id>/delete', methods=['POST'])
 def delete_expense(expense_id):

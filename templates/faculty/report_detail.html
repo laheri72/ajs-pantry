@@ -1,0 +1,100 @@
+{% extends "faculty/base.html" %}
+
+{% block title %}Report Review - Faculty Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+    <div>
+        <a href="{{ url_for('faculty.cycle_detail', cycle_id=cycle.id) }}" class="small text-decoration-none text-muted"><i class="fas fa-arrow-left me-1"></i>Back to cycle</a>
+        <h2 class="fw-bold mt-2 mb-1">Floor {{ submission.floor }} Report Review</h2>
+        <div class="text-muted">{{ submission.report_title }} • Revision {{ submission.revision_no }}</div>
+    </div>
+    <a href="{{ url_for('faculty.download_report', submission_id=submission.id) }}" class="btn btn-success rounded-pill px-4">
+        <i class="fas fa-download me-2"></i>Download PDF
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="faculty-card p-4 h-100">
+            <h5 class="fw-bold mb-3">Submission Snapshot</h5>
+            <div class="small text-muted mb-2">Status</div>
+            <div class="mb-3">
+                <span class="badge {% if submission.status == 'verified' %}bg-success{% elif submission.status == 'rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                    {{ submission.status|title }}
+                </span>
+            </div>
+            <div class="small text-muted mb-2">Uploaded By</div>
+            <div class="mb-3">{{ submission.uploaded_by.full_name or submission.uploaded_by.email }}</div>
+            <div class="small text-muted mb-2">Submitted At</div>
+            <div class="mb-3">{{ submission.submitted_at.strftime('%d %b %Y %H:%M') }}</div>
+            <div class="small text-muted mb-2">Submission Notes</div>
+            <div class="mb-4">{{ submission.submission_notes or 'No notes provided.' }}</div>
+            <form method="POST" action="{{ url_for('faculty.verify_report', submission_id=submission.id) }}" class="mb-3">
+                <label class="form-label fw-bold">Faculty Review Notes</label>
+                <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Add optional review notes or final approval context">{{ submission.review_notes or '' }}</textarea>
+                <button class="btn btn-success rounded-pill px-4">Verify Report</button>
+            </form>
+            <form method="POST" action="{{ url_for('faculty.reject_report', submission_id=submission.id) }}">
+                <label class="form-label fw-bold">Reject with Notes</label>
+                <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Explain what must be fixed">{{ submission.review_notes if submission.status == 'rejected' else '' }}</textarea>
+                <button class="btn btn-outline-danger rounded-pill px-4">Reject Report</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="faculty-card p-4 mb-4">
+            <h5 class="fw-bold mb-3">Linked Bills</h5>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead class="small text-uppercase text-muted">
+                        <tr>
+                            <th>Bill No</th>
+                            <th>Date</th>
+                            <th>Vendor</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bill in linked_bills %}
+                        <tr>
+                            <td class="fw-bold">{{ bill.bill_no }}</td>
+                            <td>{{ bill.bill_date.strftime('%d %b %Y') }}</td>
+                            <td>{{ bill.shop_name or 'N/A' }}</td>
+                            <td class="text-end">&#8377;{{ "%.2f"|format(bill.total_amount) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted">No bill rows linked.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="faculty-card p-4">
+            <h5 class="fw-bold mb-3">Linked Legacy Expenses</h5>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead class="small text-uppercase text-muted">
+                        <tr>
+                            <th>Description</th>
+                            <th>Date</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for expense in linked_expenses %}
+                        <tr>
+                            <td>{{ expense.description }}</td>
+                            <td>{{ expense.date.strftime('%d %b %Y') }}</td>
+                            <td class="text-end">&#8377;{{ "%.2f"|format(expense.amount) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-muted">No legacy expense rows linked.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

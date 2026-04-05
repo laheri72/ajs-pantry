@@ -18,6 +18,26 @@ This file serves as a master index for all routes within the modularized AJS Pan
 
 ---
 
+## 1A. Faculty Blueprint (`blueprints/faculty/routes.py`)
+*Faculty finance office: tenant-wide budget cycles, report review, and floor submissions.*
+
+| Route Path | Function Name | Methods | Description |
+|:---|:---|:---|:---|
+| `/faculty/login` | `login` | GET, POST | Faculty portal login |
+| `/faculty/dashboard` | `dashboard` | GET | Faculty analytics and active cycle overview |
+| `/faculty/cycles` | `cycles` | GET, POST | Create/list budget cycles with per-floor allocations |
+| `/faculty/cycles/<id>` | `cycle_detail` | GET | Floor-wise cycle allocation and submission matrix |
+| `/faculty/cycles/<id>/activate` | `activate_cycle` | POST | Activate a draft cycle |
+| `/faculty/cycles/<id>/close` | `close_cycle` | POST | Close an active cycle |
+| `/faculty/reports/<id>` | `report_detail` | GET | Faculty review page for one floor submission |
+| `/faculty/reports/<id>/verify` | `verify_report` | POST | Approve a submitted report |
+| `/faculty/reports/<id>/reject` | `reject_report` | POST | Reject a submitted report with notes |
+| `/faculty/reports/<id>/download` | `download_report` | GET | Download the stored PDF from server storage |
+| `/reports` | `reports_page` | GET, POST | Floor-side upload page for Admin/Pantry Head report submissions |
+| `/reports/<id>/download` | `download_floor_submission` | GET | Floor-side download of the submitted PDF |
+
+---
+
 ## 2. Pantry Blueprint (`blueprints/pantry/routes.py`)
 *Core user-facing features: dashboard, community, and food feedback.*
 

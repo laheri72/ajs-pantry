@@ -10,6 +10,7 @@ from flask import g
 class RoleEnum(Enum):
     SUPER_ADMIN = 'super_admin'
     ADMIN = 'admin'
+    FACULTY = 'faculty'
     PANTRY_HEAD = 'pantryHead'
     TEA_MANAGER = 'teaManager'
     MEMBER = 'member'
@@ -91,6 +92,7 @@ class Expense(db.Model, TenantMixin):
     category = db.Column(db.String(50), nullable=False)
     date = db.Column(db.Date, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    report_submission_id = db.Column(db.Integer, db.ForeignKey('faculty_report_submission.id'), nullable=True, index=True)
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -168,6 +170,7 @@ class Bill(db.Model, TenantMixin):
     floor = db.Column(db.Integer, nullable=False)
     source = db.Column(db.String(50), default='manual')
     original_filename = db.Column(db.String(255), nullable=True)
+    report_submission_id = db.Column(db.Integer, db.ForeignKey('faculty_report_submission.id'), nullable=True, index=True)
     is_archived = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -219,12 +222,63 @@ class TeamMember(db.Model, TenantMixin):
 class Budget(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     floor = db.Column(db.Integer, nullable=False, index=True)
+    cycle_id = db.Column(db.Integer, db.ForeignKey('faculty_budget_cycle.id'), nullable=True, index=True)
+    allocated_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
     amount_allocated = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     allocation_type = db.Column(db.String(20), nullable=False)  # weekly, monthly, 15days, manual
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=True)
     notes = db.Column(db.Text, nullable=True)
+    faculty_note = db.Column(db.Text, nullable=True)
+    is_faculty_allocation = db.Column(db.Boolean, nullable=False, default=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    allocated_by = db.relationship('User', foreign_keys=[allocated_by_id])
+
+
+class FacultyBudgetCycle(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(150), nullable=False)
+    start_date = db.Column(db.Date, nullable=False, index=True)
+    end_date = db.Column(db.Date, nullable=False, index=True)
+    submission_deadline = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default='draft', index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    budgets = db.relationship('Budget', backref='cycle', lazy=True)
+    submissions = db.relationship('FacultyReportSubmission', backref='cycle', lazy=True)
+
+
+class FacultyReportSubmission(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    cycle_id = db.Column(db.Integer, db.ForeignKey('faculty_budget_cycle.id'), nullable=False, index=True)
+    floor = db.Column(db.Integer, nullable=False, index=True)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    report_title = db.Column(db.String(150), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='submitted', index=True)
+    submission_notes = db.Column(db.Text, nullable=True)
+    review_notes = db.Column(db.Text, nullable=True)
+    stored_filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    storage_path = db.Column(db.Text, nullable=False)
+    file_size_bytes = db.Column(db.BigInteger, nullable=False, default=0)
+    revision_no = db.Column(db.Integer, nullable=False, default=1)
+    submitted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    verified_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    uploaded_by = db.relationship('User', foreign_keys=[uploaded_by_id])
+    verified_by = db.relationship('User', foreign_keys=[verified_by_id])
+    bills = db.relationship('Bill', backref='report_submission', lazy=True)
+    expenses = db.relationship('Expense', backref='report_submission', lazy=True)
 
 
 class FloorLendBorrow(db.Model, TenantMixin):

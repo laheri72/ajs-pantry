@@ -11,10 +11,12 @@ from ..utils import (
     _get_active_floor,
     _require_team_access,
     _get_floor_options_for_admin,
+    _get_tenant_floor_options,
     tenant_filter,
     send_push_notification,
     FLOOR_MIN,
-    FLOOR_MAX
+    FLOOR_MAX,
+    visible_budget_condition,
 )
 
 @admin_bp.route('/admin/active-floor', methods=['POST'])
@@ -158,6 +160,10 @@ def admin():
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
+            if target.role == 'faculty':
+                flash('Faculty accounts are managed only by Super Admin.', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
             if target.role == 'admin':
                 flash('Admin users cannot be reassigned.', 'error')
                 return redirect(url_for('admin_panel.admin'))
@@ -190,6 +196,10 @@ def admin():
                 
                 if not from_user or not to_user:
                     flash('One or both users not found.', 'error')
+                    return redirect(url_for('admin_panel.admin'))
+
+                if from_user.role == 'faculty' or to_user.role == 'faculty':
+                    flash('Faculty accounts are managed only by Super Admin.', 'error')
                     return redirect(url_for('admin_panel.admin'))
                 
                 updates = 0
@@ -228,6 +238,10 @@ def admin():
             target = tenant_filter(User.query).filter_by(id=target_user_id).first()
             if not target:
                 flash('User not found', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
+            if target.role == 'faculty':
+                flash('Faculty accounts are managed only by Super Admin.', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
             if target.id == user.id:
@@ -281,6 +295,10 @@ def admin():
                 flash('User not found', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
+            if target.role == 'faculty':
+                flash('Faculty accounts are managed only by Super Admin.', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
             target.password_hash = generate_password_hash('maskan1447')
             # Optional: if you want them to be forced to change it on next login, uncomment below
             # target.is_first_login = True 
@@ -289,10 +307,14 @@ def admin():
             flash(f"Password for {target.full_name or target.email} has been reset to 'maskan1447'.", 'success')
             return redirect(url_for('admin_panel.admin'))
             
-    all_users = tenant_filter(User.query).all()
+    all_users = tenant_filter(User.query).filter(User.role != 'faculty').all()
     
-    total_users = tenant_filter(User.query).count()
-    total_budget_all = float(tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).scalar() or 0)
+    total_users = tenant_filter(User.query).filter(User.role != 'faculty').count()
+    total_budget_all = float(
+        tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
+            visible_budget_condition()
+        ).scalar() or 0
+    )
     
     total_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.status == 'completed').scalar() or 0)
     total_spent_legacy = float(tenant_filter(db.session.query(func.sum(Expense.amount))).scalar() or 0)
@@ -310,7 +332,7 @@ def admin():
     pending_lend_borrows = tenant_filter(FloorLendBorrow.query).filter(FloorLendBorrow.status == 'pending').count()
     
     floor_data = []
-    for f in range(FLOOR_MIN, FLOOR_MAX + 1):
+    for f in _get_tenant_floor_options(user):
         # Fetch all pantry heads for this floor to handle multiple assignments
         phs = tenant_filter(User.query).filter_by(floor=f, role='pantryHead').all()
         ph_display = 'Not Assigned'
@@ -320,7 +342,12 @@ def admin():
             ph_display = ph.full_name or ph.username or ph.email or 'Pantry Head'
 
         f_user_count = tenant_filter(User.query).filter_by(floor=f).count()
-        f_budget = float(tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(Budget.floor == f).scalar() or 0)
+        f_budget = float(
+            tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
+                Budget.floor == f,
+                visible_budget_condition(),
+            ).scalar() or 0
+        )
         f_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.floor == f, ProcurementItem.status == 'completed').scalar() or 0)
         f_spent_legacy = float(tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == f).scalar() or 0)
         f_spent = f_spent_proc + f_spent_legacy

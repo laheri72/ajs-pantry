@@ -1,6 +1,7 @@
 from flask import session, abort, g
 from models import User
 from datetime import datetime
+from sqlalchemy import or_
 
 FLOOR_MIN = 1
 FLOOR_MAX = 11
@@ -109,12 +110,39 @@ def _get_floor_options_for_admin():
     limit = tenant.floor_count if tenant and tenant.floor_count else FLOOR_MAX
     return list(range(FLOOR_MIN, limit + 1))
 
+def _get_tenant_floor_options(user=None):
+    from models import Tenant
+
+    user = user or _get_current_user()
+    if not user or not user.tenant_id:
+        return list(range(FLOOR_MIN, FLOOR_MAX + 1))
+
+    tenant = Tenant.query.get(user.tenant_id)
+    limit = tenant.floor_count if tenant and tenant.floor_count else FLOOR_MAX
+    return list(range(FLOOR_MIN, limit + 1))
+
 def _require_staff_for_floor(user):
     if not user:
         abort(401)
-    if user.role not in {'admin', 'pantryHead', 'teaManager'}:
+    if user.role not in {'admin', 'faculty', 'pantryHead', 'teaManager'}:
         abort(403)
     return user
+
+def _require_faculty(user=None):
+    user = user or _get_current_user()
+    if not user:
+        abort(401)
+    if user.role != 'faculty':
+        abort(403)
+    return user
+
+def visible_budget_condition():
+    from models import Budget, FacultyBudgetCycle
+
+    return or_(
+        Budget.cycle_id.is_(None),
+        Budget.cycle.has(FacultyBudgetCycle.status != 'draft')
+    )
 
 def _require_team_access(user, team):
     if user.role == 'admin':

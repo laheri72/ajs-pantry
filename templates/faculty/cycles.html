@@ -1,0 +1,96 @@
+{% extends "faculty/base.html" %}
+
+{% block title %}Budget Cycles - Faculty Portal{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-xl-7">
+        <div class="faculty-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="fw-bold mb-1">Create Budget Cycle</h3>
+                    <div class="text-muted small">One shared term and deadline, with different allocations per floor.</div>
+                </div>
+                {% if active_cycle %}
+                <span class="badge bg-success">Active: {{ active_cycle.title }}</span>
+                {% endif %}
+            </div>
+            <form method="POST">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Cycle Title</label>
+                        <input name="title" class="form-control rounded-4" placeholder="e.g. Shawwal Term 1" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Start Date</label>
+                        <input type="date" name="start_date" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">End Date</label>
+                        <input type="date" name="end_date" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Submission Deadline</label>
+                        <input type="date" name="submission_deadline" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Cycle Notes</label>
+                        <textarea name="notes" class="form-control rounded-4" rows="2" placeholder="Shared note for this term"></textarea>
+                    </div>
+                </div>
+                <div class="faculty-card bg-light p-3 mb-4">
+                    <div class="fw-bold mb-3">Floor-wise Allocations</div>
+                    <div class="row g-3">
+                        {% for floor in floor_options %}
+                        <div class="col-12">
+                            <div class="border rounded-4 p-3 bg-white">
+                                <div class="fw-bold mb-2">Floor {{ floor }}</div>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label small text-muted">Amount</label>
+                                        <input type="number" name="amount_{{ floor }}" class="form-control rounded-4" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label small text-muted">Faculty Note</label>
+                                        <input name="faculty_note_{{ floor }}" class="form-control rounded-4" placeholder="Why this amount was finalized">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button name="action" value="save_draft" class="btn btn-outline-secondary rounded-pill px-4">Save Draft</button>
+                    <button name="action" value="activate_now" class="btn btn-success rounded-pill px-4">Save and Activate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-xl-5">
+        <div class="faculty-card p-4">
+            <h4 class="fw-bold mb-3">Cycle History</h4>
+            <div class="list-group list-group-flush">
+                {% for cycle in cycles %}
+                <a href="{{ url_for('faculty.cycle_detail', cycle_id=cycle.id) }}" class="list-group-item list-group-item-action px-0 py-3 border-0 border-bottom">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                            <div class="fw-bold">{{ cycle.title }}</div>
+                            <div class="small text-muted">{{ cycle.start_date.strftime('%d %b %Y') }} to {{ cycle.end_date.strftime('%d %b %Y') }}</div>
+                            <div class="small text-muted">Deadline: {{ cycle.submission_deadline.strftime('%d %b %Y') }}</div>
+                        </div>
+                        <span class="badge {% if cycle.status == 'active' %}bg-success{% elif cycle.status == 'draft' %}bg-secondary{% else %}bg-dark{% endif %}">
+                            {{ cycle.status|title }}
+                        </span>
+                    </div>
+                </a>
+                {% else %}
+                <div class="text-muted small">No cycles available yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

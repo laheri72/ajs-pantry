@@ -59,6 +59,38 @@
                 {% endfor %}
             </div>
         </div>
+
+        <div class="card card-expert p-3 p-md-4 mt-4">
+            <h6 class="fw-bold mb-4"><i class="fas fa-building-columns me-2 text-warning"></i>Faculty Access</h6>
+            {% if faculty_user %}
+            <div class="mb-3">
+                <div class="fw-bold">{{ faculty_user.full_name or faculty_user.email }}</div>
+                <div class="small text-muted">{{ faculty_user.email }}</div>
+            </div>
+            {% else %}
+            <div class="small text-muted mb-3">No Faculty account has been provisioned for this tenant yet.</div>
+            {% endif %}
+            <form method="POST" action="{{ url_for('super_admin.manage_faculty', tenant_id=tenant.id) }}">
+                <input type="hidden" name="action" value="{{ 'reset_password' if faculty_user else 'provision' }}">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">FACULTY NAME</label>
+                    <input type="text" name="faculty_name" class="form-control border-light bg-light" value="{{ faculty_user.full_name if faculty_user else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">FACULTY TR NUMBER</label>
+                    <input type="text" name="faculty_tr_number" class="form-control border-light bg-light" value="{{ faculty_user.tr_number if faculty_user else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">FACULTY EMAIL / TR</label>
+                    <input type="text" name="faculty_email" class="form-control border-light bg-light" value="{{ faculty_user.email if faculty_user else '' }}" placeholder="e.g. 25687 or faculty email">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted">PASSWORD</label>
+                    <input type="text" name="faculty_password" class="form-control border-light bg-light" placeholder="{{ 'Reset Faculty password' if faculty_user else 'Initial Faculty password' }}">
+                </div>
+                <button class="btn btn-ceo w-100 shadow-sm">{{ 'Reset Faculty Access' if faculty_user else 'Provision Faculty' }}</button>
+            </form>
+        </div>
     </div>
 
     <div class="col-lg-8">
@@ -84,7 +116,7 @@
                                 <div class="small text-muted">{{ u.email }}</div>
                             </td>
                             <td><span class="badge bg-light text-dark border border-light px-2">{{ u.role | title }}</span></td>
-                            <td><span class="small">Floor {{ u.floor }}</span></td>
+                            <td><span class="small">{{ 'Cross-floor' if u.floor is none else 'Floor ' ~ u.floor }}</span></td>
                             <td>
                                 {% if u.is_verified %}
                                 <span class="text-success small fw-bold"><i class="fas fa-check-circle me-1"></i>Secure</span>
