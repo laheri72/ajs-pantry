@@ -112,7 +112,7 @@ class DMartParser(BaseParser):
 
 class BlinkitParser(BaseParser):
     def parse(self, text):
-        data = ReceiptData(shop_name='Blinkit (Bigway Marketing)')
+        data = ReceiptData(shop_name='Blinkit (Blink Commerce)')
         
         # 1. Extract Order ID / Bill No
         # Look for "Order Id : 402613975" or "Invoice Number : C20632T230216450"
@@ -121,8 +121,8 @@ class BlinkitParser(BaseParser):
             data.bill_no = bill_no_match.group(1)
         
         # 2. Extract Date
-        # Look for "Invoice Date : 29-Nov-2023"
-        date_match = re.search(r'Invoice\s+Date[\s:]+(\d{2}-[a-z]{3}-\d{4})', text, re.IGNORECASE)
+        # Look for "Invoice Date : 29-Nov-2023" or "Invoice : 27-Mar-2026"
+        date_match = re.search(r'Invoice(?:\s+Date)?\s*:\s*(\d{2}-[a-zA-Z]{3}-\d{4})', text, re.IGNORECASE)
         if date_match:
             try:
                 dt_obj = datetime.strptime(date_match.group(1), '%d-%b-%Y')
@@ -133,9 +133,9 @@ class BlinkitParser(BaseParser):
         # 3. Extract Items
         # Table format: Sr. no | UPC | Item Description | MRP | Discount | Qty | Taxable Value | ... | Total
         # Example: 1 | 890... | Prega News ... | 60.00 | 0.50 | 2 | 106.25 | ... | 119.00
-        # We look for lines starting with a serial number followed by a UPC (usually 13 digits)
+        # We look for lines starting with a serial number, optional trailing UPC, name, and column values
         item_pattern = re.compile(
-            r'(\d+)\s+(\d{10,13})\s+(.*?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2}).*?(\d+\.\d{2})',
+            r'^\s*(\d+)\s+([\d\-]*)\s+(.*?)\s+(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+(\d+\.\d{2}).*?(\d+\.\d{2})\s*$',
             re.MULTILINE
         )
         
@@ -150,11 +150,26 @@ class BlinkitParser(BaseParser):
             except:
                 continue
 
-        # 4. Extract Total
+        # 4. Extract Delivery/Handling Fees (Explicitly)
+        delivery_match = re.search(r'-\s+(?:Delivery|Handling).*?(\d+\.\d{2})\s*$', text, re.IGNORECASE | re.MULTILINE)
+        if delivery_match:
+            try:
+                data.items.append({
+                    'name': 'Delivery & Handling Charges',
+                    'quantity': '1',
+                    'cost': float(delivery_match.group(1))
+                })
+            except:
+                pass
+
+        # 5. Extract Total
         # Look for the final total at the bottom of the table or "Amount in Words"
         total_match = re.search(r'Total\s+[\d\.]+\s+[\d\.]+\s+([\d,]+\.\d{2})', text, re.IGNORECASE)
         if total_match:
             data.total_amount = float(total_match.group(1).replace(',', ''))
+            # Safety check if total match failed to grab the bottom total line and grabbed an intermediate 'Total'
+            if data.items and data.total_amount < sum(item['cost'] for item in data.items) * 0.9:
+                data.total_amount = sum(item['cost'] for item in data.items)
         else:
             # Fallback: sum items
             if data.items:

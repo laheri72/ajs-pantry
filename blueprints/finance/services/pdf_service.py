@@ -12,7 +12,7 @@ class PDFService:
             full_text = ""
             with pdfplumber.open(file_stream) as pdf:
                 for page in pdf.pages:
-                    text = page.extract_text()
+                    text = page.extract_text(layout=True)
                     if text:
                         full_text += text + "\n"
             return full_text

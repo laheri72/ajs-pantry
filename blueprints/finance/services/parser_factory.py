@@ -31,7 +31,7 @@ class ParserFactory:
             return DMartParser()
         
         # Blinkit / Grofers detection
-        if "BLINKIT" in text_upper or "GROFERS" in text_upper or "BIGWAY MARKETING" in text_upper:
+        if "BLINKIT" in text_upper or "GROFERS" in text_upper or "BIGWAY MARKETING" in text_upper or "BLINK COMMERCE" in text_upper:
             return BlinkitParser()
         
         # Add more store detections here
