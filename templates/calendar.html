@@ -98,6 +98,30 @@
     </div>
 </div>
 
+<!-- Action Selection Modal -->
+{% if current_user.role in ['admin', 'pantryHead'] %}
+<div class="modal fade" id="actionSelectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold">Select Action</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="mb-3 text-teal fw-bold" id="actionDateDisplay"></div>
+                <button type="button" class="btn btn-teal w-100 mb-3" onclick="openMenuForm()">
+                    <i class="fas fa-utensils me-2"></i>Schedule Meal
+                </button>
+                <div class="text-muted small mb-3">OR</div>
+                <button type="button" class="btn btn-info text-white w-100" onclick="openEventForm()">
+                    <i class="fas fa-calendar-plus me-2"></i>Special Event
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Modal for Adding Special Event -->
 {% if current_user.role in ['admin', 'pantryHead'] %}
 <div class="modal fade" id="addEventModal" tabindex="-1" aria-hidden="true">
@@ -440,8 +464,10 @@ function generateCalendar(year, month) {
 
             {% if current_user.role in ['admin', 'pantryHead'] %}
             dayCell.onclick = () => {
-                document.getElementById('newEventDate').value = dateStr;
-                const modal = new bootstrap.Modal(document.getElementById('addEventModal'));
+                selectedActionDate = dateStr;
+                const dObj = new Date(dateStr + 'T00:00:00');
+                document.getElementById('actionDateDisplay').textContent = dObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                const modal = new bootstrap.Modal(document.getElementById('actionSelectModal'));
                 modal.show();
             };
             dayCell.style.cursor = 'pointer';
@@ -483,5 +509,18 @@ function nextMonth() {
 document.addEventListener('DOMContentLoaded', function() {
     generateCalendar(currentDate.getFullYear(), currentDate.getMonth());
 });
+
+let selectedActionDate = '';
+
+function openMenuForm() {
+    window.location.href = `/menus?add_menu_date=${selectedActionDate}`;
+}
+
+function openEventForm() {
+    bootstrap.Modal.getInstance(document.getElementById('actionSelectModal')).hide();
+    document.getElementById('newEventDate').value = selectedActionDate;
+    const modal = new bootstrap.Modal(document.getElementById('addEventModal'));
+    modal.show();
+}
 </script>
 {% endblock %}
