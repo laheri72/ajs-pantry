@@ -7,7 +7,7 @@
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
         <div>
             <h2 class="fw-bold text-teal"><i class="fas fa-file-upload me-2"></i>Faculty Report Submission</h2>
-            <div class="text-muted">Upload the final combined PDF generated from Expenses, then link the vouchers and legacy rows included in it.</div>
+            <div class="text-muted">Upload the final combined PDF generated from Expenses, then link it to one saved print report from the print wizard.</div>
         </div>
         <a href="{{ url_for('finance.expenses') }}" class="btn btn-outline-teal rounded-pill px-4">
             <i class="fas fa-print me-2"></i>Open Expenses Report Tool
@@ -64,11 +64,7 @@
             {% else %}
             <form method="POST" enctype="multipart/form-data">
                 <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Report Title</label>
-                        <input name="report_title" class="form-control rounded-4" value="{{ submission.report_title if submission else active_cycle.title ~ ' - Floor ' ~ active_floor }}" required>
-                    </div>
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <label class="form-label fw-bold">Combined PDF</label>
                         <input type="file" name="report_pdf" accept=".pdf,application/pdf" class="form-control rounded-4" required>
                     </div>
@@ -78,49 +74,33 @@
                     <textarea name="submission_notes" class="form-control rounded-4" rows="3" placeholder="Optional note for Faculty">{{ submission.submission_notes if submission and submission.status == 'rejected' else '' }}</textarea>
                 </div>
 
-                <div class="row g-4">
-                    <div class="col-lg-6">
-                        <div class="border rounded-4 p-3 h-100">
-                            <div class="fw-bold mb-3">Bills Included In This PDF</div>
-                            <div style="max-height: 320px; overflow-y: auto;">
-                                {% for bill in selectable_bills %}
-                                <label class="d-flex align-items-center justify-content-between border rounded-4 p-3 mb-2">
-                                    <div>
-                                        <div class="fw-bold">#{{ bill.bill_no }}</div>
-                                        <div class="small text-muted">{{ bill.bill_date.strftime('%d %b %Y') }} • {{ bill.shop_name or 'N/A' }}</div>
+                <div class="border rounded-4 p-3 mb-4">
+                    <div class="fw-bold mb-2">Which print report's bills to include here</div>
+                    <div class="small text-muted mb-3">These saved reports come from the Print Report flow in Expenses. Choose one saved report title and its bill set will be linked to this upload.</div>
+                    {% for report in saved_print_reports %}
+                    <label class="d-block border rounded-4 p-3 mb-3">
+                        <div class="d-flex gap-3">
+                            <input type="radio" name="print_report_id" value="{{ report.id }}" class="mt-1" {% if (submission and submission.print_report_id == report.id) or (not submission and loop.first) %}checked{% endif %}>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">{{ report.report_title }}</div>
+                                <div class="small text-muted">Saved {{ report.created_at.strftime('%d %b %Y %H:%M') }} • Budget &#8377;{{ "%.2f"|format(report.report_budget) }} • Spent &#8377;{{ "%.2f"|format(report.total_spent) }}</div>
+                                <div class="small text-muted mt-2">Bills in this print:</div>
+                                <div class="mt-1">
+                                    {% for link in report.bill_links %}
+                                    <div class="small d-flex justify-content-between border rounded-3 px-2 py-1 mb-1 bg-light">
+                                        <span>#{{ link.bill.bill_no }}{% if link.include_as_voucher and not link.include_in_summary %} <span class="text-muted">(voucher)</span>{% endif %}</span>
+                                        <span class="fw-bold">&#8377;{{ "%.2f"|format(link.bill.total_amount) }}</span>
                                     </div>
-                                    <div class="d-flex align-items-center gap-3">
-                                        <span class="small fw-bold">&#8377;{{ "%.2f"|format(bill.total_amount) }}</span>
-                                        <input type="checkbox" name="bill_ids" value="{{ bill.id }}" {% if submission and bill.report_submission_id == submission.id %}checked{% endif %}>
-                                    </div>
-                                </label>
-                                {% else %}
-                                <div class="text-muted small">No eligible bills available.</div>
-                                {% endfor %}
+                                    {% endfor %}
+                                </div>
                             </div>
                         </div>
+                    </label>
+                    {% else %}
+                    <div class="alert alert-light border rounded-4 mb-0">
+                        No saved print reports were found yet. Open Expenses, use Print Report, and generate a report first so it gets stored here.
                     </div>
-                    <div class="col-lg-6">
-                        <div class="border rounded-4 p-3 h-100">
-                            <div class="fw-bold mb-3">Legacy Expenses Included</div>
-                            <div style="max-height: 320px; overflow-y: auto;">
-                                {% for expense in selectable_expenses %}
-                                <label class="d-flex align-items-center justify-content-between border rounded-4 p-3 mb-2">
-                                    <div>
-                                        <div class="fw-bold">{{ expense.description }}</div>
-                                        <div class="small text-muted">{{ expense.date.strftime('%d %b %Y') }}</div>
-                                    </div>
-                                    <div class="d-flex align-items-center gap-3">
-                                        <span class="small fw-bold">&#8377;{{ "%.2f"|format(expense.amount) }}</span>
-                                        <input type="checkbox" name="expense_ids" value="{{ expense.id }}" {% if submission and expense.report_submission_id == submission.id %}checked{% endif %}>
-                                    </div>
-                                </label>
-                                {% else %}
-                                <div class="text-muted small">No eligible legacy expenses available.</div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
 
                 <div class="mt-4 d-flex justify-content-end">

@@ -169,7 +169,7 @@ def tenant_detail(tenant_id):
     require_super_admin()
     tenant = Tenant.query.get_or_404(tenant_id)
     users = User.query.filter_by(tenant_id=tenant_id).order_by(User.role.asc()).all()
-    faculty_user = User.query.filter_by(tenant_id=tenant_id, role='faculty').first()
+    faculty_users = User.query.filter_by(tenant_id=tenant_id, role='faculty').order_by(User.created_at.asc()).all()
     
     floor_stats = []
     for f in range(1, tenant.floor_count + 1):
@@ -177,7 +177,7 @@ def tenant_detail(tenant_id):
         m_count = Menu.query.filter_by(tenant_id=tenant_id, floor=f).count()
         floor_stats.append({'floor': f, 'users': u_count, 'menus': m_count})
         
-    return render_template('super_admin/tenant_view.html', tenant=tenant, users=users, floor_stats=floor_stats, faculty_user=faculty_user)
+    return render_template('super_admin/tenant_view.html', tenant=tenant, users=users, floor_stats=floor_stats, faculty_users=faculty_users)
 
 @super_admin_bp.route('/platform-admin/tenants/provision', methods=['POST'])
 def provision_tenant():
@@ -242,7 +242,13 @@ def manage_faculty(tenant_id):
     require_super_admin()
     tenant = Tenant.query.get_or_404(tenant_id)
     action = (request.form.get('action') or 'provision').strip()
-    faculty_user = User.query.filter_by(tenant_id=tenant_id, role='faculty').first()
+    faculty_user_id = request.form.get('faculty_user_id')
+    faculty_user = None
+    if faculty_user_id:
+        try:
+            faculty_user = User.query.filter_by(id=int(faculty_user_id), tenant_id=tenant_id, role='faculty').first()
+        except (TypeError, ValueError):
+            faculty_user = None
 
     email = (request.form.get('faculty_email') or '').strip()
     if email and '@' not in email:
@@ -252,9 +258,6 @@ def manage_faculty(tenant_id):
     tr_number = (request.form.get('faculty_tr_number') or '').strip() or None
 
     if action == 'provision':
-        if faculty_user:
-            flash('A Faculty account already exists for this tenant.', 'error')
-            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
         if not email or not password:
             flash('Faculty email and password are required.', 'error')
             return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
@@ -278,7 +281,7 @@ def manage_faculty(tenant_id):
         )
         db.session.add(faculty_user)
         db.session.commit()
-        log_platform_action('provision_faculty', f'Provisioned Faculty account for tenant "{tenant.name}".')
+        log_platform_action('provision_faculty', f'Provisioned Faculty account "{email}" for tenant "{tenant.name}".')
         flash('Faculty account provisioned successfully.', 'success')
         return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 

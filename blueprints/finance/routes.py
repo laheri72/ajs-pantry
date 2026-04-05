@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g
 from app import db
-from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, FacultyBudgetCycle
+from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, FacultyBudgetCycle, ExpensePrintReport, ExpensePrintReportBill
 from .services.parser_factory import ParserFactory
 from datetime import datetime, date
 from sqlalchemy import or_, func
@@ -222,6 +222,73 @@ def expenses():
         current_user=user,
         active_floor=floor
     )
+
+@finance_bp.route('/expenses/print-reports/save', methods=['POST'])
+def save_print_report():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json or {}
+    floor = _get_active_floor(user)
+    report_title = (data.get('report_title') or '').strip() or 'Expense Report'
+    report_budget = float(data.get('report_budget') or 0)
+    total_spent = float(data.get('total_spent') or 0)
+    remaining_balance = float(data.get('remaining_balance') or 0)
+    summary_bill_ids = data.get('summary_bill_ids') or []
+    voucher_bill_ids = data.get('voucher_bill_ids') or []
+
+    try:
+        summary_bill_ids = [int(x) for x in summary_bill_ids]
+        voucher_bill_ids = [int(x) for x in voucher_bill_ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid bill selection'}), 400
+
+    all_bill_ids = sorted(set(summary_bill_ids + voucher_bill_ids))
+    if not all_bill_ids:
+        return jsonify({'error': 'Please select at least one bill to save this report.'}), 400
+
+    bills = tenant_filter(Bill.query).filter(Bill.id.in_(all_bill_ids), Bill.floor == floor).all()
+    if len(bills) != len(all_bill_ids):
+        return jsonify({'error': 'One or more bills were invalid for this floor.'}), 400
+
+    active_cycle = (
+        tenant_filter(FacultyBudgetCycle.query)
+        .filter_by(status='active')
+        .order_by(FacultyBudgetCycle.start_date.desc())
+        .first()
+    )
+
+    print_report = ExpensePrintReport(
+        cycle_id=active_cycle.id if active_cycle else None,
+        floor=floor,
+        report_title=report_title,
+        report_budget=report_budget,
+        total_spent=total_spent,
+        remaining_balance=remaining_balance,
+        created_by_id=user.id,
+        tenant_id=getattr(g, 'tenant_id', None)
+    )
+    db.session.add(print_report)
+    db.session.flush()
+
+    summary_set = set(summary_bill_ids)
+    voucher_set = set(voucher_bill_ids)
+    for bill in bills:
+        db.session.add(ExpensePrintReportBill(
+            print_report_id=print_report.id,
+            bill_id=bill.id,
+            include_in_summary=bill.id in summary_set,
+            include_as_voucher=bill.id in voucher_set,
+            tenant_id=getattr(g, 'tenant_id', None)
+        ))
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'print_report_id': print_report.id,
+        'report_title': print_report.report_title,
+    })
 
 @finance_bp.route('/bills/<int:bill_id>/archive', methods=['POST'])
 def archive_bill(bill_id):

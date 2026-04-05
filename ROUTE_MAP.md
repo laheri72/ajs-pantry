@@ -25,10 +25,12 @@ This file serves as a master index for all routes within the modularized AJS Pan
 |:---|:---|:---|:---|
 | `/faculty/login` | `login` | GET, POST | Faculty portal login |
 | `/faculty/dashboard` | `dashboard` | GET | Faculty analytics and active cycle overview |
+| `/faculty/profile` | `profile` | GET, POST | Faculty profile and password management |
 | `/faculty/cycles` | `cycles` | GET, POST | Create/list budget cycles with per-floor allocations |
 | `/faculty/cycles/<id>` | `cycle_detail` | GET | Floor-wise cycle allocation and submission matrix |
 | `/faculty/cycles/<id>/activate` | `activate_cycle` | POST | Activate a draft cycle |
 | `/faculty/cycles/<id>/close` | `close_cycle` | POST | Close an active cycle |
+| `/faculty/cycles/<id>/delete` | `delete_cycle` | POST | Delete a cycle and all linked budgets/submissions/PDFs |
 | `/faculty/reports/<id>` | `report_detail` | GET | Faculty review page for one floor submission |
 | `/faculty/reports/<id>/verify` | `verify_report` | POST | Approve a submitted report |
 | `/faculty/reports/<id>/reject` | `reject_report` | POST | Reject a submitted report with notes |
@@ -75,6 +77,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/lend-borrow/<id>/verify`| `verify_return` | POST | Lender confirms or rejects return |
 | `/expenses/import-receipt` | `import_receipt` | POST | Scan PDF/Image receipts |
 | `/expenses/save-imported-bill` | `save_imported_bill`| POST | Persist parsed PDF data to DB |
+| `/expenses/print-reports/save` | `save_print_report` | POST | Persist a saved print-report definition from the Expenses wizard |
 | `/bills/<id>/items` | `get_bill_items` | GET | API: Fetch all items for a specific bill (JSON) |
 
 ---

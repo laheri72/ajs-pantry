@@ -15,13 +15,15 @@ from flask import (
     url_for,
 )
 from sqlalchemy import func
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
 from models import (
     Bill,
     Budget,
     Expense,
+    ExpensePrintReport,
+    ExpensePrintReportBill,
     FacultyBudgetCycle,
     FacultyReportSubmission,
     Feedback,
@@ -105,17 +107,11 @@ def _submission_selectable_bills(floor, existing_submission=None):
         query = query.filter(Bill.report_submission_id.is_(None))
     return query.order_by(Bill.bill_date.desc(), Bill.created_at.desc()).all()
 
-
-def _submission_selectable_expenses(floor, existing_submission=None):
-    query = tenant_filter(Expense.query).filter(Expense.floor == floor)
-    if existing_submission:
-        query = query.filter(
-            (Expense.report_submission_id.is_(None))
-            | (Expense.report_submission_id == existing_submission.id)
-        )
-    else:
-        query = query.filter(Expense.report_submission_id.is_(None))
-    return query.order_by(Expense.date.desc(), Expense.created_at.desc()).all()
+def _saved_print_reports_for_floor(floor, cycle_id=None):
+    query = tenant_filter(ExpensePrintReport.query).filter_by(floor=floor)
+    if cycle_id:
+        query = query.filter(ExpensePrintReport.cycle_id == cycle_id)
+    return query.order_by(ExpensePrintReport.created_at.desc()).all()
 
 
 def _save_submission_file(file_storage, cycle, floor, revision_no):
@@ -123,6 +119,36 @@ def _save_submission_file(file_storage, cycle, floor, revision_no):
     path = os.path.join(_report_storage_dir(), filename)
     file_storage.save(path)
     return filename, path, os.path.getsize(path)
+
+
+def _safe_remove_file(path):
+    if not path:
+        return
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def _delete_cycle_related_data(cycle):
+    submissions = tenant_filter(FacultyReportSubmission.query).filter_by(cycle_id=cycle.id).all()
+    for submission in submissions:
+        for bill in list(submission.bills):
+            bill.report_submission_id = None
+        for expense in list(submission.expenses):
+            expense.report_submission_id = None
+        _safe_remove_file(submission.storage_path)
+        db.session.delete(submission)
+
+    print_reports = tenant_filter(ExpensePrintReport.query).filter_by(cycle_id=cycle.id).all()
+    for report in print_reports:
+        for link in list(report.bill_links):
+            db.session.delete(link)
+        db.session.delete(report)
+
+    tenant_filter(Budget.query).filter_by(cycle_id=cycle.id).delete(synchronize_session=False)
+    db.session.delete(cycle)
 
 
 def _sync_submission_links(submission, selected_bills, selected_expenses):
@@ -270,6 +296,30 @@ def dashboard():
         floor_rows=floor_rows,
         cycles=cycles,
         today=today,
+    )
+
+
+@faculty_bp.route('/faculty/profile', methods=['GET', 'POST'])
+def profile():
+    user = _require_faculty()
+
+    if request.method == 'POST':
+        user.full_name = (request.form.get('full_name') or '').strip() or None
+        user.phone_number = (request.form.get('phone_number') or '').strip() or None
+        _ensure_username_from_full_name(user, db.session)
+
+        new_password = (request.form.get('new_password') or '').strip()
+        if new_password:
+            user.password_hash = generate_password_hash(new_password)
+
+        db.session.commit()
+        flash('Faculty profile updated successfully.', 'success')
+        return redirect(url_for('faculty.profile'))
+
+    return render_template(
+        'faculty/profile.html',
+        current_user=user,
+        user=user,
     )
 
 
@@ -428,6 +478,17 @@ def close_cycle(cycle_id):
     return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
 
 
+@faculty_bp.route('/faculty/cycles/<int:cycle_id>/delete', methods=['POST'])
+def delete_cycle(cycle_id):
+    _require_faculty()
+    cycle = tenant_filter(FacultyBudgetCycle.query).filter_by(id=cycle_id).first_or_404()
+    cycle_title = cycle.title
+    _delete_cycle_related_data(cycle)
+    db.session.commit()
+    flash(f'Cycle "{cycle_title}" and all linked budgets, submissions, saved print reports, and PDFs were deleted.', 'success')
+    return redirect(url_for('faculty.cycles'))
+
+
 @faculty_bp.route('/reports', methods=['GET', 'POST'])
 def reports_page():
     user = _require_user()
@@ -438,8 +499,7 @@ def reports_page():
     active_cycle = _current_active_cycle()
     allocation = _cycle_for_floor(active_cycle.id, floor) if active_cycle else None
     submission = None
-    selectable_bills = []
-    selectable_expenses = []
+    saved_print_reports = []
 
     if active_cycle:
         submission = tenant_filter(FacultyReportSubmission.query).filter_by(
@@ -461,10 +521,11 @@ def reports_page():
                 return redirect(url_for('faculty.reports_page'))
 
             upload = request.files.get('report_pdf')
-            report_title = (request.form.get('report_title') or '').strip() or f"Floor {floor} Report"
             submission_notes = (request.form.get('submission_notes') or '').strip()
-            bill_ids = _parse_selected_ids(request.form.getlist('bill_ids'))
-            expense_ids = _parse_selected_ids(request.form.getlist('expense_ids'))
+            try:
+                print_report_id = int(request.form.get('print_report_id') or 0)
+            except (TypeError, ValueError):
+                print_report_id = 0
 
             if not upload or not upload.filename:
                 flash('Please upload the combined PDF report generated from Expenses.', 'error')
@@ -474,11 +535,28 @@ def reports_page():
                 flash('Only PDF uploads are allowed for Faculty submissions.', 'error')
                 return redirect(url_for('faculty.reports_page'))
 
-            selected_bills = tenant_filter(Bill.query).filter(Bill.id.in_(bill_ids), Bill.floor == floor).all() if bill_ids else []
-            selected_expenses = tenant_filter(Expense.query).filter(Expense.id.in_(expense_ids), Expense.floor == floor).all() if expense_ids else []
+            if not print_report_id:
+                flash('Please choose a saved print report from Expenses first.', 'error')
+                return redirect(url_for('faculty.reports_page'))
 
-            if len(selected_bills) != len(bill_ids) or len(selected_expenses) != len(expense_ids):
-                flash('One or more selected finance records were invalid for this floor.', 'error')
+            selected_print_report = tenant_filter(ExpensePrintReport.query).filter_by(
+                id=print_report_id,
+                floor=floor,
+            ).first()
+            if not selected_print_report:
+                flash('The selected print report was not found for this floor.', 'error')
+                return redirect(url_for('faculty.reports_page'))
+            if selected_print_report.cycle_id and selected_print_report.cycle_id != active_cycle.id:
+                flash('Please choose a print report created for the current active cycle.', 'error')
+                return redirect(url_for('faculty.reports_page'))
+
+            selected_bills = []
+            for link in selected_print_report.bill_links:
+                if link.bill and link.bill.floor == floor:
+                    selected_bills.append(link.bill)
+
+            if not selected_bills:
+                flash('The selected print report does not contain any bills.', 'error')
                 return redirect(url_for('faculty.reports_page'))
 
             for bill in selected_bills:
@@ -486,17 +564,13 @@ def reports_page():
                     flash(f'Bill {bill.bill_no} is already linked to another report submission.', 'error')
                     return redirect(url_for('faculty.reports_page'))
 
-            for expense in selected_expenses:
-                if expense.report_submission_id and (not submission or expense.report_submission_id != submission.id):
-                    flash(f'Legacy expense "{expense.description}" is already linked to another report submission.', 'error')
-                    return redirect(url_for('faculty.reports_page'))
-
             revision_no = (submission.revision_no + 1) if submission else 1
             stored_filename, storage_path, file_size = _save_submission_file(upload, active_cycle, floor, revision_no)
 
             if submission:
                 old_path = submission.storage_path
-                submission.report_title = report_title
+                submission.report_title = selected_print_report.report_title
+                submission.print_report_id = selected_print_report.id
                 submission.status = 'submitted'
                 submission.submission_notes = submission_notes
                 submission.review_notes = None
@@ -509,7 +583,7 @@ def reports_page():
                 submission.submitted_at = datetime.utcnow()
                 submission.verified_at = None
                 submission.verified_by_id = None
-                _sync_submission_links(submission, selected_bills, selected_expenses)
+                _sync_submission_links(submission, selected_bills, [])
                 if old_path and old_path != storage_path and os.path.exists(old_path):
                     try:
                         os.remove(old_path)
@@ -518,9 +592,10 @@ def reports_page():
             else:
                 submission = FacultyReportSubmission(
                     cycle_id=active_cycle.id,
+                    print_report_id=selected_print_report.id,
                     floor=floor,
                     uploaded_by_id=user.id,
-                    report_title=report_title,
+                    report_title=selected_print_report.report_title,
                     status='submitted',
                     submission_notes=submission_notes,
                     stored_filename=stored_filename,
@@ -533,14 +608,13 @@ def reports_page():
                 )
                 db.session.add(submission)
                 db.session.flush()
-                _sync_submission_links(submission, selected_bills, selected_expenses)
+                _sync_submission_links(submission, selected_bills, [])
 
             db.session.commit()
             flash('Report submitted to Faculty successfully.', 'success')
             return redirect(url_for('faculty.reports_page'))
 
-        selectable_bills = _submission_selectable_bills(floor, submission if submission and submission.status == 'rejected' else None)
-        selectable_expenses = _submission_selectable_expenses(floor, submission if submission and submission.status == 'rejected' else None)
+        saved_print_reports = _saved_print_reports_for_floor(floor, active_cycle.id)
 
     return render_template(
         'reports.html',
@@ -549,8 +623,7 @@ def reports_page():
         active_cycle=active_cycle,
         allocation=allocation,
         submission=submission,
-        selectable_bills=selectable_bills,
-        selectable_expenses=selectable_expenses,
+        saved_print_reports=saved_print_reports,
         today=date.today(),
     )
 
@@ -565,7 +638,6 @@ def report_detail(submission_id):
         submission=submission,
         cycle=submission.cycle,
         linked_bills=tenant_filter(Bill.query).filter_by(report_submission_id=submission.id).order_by(Bill.bill_date.desc()).all(),
-        linked_expenses=tenant_filter(Expense.query).filter_by(report_submission_id=submission.id).order_by(Expense.date.desc()).all(),
     )
 
 

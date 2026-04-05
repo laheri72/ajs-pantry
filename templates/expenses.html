@@ -1373,6 +1373,27 @@
         });
     });
 
+    async function saveGeneratedPrintReport(reportTitle, customBudget, totalSpent, remaining, summaryBillIds, voucherBillIds) {
+        const response = await fetch('/expenses/print-reports/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                report_title: reportTitle,
+                report_budget: customBudget,
+                total_spent: totalSpent,
+                remaining_balance: remaining,
+                summary_bill_ids: summaryBillIds,
+                voucher_bill_ids: voucherBillIds
+            })
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to save print report.');
+        }
+        return data;
+    }
+
     async function generateCustomPrintReport() {
         const btn = document.getElementById('generateReportBtn');
         const originalHtml = btn.innerHTML;
@@ -1446,6 +1467,15 @@
             }
 
             const remaining = customBudget - totalSpent;
+            const summaryBillIds = Array.from(checkedGroups)
+                .map(group => parseInt(group.getAttribute('data-bill-id'), 10))
+                .filter(Boolean);
+            const voucherBillIds = Array.from(voucherChecked)
+                .map(group => parseInt(group.getAttribute('data-bill-id'), 10))
+                .filter(Boolean);
+
+            await saveGeneratedPrintReport(reportTitle, customBudget, totalSpent, remaining, summaryBillIds, voucherBillIds);
+
             let rowsHtml = '';
             selectedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
 
