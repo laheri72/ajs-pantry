@@ -1108,11 +1108,13 @@ def menus():
         return redirect(url_for('pantry.menus'))
 
     # Prepare Weekly View Data
+    week_offset = request.args.get('week_offset', 0, type=int)
     today = date.today()
-    start_of_week = today - timedelta(days=today.weekday())
+    target_date = today + timedelta(weeks=week_offset)
+    start_of_week = target_date - timedelta(days=target_date.weekday())
     end_of_week = start_of_week + timedelta(days=7)
     
-    # Fetch menus for current week (usually small)
+    # Fetch menus for target week
     weekly_menus = (
         tenant_filter(Menu.query)
         .options(joinedload(Menu.assigned_to), joinedload(Menu.assigned_team), joinedload(Menu.dish))
@@ -1164,6 +1166,7 @@ def menus():
         dishes=all_dishes, 
         current_user=user,
         today=today,
+        week_offset=week_offset,
         active_floor=floor
     )
 
