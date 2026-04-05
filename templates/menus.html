@@ -2,6 +2,32 @@
 
 {% block title %}Menus - Maskan Breakfast Management{% endblock %}
 
+{% block extra_head %}
+<!-- Tom Select CSS for Bootstrap 5 -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+/* Tweaks to blend Tom Select natively with the design */
+.ts-control {
+    border-radius: 0.375rem;
+    box-shadow: none !important;
+    border: 1px solid #dee2e6;
+    padding: 0.375rem 0.75rem;
+}
+.ts-control > input {
+    font-size: 1rem;
+}
+.ts-wrapper.form-select {
+    padding: 0;
+}
+.ts-wrapper.form-select.row-main-dish, .ts-wrapper.form-select.row-side-dish {
+    font-size: 0.875rem;
+}
+.ts-wrapper.form-select.row-main-dish .ts-control, .ts-wrapper.form-select.row-side-dish .ts-control {
+    padding: 0.25rem 0.5rem;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid menu-page">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -490,6 +516,7 @@
 .table-teal { background-color: var(--teal-primary) !important; }
 #bulkPlannerTable td { vertical-align: middle; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 function openAddMenuModal(dateStr) {
     const dateInput = document.getElementById('menuDateInput');
@@ -548,12 +575,32 @@ document.addEventListener('DOMContentLoaded', function () {
     const teamSelect = document.getElementById('assignedTeamSelect');
     const userSelect = document.getElementById('assignedUserSelect');
     const dishSelect = document.getElementById('dishSelect');
+    const sideDishSelect = document.getElementById('sideDishSelect');
     const showNewDishLink = document.getElementById('showNewDishLink');
     const cancelNewDishLink = document.getElementById('cancelNewDishLink');
     const newDishWrap = document.getElementById('newDishWrap');
     const newDishName = document.getElementById('newDishName');
     const btnSuggestTeam = document.getElementById('btnSuggestTeam');
     const isBufferToggle = document.getElementById('isBufferToggle');
+
+    let dishTomSelect = null;
+    let sideDishTomSelect = null;
+
+    if (dishSelect) {
+        dishTomSelect = new TomSelect(dishSelect, {
+            create: false,
+            sortField: { field: "text", direction: "asc" },
+            placeholder: "Search main dish..."
+        });
+    }
+
+    if (sideDishSelect) {
+        sideDishTomSelect = new TomSelect(sideDishSelect, {
+            create: false,
+            sortField: { field: "text", direction: "asc" },
+            placeholder: "None / Search side dish..."
+        });
+    }
 
     if (teamSelect && userSelect) {
         function syncAssignmentSelects() {
@@ -662,9 +709,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (showNewDishLink) {
         showNewDishLink.addEventListener('click', function (e) {
-            dishSelect.value = '';
+            if (dishTomSelect) {
+                dishTomSelect.clear();
+                dishTomSelect.disable();
+            } else {
+                dishSelect.value = '';
+                dishSelect.disabled = true;
+            }
             dishSelect.required = false;
-            dishSelect.disabled = true;
             newDishWrap.classList.remove('d-none');
             newDishName.required = true;
             newDishName.focus();
@@ -673,7 +725,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (cancelNewDishLink) {
         cancelNewDishLink.addEventListener('click', function (e) {
-            dishSelect.disabled = false;
+            if (dishTomSelect) {
+                dishTomSelect.enable();
+            } else {
+                dishSelect.disabled = false;
+            }
             dishSelect.required = true;
             newDishWrap.classList.add('d-none');
             newDishName.required = false;
@@ -683,8 +739,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (showNewSideDishLink) {
         showNewSideDishLink.addEventListener('click', function (e) {
-            sideDishSelect.value = '';
-            sideDishSelect.disabled = true;
+            if (sideDishTomSelect) {
+                sideDishTomSelect.clear();
+                sideDishTomSelect.disable();
+            } else {
+                sideDishSelect.value = '';
+                sideDishSelect.disabled = true;
+            }
             newSideDishWrap.classList.remove('d-none');
             newSideDishName.focus();
         });
@@ -692,7 +753,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (cancelNewSideDishLink) {
         cancelNewSideDishLink.addEventListener('click', function (e) {
-            sideDishSelect.disabled = false;
+            if (sideDishTomSelect) {
+                sideDishTomSelect.enable();
+            } else {
+                sideDishSelect.disabled = false;
+            }
             newSideDishWrap.classList.add('d-none');
             newSideDishName.value = '';
         });
@@ -829,6 +894,18 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
             tbody.appendChild(tr);
 
+            // Initialize Tom Select on the new row selects
+            new TomSelect(tr.querySelector('.row-main-dish'), {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                placeholder: "Search Main..."
+            });
+            new TomSelect(tr.querySelector('.row-side-dish'), {
+                create: false,
+                sortField: { field: "text", direction: "asc" },
+                placeholder: "Search Side..."
+            });
+
             // Add listener for row insights
             const select = tr.querySelector('.row-main-dish');
             select.addEventListener('change', function() {
@@ -922,7 +999,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const sideId = row.querySelector('.row-side-dish').value;
             const newSide = row.querySelector('.row-new-side').value.trim();
             if (dishId || newMain) {
-                const mainDishText = newMain || row.querySelector('.row-main-dish').options[row.querySelector('.row-main-dish').selectedIndex].text;
+                let mainDishText = newMain;
+                if (!newMain) {
+                    const mainDishSel = row.querySelector('.row-main-dish');
+                    if (mainDishSel.tomselect && mainDishSel.tomselect.options[dishId]) {
+                        mainDishText = mainDishSel.tomselect.options[dishId].text;
+                    } else if (mainDishSel.selectedIndex >= 0) {
+                        mainDishText = mainDishSel.options[mainDishSel.selectedIndex].text;
+                    } else {
+                        mainDishText = '';
+                    }
+                }
+                
                 payload.push({
                     date: row.querySelector('.row-date').value,
                     dish_id: dishId || null,
