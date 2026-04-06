@@ -15,9 +15,7 @@
             <button class="btn btn-success rounded-pill px-4">Activate Cycle</button>
         </form>
         {% elif cycle.status == 'active' %}
-        <form method="POST" action="{{ url_for('faculty.close_cycle', cycle_id=cycle.id) }}">
-            <button class="btn btn-outline-dark rounded-pill px-4">Close Cycle</button>
-        </form>
+        <button class="btn btn-outline-dark rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#closeCycleModal">Close Cycle</button>
         {% endif %}
         <form method="POST" action="{{ url_for('faculty.delete_cycle', cycle_id=cycle.id) }}" onsubmit="return confirm('Delete this cycle and all its budgets, saved print reports, linked submissions, and stored PDFs? This cannot be undone.');">
             <button class="btn btn-outline-danger rounded-pill px-4">Delete Cycle</button>
@@ -80,4 +78,35 @@
         </table>
     </div>
 </div>
+
+{% if cycle.status == 'active' %}
+<div class="modal fade" id="closeCycleModal" tabindex="-1" aria-labelledby="closeCycleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-bold" id="closeCycleModalLabel">Confirm Final Cycle Closure</h5>
+                    <div class="small text-muted">{{ cycle.title }}</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <div class="alert alert-light border rounded-4 mb-3">
+                    <div class="fw-bold">{{ cycle.start_date.strftime('%d %b %Y') }} to {{ cycle.end_date.strftime('%d %b %Y') }}</div>
+                    <div class="small text-muted">Submission deadline: {{ cycle.submission_deadline.strftime('%d %b %Y') }}</div>
+                </div>
+                <p class="mb-2">This will mark the cycle as closed and it will no longer be the active funding cycle.</p>
+                <p class="text-muted small mb-0">Use this only after you are sure the reporting window should be finalized.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('faculty.close_cycle', cycle_id=cycle.id) }}">
+                    <input type="hidden" name="confirm_close" value="1">
+                    <button class="btn btn-dark rounded-pill px-4">Yes, Close Cycle</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

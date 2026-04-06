@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
-from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget
+from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -131,6 +131,28 @@ def dashboard():
         .all()
     )
 
+    active_cycle = None
+    active_cycle_allocation = None
+    current_cycle_submission = None
+    if is_privileged:
+        active_cycle = (
+            tenant_filter(FacultyBudgetCycle.query)
+            .filter_by(status='active')
+            .order_by(FacultyBudgetCycle.start_date.desc())
+            .first()
+        )
+        if active_cycle:
+            active_cycle_allocation = tenant_filter(Budget.query).filter(
+                Budget.cycle_id == active_cycle.id,
+                Budget.floor == floor,
+                visible_budget_condition(),
+            ).first()
+            if active_cycle_allocation:
+                current_cycle_submission = tenant_filter(FacultyReportSubmission.query).filter_by(
+                    cycle_id=active_cycle.id,
+                    floor=floor,
+                ).first()
+
     # Notifications logic
     notifications = []
     
@@ -200,6 +222,88 @@ def dashboard():
             'time': datetime.combine(event.date, datetime.min.time()),
             'category': 'Special Event'
         })
+
+    if is_privileged and active_cycle and active_cycle_allocation:
+        notifications.append({
+            'type': 'faculty',
+            'icon': 'fas fa-layer-group',
+            'title': f"Faculty Cycle Active: {active_cycle.title}",
+            'content': f"Allocated budget: INR {float(active_cycle_allocation.amount_allocated):.2f}. Deadline: {active_cycle.submission_deadline.strftime('%Y-%m-%d')}.",
+            'time': active_cycle.activated_at or active_cycle.created_at,
+            'category': 'Faculty Cycle',
+        })
+
+        days_to_deadline = (active_cycle.submission_deadline - today).days
+        if current_cycle_submission is None:
+            notifications.append({
+                'type': 'faculty',
+                'icon': 'fas fa-file-upload',
+                'title': 'No Faculty report uploaded yet',
+                'content': f"Your floor has not submitted a report for {active_cycle.title} yet.",
+                'time': datetime.combine(active_cycle.submission_deadline, datetime.min.time()),
+                'category': 'Faculty Cycle',
+            })
+            if days_to_deadline < 0:
+                notifications.append({
+                    'type': 'faculty',
+                    'icon': 'fas fa-triangle-exclamation',
+                    'title': 'Faculty report is overdue',
+                    'content': f"The submission deadline was {active_cycle.submission_deadline.strftime('%Y-%m-%d')}. Please upload the report urgently.",
+                    'time': datetime.combine(active_cycle.submission_deadline, datetime.min.time()),
+                    'category': 'Faculty Cycle',
+                })
+            elif days_to_deadline <= 3:
+                notifications.append({
+                    'type': 'faculty',
+                    'icon': 'fas fa-hourglass-half',
+                    'title': 'Faculty report deadline approaching',
+                    'content': f"{days_to_deadline} day(s) left before the submission deadline for {active_cycle.title}.",
+                    'time': datetime.combine(active_cycle.submission_deadline, datetime.min.time()),
+                    'category': 'Faculty Cycle',
+                })
+        elif current_cycle_submission.status == 'submitted':
+            notifications.append({
+                'type': 'faculty',
+                'icon': 'fas fa-user-clock',
+                'title': 'Faculty review pending',
+                'content': f"Your report for {active_cycle.title} has been submitted and is awaiting Faculty review.",
+                'time': current_cycle_submission.submitted_at,
+                'category': 'Faculty Cycle',
+            })
+        elif current_cycle_submission.status == 'rejected':
+            notifications.append({
+                'type': 'faculty',
+                'icon': 'fas fa-rotate-left',
+                'title': 'Faculty requested a resubmission',
+                'content': current_cycle_submission.review_notes or f"Your report for {active_cycle.title} was rejected and needs revision.",
+                'time': current_cycle_submission.updated_at or current_cycle_submission.submitted_at,
+                'category': 'Faculty Cycle',
+            })
+
+    if user.role == 'pantryHead':
+        faculty_messages = (
+            tenant_filter(FacultyMessage.query)
+            .options(joinedload(FacultyMessage.created_by), joinedload(FacultyMessage.target_floors))
+            .filter(
+                FacultyMessage.is_archived == False,
+                or_(
+                    FacultyMessage.target_scope == 'all_pantry_heads',
+                    FacultyMessage.target_floors.any(FacultyMessageFloor.floor == floor),
+                ),
+            )
+            .order_by(FacultyMessage.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        for message in faculty_messages:
+            notifications.append({
+                'type': 'faculty_message',
+                'icon': 'fas fa-building-columns',
+                'title': message.title,
+                'content': message.content,
+                'time': message.created_at,
+                'category': 'Faculty Message',
+            })
 
     # Sort notifications by time
     notifications.sort(key=lambda x: x['time'], reverse=True)

@@ -359,6 +359,31 @@ class Announcement(db.Model, TenantMixin):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 
+class FacultyMessage(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(120), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    target_scope = db.Column(db.String(30), nullable=False, default='all_pantry_heads', index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    is_archived = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
+    created_by = db.relationship('User', foreign_keys=[created_by_id])
+    target_floors = db.relationship(
+        'FacultyMessageFloor',
+        backref=db.backref('faculty_message', lazy=True),
+        cascade='all, delete-orphan',
+        lazy=True,
+    )
+
+
+class FacultyMessageFloor(db.Model, TenantMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    faculty_message_id = db.Column(db.Integer, db.ForeignKey('faculty_message.id'), nullable=False, index=True)
+    floor = db.Column(db.Integer, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Garamat(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)

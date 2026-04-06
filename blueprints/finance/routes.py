@@ -258,6 +258,17 @@ def save_print_report():
         .order_by(FacultyBudgetCycle.start_date.desc())
         .first()
     )
+    active_cycle_allocation = None
+    if active_cycle:
+        active_cycle_allocation = tenant_filter(Budget.query).filter(
+            Budget.cycle_id == active_cycle.id,
+            Budget.floor == floor,
+            visible_budget_condition(),
+        ).first()
+
+    if active_cycle_allocation:
+        report_budget = float(active_cycle_allocation.amount_allocated or 0)
+        remaining_balance = report_budget - total_spent
 
     print_report = ExpensePrintReport(
         cycle_id=active_cycle.id if active_cycle else None,

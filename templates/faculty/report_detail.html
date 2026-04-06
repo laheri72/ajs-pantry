@@ -37,7 +37,59 @@
             <form method="POST" action="{{ url_for('faculty.verify_report', submission_id=submission.id) }}" class="mb-3">
                 <label class="form-label fw-bold">Faculty Review Notes</label>
                 <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Add optional review notes or final approval context">{{ submission.review_notes or '' }}</textarea>
-                <button class="btn btn-success rounded-pill px-4 w-100">Verify Report</button>
+                <button type="button" class="btn btn-success rounded-pill px-4 w-100" data-bs-toggle="modal" data-bs-target="#verifyReportModal">Verify Report</button>
+                <div class="modal fade" id="verifyReportModal" tabindex="-1" aria-labelledby="verifyReportModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow">
+                            <div class="modal-header border-0 pb-0">
+                                <div>
+                                    <h5 class="modal-title fw-bold" id="verifyReportModalLabel">Confirm Report Verification</h5>
+                                    <div class="small text-muted">Floor {{ submission.floor }} • {{ submission.report_title }}</div>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body pt-3">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-sm-4">
+                                        <div class="border rounded-4 p-3 bg-light h-100">
+                                            <div class="small text-muted text-uppercase fw-bold">Allocated</div>
+                                            <div class="fw-bold">&#8377;{{ "%.2f"|format(verification_summary.allocated_budget) }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <div class="border rounded-4 p-3 bg-light h-100">
+                                            <div class="small text-muted text-uppercase fw-bold">Bills Total</div>
+                                            <div class="fw-bold">&#8377;{{ "%.2f"|format(verification_summary.linked_bills_total) }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <div class="border rounded-4 p-3 bg-light h-100">
+                                            <div class="small text-muted text-uppercase fw-bold">
+                                                {% if verification_summary.verification_state == 'overspent' %}Overspent{% elif verification_summary.verification_state == 'remaining' %}Remaining{% else %}Difference{% endif %}
+                                            </div>
+                                            <div class="fw-bold {% if verification_summary.verification_state == 'overspent' %}text-danger{% elif verification_summary.verification_state == 'remaining' %}text-warning{% else %}text-success{% endif %}">
+                                                &#8377;{{ "%.2f"|format(verification_summary.difference_amount) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert {% if verification_summary.verification_state == 'overspent' %}alert-danger{% elif verification_summary.verification_state == 'remaining' %}alert-warning{% else %}alert-success{% endif %} rounded-4 mb-0">
+                                    {% if verification_summary.verification_state == 'overspent' %}
+                                    Linked bills exceed the allocated cycle budget. You can still verify after acknowledging this variance.
+                                    {% elif verification_summary.verification_state == 'remaining' %}
+                                    This floor has budget remaining in the active cycle. Verification will still proceed for the current linked-bill total.
+                                    {% else %}
+                                    Linked bills match the allocated cycle budget for this floor.
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="modal-footer border-0 pt-0">
+                                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" name="verification_acknowledged" value="1" class="btn btn-success rounded-pill px-4">Confirm Verification</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </form>
             <form method="POST" action="{{ url_for('faculty.reject_report', submission_id=submission.id) }}">
                 <label class="form-label fw-bold">Reject with Notes</label>
@@ -48,6 +100,30 @@
     </div>
     <div class="col-xl-7">
         <div class="faculty-card p-4">
+            <div class="row g-3 mb-4">
+                <div class="col-sm-4">
+                    <div class="border rounded-4 p-3 bg-light h-100">
+                        <div class="small text-muted text-uppercase fw-bold">Allocated Budget</div>
+                        <div class="h5 fw-bold mb-0">&#8377;{{ "%.2f"|format(verification_summary.allocated_budget) }}</div>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="border rounded-4 p-3 bg-light h-100">
+                        <div class="small text-muted text-uppercase fw-bold">Linked Bills Total</div>
+                        <div class="h5 fw-bold mb-0">&#8377;{{ "%.2f"|format(verification_summary.linked_bills_total) }}</div>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="border rounded-4 p-3 bg-light h-100">
+                        <div class="small text-muted text-uppercase fw-bold">
+                            {% if verification_summary.verification_state == 'overspent' %}Overspent{% elif verification_summary.verification_state == 'remaining' %}Remainder Left{% else %}Difference{% endif %}
+                        </div>
+                        <div class="h5 fw-bold mb-0 {% if verification_summary.verification_state == 'overspent' %}text-danger{% elif verification_summary.verification_state == 'remaining' %}text-warning{% else %}text-success{% endif %}">
+                            &#8377;{{ "%.2f"|format(verification_summary.difference_amount) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
             <h5 class="fw-bold mb-3">Linked Bills</h5>
             <div class="table-responsive faculty-table-mobile">
                 <table class="table align-middle mb-0">
@@ -73,6 +149,12 @@
                         </tr>
                         {% endfor %}
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="fw-bold text-end">Linked Bills Total</td>
+                            <td class="text-end fw-bold">&#8377;{{ "%.2f"|format(verification_summary.linked_bills_total) }}</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
