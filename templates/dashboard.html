@@ -324,17 +324,17 @@
                     <div class="card-body p-0">
                         <div class="list-group list-group-flush">
                             {% for n in notifications %}
-                            <div class="list-group-item px-4 py-3 border-start border-4 {{ 'border-primary' if n.type == 'announcement' else ('border-info' if n.type == 'event' else 'border-success') }} mb-1">
+                            <div class="list-group-item px-4 py-3 border-start border-4 {{ 'border-primary' if n.type == 'announcement' else ('border-info' if n.type == 'event' else ('border-warning' if n.type == 'faculty' else ('border-dark' if n.type == 'faculty_message' else 'border-success'))) }} mb-1">
                                 <div class="d-flex align-items-start gap-3">
                                     <div class="flex-shrink-0 mt-1">
                                         <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                            <i class="{{ n.icon }} {{ 'text-primary' if n.type == 'announcement' else ('text-info' if n.type == 'event' else 'text-success') }}"></i>
+                                            <i class="{{ n.icon }} {{ 'text-primary' if n.type == 'announcement' else ('text-info' if n.type == 'event' else ('text-warning' if n.type == 'faculty' else ('text-dark' if n.type == 'faculty_message' else 'text-success'))) }}"></i>
                                         </div>
                                     </div>
                                     <div class="flex-grow-1">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <h6 class="mb-0 fw-bold">{{ n.title }}</h6>
-                                            <span class="badge {{ 'bg-primary' if n.type == 'announcement' else ('bg-info' if n.type == 'event' else 'bg-success') }} opacity-75 small px-2 py-1">
+                                            <span class="badge {{ 'bg-primary' if n.type == 'announcement' else ('bg-info' if n.type == 'event' else ('bg-warning text-dark' if n.type == 'faculty' else ('bg-dark' if n.type == 'faculty_message' else 'bg-success'))) }} opacity-75 small px-2 py-1">
                                                 {{ n.category }}
                                             </span>
                                         </div>

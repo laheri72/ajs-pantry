@@ -1,0 +1,128 @@
+{% extends "faculty/base.html" %}
+
+{% block title %}Faculty Messages - Faculty Portal{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-xl-5">
+        <div class="faculty-card p-4">
+            <div class="mb-4">
+                <h3 class="fw-bold mb-1">Formal Faculty Messages</h3>
+                <div class="text-muted small">Send professional notices to Pantry Heads across the tenant or to selected floors only.</div>
+            </div>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Title</label>
+                    <input type="text" name="title" class="form-control rounded-4" placeholder="e.g. Budget review meeting" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Message</label>
+                    <textarea name="content" class="form-control rounded-4" rows="5" placeholder="Write the formal instruction or reminder..." required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Recipients</label>
+                    <select name="target_scope" id="targetScopeSelect" class="form-select rounded-4">
+                        <option value="all_pantry_heads">All Pantry Heads</option>
+                        <option value="selected_floors">Selected Floors Only</option>
+                    </select>
+                </div>
+                <div class="border rounded-4 p-3 mb-4 d-none" id="targetFloorsPanel">
+                    <div class="fw-bold mb-2">Choose floors</div>
+                    <div class="row g-2">
+                        {% for floor in floor_options %}
+                        <div class="col-6 col-sm-4">
+                            <label class="border rounded-4 px-3 py-2 d-flex align-items-center gap-2 bg-light w-100">
+                                <input type="checkbox" name="target_floors" value="{{ floor }}">
+                                <span>Floor {{ floor }}</span>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <button class="btn btn-success rounded-pill px-4 w-100">
+                    <i class="fas fa-paper-plane me-2"></i>Send Message
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-xl-7">
+        <div class="faculty-card p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center gap-3 mb-3 faculty-stack-mobile">
+                <h5 class="fw-bold mb-0">Active Messages</h5>
+                <span class="badge bg-success">{{ active_messages|length }}</span>
+            </div>
+            <div class="list-group list-group-flush">
+                {% for message in active_messages %}
+                <div class="list-group-item border-0 px-0 py-3">
+                    <div class="d-flex justify-content-between align-items-start gap-3 faculty-stack-mobile">
+                        <div>
+                            <div class="fw-bold">{{ message.title }}</div>
+                            <div class="small text-muted mb-2">
+                                {{ message.created_at.strftime('%d %b %Y %H:%M') }}
+                                {% if message.target_scope == 'selected_floors' %}
+                                &bull; Floors {{ message_target_floors(message)|join(', ') }}
+                                {% else %}
+                                &bull; All Pantry Heads
+                                {% endif %}
+                            </div>
+                            <div class="small">{{ message.content }}</div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <form method="POST" action="{{ url_for('faculty.archive_message', message_id=message.id) }}">
+                                <button class="btn btn-sm btn-outline-warning rounded-pill">Archive</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('faculty.delete_message', message_id=message.id) }}" onsubmit="return confirm('Delete this faculty message?')">
+                                <button class="btn btn-sm btn-outline-danger rounded-pill">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-muted small">No active Faculty messages yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if archived_messages %}
+        <div class="faculty-card p-4">
+            <h5 class="fw-bold mb-3">Archived Messages</h5>
+            <div class="list-group list-group-flush">
+                {% for message in archived_messages %}
+                <div class="list-group-item border-0 px-0 py-3 opacity-75">
+                    <div class="d-flex justify-content-between align-items-start gap-3 faculty-stack-mobile">
+                        <div>
+                            <div class="fw-bold">{{ message.title }}</div>
+                            <div class="small text-muted mb-2">{{ message.created_at.strftime('%d %b %Y %H:%M') }}</div>
+                            <div class="small">{{ message.content }}</div>
+                        </div>
+                        <form method="POST" action="{{ url_for('faculty.delete_message', message_id=message.id) }}" onsubmit="return confirm('Delete this archived faculty message?')">
+                            <button class="btn btn-sm btn-outline-danger rounded-pill">Delete</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (function () {
+        const scopeSelect = document.getElementById('targetScopeSelect');
+        const floorsPanel = document.getElementById('targetFloorsPanel');
+        if (!scopeSelect || !floorsPanel) return;
+
+        function syncTargetFloorsPanel() {
+            const showFloors = scopeSelect.value === 'selected_floors';
+            floorsPanel.classList.toggle('d-none', !showFloors);
+        }
+
+        scopeSelect.addEventListener('change', syncTargetFloorsPanel);
+        syncTargetFloorsPanel();
+    })();
+</script>
+{% endblock %}

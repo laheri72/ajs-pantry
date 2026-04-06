@@ -26,6 +26,8 @@ from models import (
     ExpensePrintReport,
     ExpensePrintReportBill,
     FacultyBudgetCycle,
+    FacultyMessage,
+    FacultyMessageFloor,
     FacultyReportSubmission,
     Feedback,
     FloorLendBorrow,
@@ -40,6 +42,7 @@ from ..utils import (
     _get_tenant_floor_options,
     _require_faculty,
     _require_user,
+    send_push_notification,
     tenant_filter,
     visible_budget_condition,
 )
@@ -163,12 +166,42 @@ def _save_submission_file(file_storage, cycle, floor, revision_no):
 
 def _safe_remove_file(path):
     if not path:
+        current_app.logger.warning('Skipping PDF cleanup because no storage path was provided.')
         return
     try:
         if os.path.exists(path):
             os.remove(path)
+            current_app.logger.info('Deleted stored Faculty PDF during cleanup: %s', path)
+        else:
+            current_app.logger.warning('Faculty PDF cleanup skipped because file was already missing: %s', path)
     except OSError:
-        pass
+        current_app.logger.exception('Faculty PDF cleanup failed for path: %s', path)
+
+
+def _message_target_floors(message):
+    if message.target_scope == 'selected_floors':
+        return sorted({target.floor for target in message.target_floors})
+    return []
+
+
+def _build_submission_verification_data(submission, linked_bills):
+    allocation = _cycle_for_floor(submission.cycle_id, submission.floor)
+    allocated_budget = float(allocation.amount_allocated) if allocation else 0
+    linked_bills_total = float(sum(float(bill.total_amount or 0) for bill in linked_bills))
+    difference_amount = round(abs(allocated_budget - linked_bills_total), 2)
+    verification_state = 'matched'
+    if linked_bills_total < allocated_budget:
+        verification_state = 'remaining'
+    elif linked_bills_total > allocated_budget:
+        verification_state = 'overspent'
+
+    return {
+        'allocation': allocation,
+        'allocated_budget': allocated_budget,
+        'linked_bills_total': linked_bills_total,
+        'difference_amount': difference_amount,
+        'verification_state': verification_state,
+    }
 
 
 def _delete_cycle_related_data(cycle):
@@ -237,7 +270,6 @@ def login():
 def dashboard():
     user = _require_faculty()
     today = date.today()
-    floor_options = _get_tenant_floor_options(user)
     active_cycle = _current_active_cycle()
     cycle_allocations = []
     submissions_by_floor = {}
@@ -296,9 +328,8 @@ def dashboard():
     overdue_floors = 0
     floor_rows = []
     if active_cycle:
-        for floor in floor_options:
-            allocation = next((b for b in cycle_allocations if b.floor == floor), None)
-            submission = submissions_by_floor.get(floor)
+        for allocation in cycle_allocations:
+            submission = submissions_by_floor.get(allocation.floor)
             if submission and submission.status == 'verified':
                 verified_submission_count += 1
             else:
@@ -306,7 +337,7 @@ def dashboard():
                 if active_cycle.submission_deadline < today:
                     overdue_floors += 1
             floor_rows.append({
-                'floor': floor,
+                'floor': allocation.floor,
                 'allocation': allocation,
                 'submission': submission,
             })
@@ -360,6 +391,98 @@ def profile():
         'faculty/profile.html',
         current_user=user,
         user=user,
+    )
+
+
+@faculty_bp.route('/faculty/messages', methods=['GET', 'POST'])
+def messages():
+    user = _require_faculty()
+    floor_options = _get_tenant_floor_options(user)
+
+    if request.method == 'POST':
+        title = (request.form.get('title') or '').strip()
+        content = (request.form.get('content') or '').strip()
+        target_scope = (request.form.get('target_scope') or 'all_pantry_heads').strip()
+
+        if not title or not content:
+            flash('Message title and content are required.', 'error')
+            return redirect(url_for('faculty.messages'))
+
+        if target_scope not in {'all_pantry_heads', 'selected_floors'}:
+            flash('Invalid recipient scope selected.', 'error')
+            return redirect(url_for('faculty.messages'))
+
+        selected_floors = []
+        if target_scope == 'selected_floors':
+            for raw_floor in request.form.getlist('target_floors'):
+                try:
+                    floor = int(raw_floor)
+                except (TypeError, ValueError):
+                    continue
+                if floor in floor_options and floor not in selected_floors:
+                    selected_floors.append(floor)
+
+            if not selected_floors:
+                flash('Choose at least one floor for a targeted Faculty message.', 'error')
+                return redirect(url_for('faculty.messages'))
+
+        message = FacultyMessage(
+            title=title,
+            content=content,
+            target_scope=target_scope,
+            created_by_id=user.id,
+            tenant_id=getattr(g, 'tenant_id', None),
+        )
+        db.session.add(message)
+        db.session.flush()
+
+        if target_scope == 'selected_floors':
+            for floor in selected_floors:
+                db.session.add(FacultyMessageFloor(
+                    faculty_message_id=message.id,
+                    floor=floor,
+                    tenant_id=getattr(g, 'tenant_id', None),
+                ))
+
+        recipient_query = tenant_filter(User.query).filter(User.role == 'pantryHead')
+        if target_scope == 'selected_floors':
+            recipient_query = recipient_query.filter(User.floor.in_(selected_floors))
+        recipients = recipient_query.all()
+
+        db.session.commit()
+
+        for recipient in recipients:
+            send_push_notification(
+                user_id=recipient.id,
+                title=f"Faculty Message: {message.title}",
+                body=message.content[:100] + ("..." if len(message.content) > 100 else ""),
+                icon="/static/icons/icon-192.png",
+                url="/dashboard",
+            )
+
+        flash('Faculty message sent to Pantry Heads successfully.', 'success')
+        return redirect(url_for('faculty.messages'))
+
+    active_messages = (
+        tenant_filter(FacultyMessage.query)
+        .filter_by(is_archived=False)
+        .order_by(FacultyMessage.created_at.desc())
+        .all()
+    )
+    archived_messages = (
+        tenant_filter(FacultyMessage.query)
+        .filter_by(is_archived=True)
+        .order_by(FacultyMessage.created_at.desc())
+        .all()
+    )
+
+    return render_template(
+        'faculty/messages.html',
+        current_user=user,
+        active_messages=active_messages,
+        archived_messages=archived_messages,
+        floor_options=floor_options,
+        message_target_floors=_message_target_floors,
     )
 
 
@@ -509,8 +632,14 @@ def activate_cycle(cycle_id):
 
 @faculty_bp.route('/faculty/cycles/<int:cycle_id>/close', methods=['POST'])
 def close_cycle(cycle_id):
-    user = _require_faculty()
+    _require_faculty()
     cycle = tenant_filter(FacultyBudgetCycle.query).filter_by(id=cycle_id).first_or_404()
+    if request.form.get('confirm_close') != '1':
+        flash('Please confirm the close-cycle action before final closing.', 'error')
+        return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
+    if cycle.status != 'active':
+        flash('Only active cycles can be closed.', 'error')
+        return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
     cycle.status = 'closed'
     cycle.closed_at = datetime.utcnow()
     db.session.commit()
@@ -675,12 +804,20 @@ def reports_page():
 def report_detail(submission_id):
     user = _require_faculty()
     submission = tenant_filter(FacultyReportSubmission.query).filter_by(id=submission_id).first_or_404()
+    linked_bills = (
+        tenant_filter(Bill.query)
+        .filter_by(report_submission_id=submission.id)
+        .order_by(Bill.bill_date.desc(), Bill.created_at.desc())
+        .all()
+    )
+    verification_summary = _build_submission_verification_data(submission, linked_bills)
     return render_template(
         'faculty/report_detail.html',
         current_user=user,
         submission=submission,
         cycle=submission.cycle,
-        linked_bills=tenant_filter(Bill.query).filter_by(report_submission_id=submission.id).order_by(Bill.bill_date.desc()).all(),
+        linked_bills=linked_bills,
+        verification_summary=verification_summary,
     )
 
 
@@ -688,6 +825,9 @@ def report_detail(submission_id):
 def verify_report(submission_id):
     user = _require_faculty()
     submission = tenant_filter(FacultyReportSubmission.query).filter_by(id=submission_id).first_or_404()
+    if request.form.get('verification_acknowledged') != '1':
+        flash('Please review the verification modal before approving this report.', 'error')
+        return redirect(url_for('faculty.report_detail', submission_id=submission.id))
     submission.status = 'verified'
     submission.review_notes = (request.form.get('review_notes') or '').strip()
     submission.verified_at = datetime.utcnow()
@@ -713,6 +853,26 @@ def reject_report(submission_id):
     db.session.commit()
     flash('Report rejected. The floor can now revise and re-submit.', 'success')
     return redirect(url_for('faculty.report_detail', submission_id=submission.id))
+
+
+@faculty_bp.route('/faculty/messages/<int:message_id>/archive', methods=['POST'])
+def archive_message(message_id):
+    _require_faculty()
+    message = tenant_filter(FacultyMessage.query).filter_by(id=message_id).first_or_404()
+    message.is_archived = True
+    db.session.commit()
+    flash('Faculty message archived.', 'success')
+    return redirect(url_for('faculty.messages'))
+
+
+@faculty_bp.route('/faculty/messages/<int:message_id>/delete', methods=['POST'])
+def delete_message(message_id):
+    _require_faculty()
+    message = tenant_filter(FacultyMessage.query).filter_by(id=message_id).first_or_404()
+    db.session.delete(message)
+    db.session.commit()
+    flash('Faculty message deleted.', 'success')
+    return redirect(url_for('faculty.messages'))
 
 
 @faculty_bp.route('/faculty/reports/<int:submission_id>/download')

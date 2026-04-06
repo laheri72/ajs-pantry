@@ -789,10 +789,16 @@
                         <div class="input-group input-group-lg">
                             <span class="input-group-text bg-light border-end-0">₹</span>
                             <input type="number" step="0.01" class="form-control border-start-0 ps-0"
-                                id="printBudgetInput" value="{{ '%.2f'|format(total_budget) }}">
+                                id="printBudgetInput" value="{{ '%.2f'|format(active_cycle_allocation.amount_allocated if active_cycle_allocation else total_budget) }}" {% if active_cycle_allocation %}readonly{% endif %}>
                         </div>
-                        <div class="form-text mt-2"><i class="fas fa-info-circle me-1"></i> This is a temporary
-                            adjustment only for the PDF printout.</div>
+                        <div class="form-text mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            {% if active_cycle_allocation %}
+                            Locked to the current active Faculty cycle budget for this floor. The server will keep this allocated amount even if someone edits the page.
+                            {% else %}
+                            This is a temporary adjustment only for the PDF printout.
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 
