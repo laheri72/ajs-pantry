@@ -28,6 +28,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/faculty/profile` | `profile` | GET, POST | Faculty profile and password management |
 | `/faculty/cycles` | `cycles` | GET, POST | Create/list budget cycles with per-floor allocations |
 | `/faculty/cycles/<id>` | `cycle_detail` | GET | Floor-wise cycle allocation and submission matrix |
+| `/faculty/cycles/<id>/edit` | `edit_cycle` | POST | Update a draft or active cycle and its floor allocations |
 | `/faculty/cycles/<id>/activate` | `activate_cycle` | POST | Activate a draft cycle |
 | `/faculty/cycles/<id>/close` | `close_cycle` | POST | Close an active cycle |
 | `/faculty/cycles/<id>/delete` | `delete_cycle` | POST | Delete a cycle and all linked budgets/submissions/PDFs |

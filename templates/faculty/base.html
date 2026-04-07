@@ -126,6 +126,37 @@
             color: #6b7280;
             font-weight: 700;
         }
+        .faculty-modal {
+            z-index: 1080;
+            padding: 1rem;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+        }
+        .faculty-modal.show {
+            display: block;
+        }
+        .faculty-modal .modal-dialog {
+            margin: 0 auto;
+            min-height: calc(100dvh - 2rem);
+            display: flex;
+            align-items: stretch;
+        }
+        .faculty-modal .modal-content {
+            border-radius: 24px;
+            width: 100%;
+            max-height: calc(100dvh - 2rem);
+            overflow: hidden;
+        }
+        .faculty-modal .modal-body {
+            flex: 1 1 auto;
+            max-height: calc(100dvh - 11rem);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+        .faculty-modal-backdrop {
+            z-index: 1075;
+        }
         @media (min-width: 992px) {
             .faculty-sidebar.offcanvas-lg {
                 visibility: visible;
@@ -222,6 +253,20 @@
             }
             .faculty-table-mobile td:empty {
                 display: none;
+            }
+            .faculty-modal .modal-content {
+                border-radius: 0;
+                min-height: 100dvh;
+                max-height: 100dvh;
+            }
+            .faculty-modal {
+                padding: 0;
+            }
+            .faculty-modal .modal-dialog {
+                min-height: 100dvh;
+            }
+            .faculty-modal .modal-body {
+                max-height: calc(100dvh - 9.5rem);
             }
         }
     </style>

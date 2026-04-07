@@ -114,6 +114,7 @@ Main code:
 - One Faculty note per floor
 - Cycle can be:
   - saved as draft
+  - edited while draft or active
   - activated
   - closed
   - deleted
