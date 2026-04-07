@@ -11,10 +11,12 @@
     </div>
     <div class="d-flex gap-2 faculty-actions-mobile">
         {% if cycle.status == 'draft' %}
+        <button class="btn btn-outline-secondary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#editCycleModal">Edit Cycle</button>
         <form method="POST" action="{{ url_for('faculty.activate_cycle', cycle_id=cycle.id) }}">
             <button class="btn btn-success rounded-pill px-4">Activate Cycle</button>
         </form>
         {% elif cycle.status == 'active' %}
+        <button class="btn btn-outline-secondary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#editCycleModal">Edit Cycle</button>
         <button class="btn btn-outline-dark rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#closeCycleModal">Close Cycle</button>
         {% endif %}
         <form method="POST" action="{{ url_for('faculty.delete_cycle', cycle_id=cycle.id) }}" onsubmit="return confirm('Delete this cycle and all its budgets, saved print reports, linked submissions, and stored PDFs? This cannot be undone.');">
@@ -79,8 +81,85 @@
     </div>
 </div>
 
+{% if cycle.status != 'closed' %}
+<div class="modal fade faculty-modal" id="editCycleModal" tabindex="-1" aria-labelledby="editCycleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+        <div class="modal-content border-0 shadow">
+            <form method="POST" action="{{ url_for('faculty.edit_cycle', cycle_id=cycle.id) }}">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <h5 class="modal-title fw-bold" id="editCycleModalLabel">Edit Cycle</h5>
+                        <div class="small text-muted">
+                            {% if cycle.status == 'active' %}
+                            This cycle is active, so updates will apply immediately to the current floor allocations.
+                            {% else %}
+                            Update this draft before you activate it.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Cycle Title</label>
+                            <input name="title" class="form-control rounded-4" value="{{ cycle.title }}" required>
+                        </div>
+                        <div class="col-sm-6 col-md-3">
+                            <label class="form-label fw-bold">Start Date</label>
+                            <input type="date" name="start_date" class="form-control rounded-4" value="{{ cycle.start_date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-sm-6 col-md-3">
+                            <label class="form-label fw-bold">End Date</label>
+                            <input type="date" name="end_date" class="form-control rounded-4" value="{{ cycle.end_date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Submission Deadline</label>
+                            <input type="date" name="submission_deadline" class="form-control rounded-4" value="{{ cycle.submission_deadline.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Cycle Notes</label>
+                            <textarea name="notes" class="form-control rounded-4" rows="3" placeholder="Shared note for this term">{{ cycle.notes or '' }}</textarea>
+                        </div>
+                    </div>
+                    <div class="faculty-card bg-light p-3">
+                        <div class="fw-bold mb-3">Floor-wise Allocations</div>
+                        <div class="row g-3">
+                            {% for floor in editable_floors %}
+                            {% set budget = budgets_by_floor.get(floor) %}
+                            <div class="col-12">
+                                <div class="border rounded-4 p-3 bg-white">
+                                    <div class="fw-bold mb-2">Floor {{ floor }}</div>
+                                    <div class="row g-3">
+                                        <div class="col-sm-4">
+                                            <label class="form-label small text-muted">Amount</label>
+                                            <input type="number" name="amount_{{ floor }}" class="form-control rounded-4" step="0.01" value="{{ budget.amount_allocated if budget else 0 }}">
+                                        </div>
+                                        <div class="col-sm-8">
+                                            <label class="form-label small text-muted">Faculty Note</label>
+                                            <input name="faculty_note_{{ floor }}" class="form-control rounded-4" placeholder="Why this amount was finalized" value="{{ budget.faculty_note if budget else '' }}">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success rounded-pill px-4">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if cycle.status == 'active' %}
-<div class="modal fade" id="closeCycleModal" tabindex="-1" aria-labelledby="closeCycleModalLabel" aria-hidden="true">
+<div class="modal fade faculty-modal" id="closeCycleModal" tabindex="-1" aria-labelledby="closeCycleModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header border-0 pb-0">
@@ -109,4 +188,31 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        ['editCycleModal', 'closeCycleModal'].forEach(function (modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal && modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+        });
+
+        document.querySelectorAll('.faculty-modal').forEach(function (modal) {
+            modal.addEventListener('show.bs.modal', function () {
+                const backdropTimer = window.setTimeout(function () {
+                    document.querySelectorAll('.modal-backdrop').forEach(function (backdrop) {
+                        backdrop.classList.add('faculty-modal-backdrop');
+                    });
+                }, 10);
+                modal.addEventListener('hidden.bs.modal', function cleanupTimer() {
+                    window.clearTimeout(backdropTimer);
+                    modal.removeEventListener('hidden.bs.modal', cleanupTimer);
+                });
+            });
+        });
+    });
+</script>
 {% endblock %}

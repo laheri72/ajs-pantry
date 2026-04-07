@@ -139,6 +139,96 @@ def _parse_selected_ids(values):
     return parsed
 
 
+def _cycle_form_floor_options(user, cycle=None):
+    floor_values = set(_get_tenant_floor_options(user))
+    if cycle:
+        existing_floors = (
+            tenant_filter(Budget.query)
+            .filter_by(cycle_id=cycle.id)
+            .with_entities(Budget.floor)
+            .all()
+        )
+        floor_values.update(floor for (floor,) in existing_floors)
+    return sorted(floor_values)
+
+
+def _parse_cycle_form(floor_options):
+    title = (request.form.get('title') or '').strip()
+    start_date_raw = request.form.get('start_date')
+    end_date_raw = request.form.get('end_date')
+    deadline_raw = request.form.get('submission_deadline')
+    cycle_notes = (request.form.get('notes') or '').strip()
+
+    if not title or not start_date_raw or not end_date_raw or not deadline_raw:
+        return None, 'Cycle title, term dates, and deadline are required.'
+
+    try:
+        start_date = datetime.strptime(start_date_raw, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date()
+        submission_deadline = datetime.strptime(deadline_raw, '%Y-%m-%d').date()
+    except ValueError:
+        return None, 'Invalid cycle date provided.'
+
+    if end_date < start_date:
+        return None, 'Cycle end date must be after the start date.'
+
+    if submission_deadline < start_date:
+        return None, 'Submission deadline cannot be before the cycle starts.'
+
+    allocations = []
+    for floor in floor_options:
+        amount_raw = request.form.get(f'amount_{floor}', '0')
+        faculty_note = (request.form.get(f'faculty_note_{floor}') or '').strip()
+        try:
+            amount = float(amount_raw or 0)
+        except ValueError:
+            amount = 0
+
+        allocations.append({
+            'floor': floor,
+            'amount': amount,
+            'faculty_note': faculty_note,
+        })
+
+    return {
+        'title': title,
+        'start_date': start_date,
+        'end_date': end_date,
+        'submission_deadline': submission_deadline,
+        'notes': cycle_notes,
+        'allocations': allocations,
+    }, None
+
+
+def _sync_cycle_budgets(cycle, user, allocations):
+    budget_note = cycle.notes or f'Faculty cycle {cycle.title}'
+    existing_budgets = (
+        tenant_filter(Budget.query)
+        .filter_by(cycle_id=cycle.id)
+        .all()
+    )
+    budgets_by_floor = {budget.floor: budget for budget in existing_budgets}
+
+    for allocation in allocations:
+        budget = budgets_by_floor.get(allocation['floor'])
+        if not budget:
+            budget = Budget(
+                floor=allocation['floor'],
+                cycle_id=cycle.id,
+                tenant_id=getattr(g, 'tenant_id', None),
+            )
+            db.session.add(budget)
+
+        budget.allocated_by_id = user.id
+        budget.amount_allocated = allocation['amount']
+        budget.allocation_type = 'faculty_cycle'
+        budget.start_date = cycle.start_date
+        budget.end_date = cycle.end_date
+        budget.notes = budget_note
+        budget.faculty_note = allocation['faculty_note']
+        budget.is_faculty_allocation = True
+
+
 def _submission_selectable_bills(floor, existing_submission=None):
     query = tenant_filter(Bill.query).filter(Bill.floor == floor)
     if existing_submission:
@@ -489,34 +579,13 @@ def messages():
 @faculty_bp.route('/faculty/cycles', methods=['GET', 'POST'])
 def cycles():
     user = _require_faculty()
-    floor_options = _get_tenant_floor_options(user)
+    floor_options = _cycle_form_floor_options(user)
 
     if request.method == 'POST':
-        title = (request.form.get('title') or '').strip()
-        start_date_raw = request.form.get('start_date')
-        end_date_raw = request.form.get('end_date')
-        deadline_raw = request.form.get('submission_deadline')
-        cycle_notes = (request.form.get('notes') or '').strip()
         action = (request.form.get('action') or 'save_draft').strip()
-
-        if not title or not start_date_raw or not end_date_raw or not deadline_raw:
-            flash('Cycle title, term dates, and deadline are required.', 'error')
-            return redirect(url_for('faculty.cycles'))
-
-        try:
-            start_date = datetime.strptime(start_date_raw, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date()
-            submission_deadline = datetime.strptime(deadline_raw, '%Y-%m-%d').date()
-        except ValueError:
-            flash('Invalid cycle date provided.', 'error')
-            return redirect(url_for('faculty.cycles'))
-
-        if end_date < start_date:
-            flash('Cycle end date must be after the start date.', 'error')
-            return redirect(url_for('faculty.cycles'))
-
-        if submission_deadline < start_date:
-            flash('Submission deadline cannot be before the cycle starts.', 'error')
+        cycle_data, error_message = _parse_cycle_form(floor_options)
+        if error_message:
+            flash(error_message, 'error')
             return redirect(url_for('faculty.cycles'))
 
         status = 'active' if action == 'activate_now' else 'draft'
@@ -527,12 +596,12 @@ def cycles():
                 return redirect(url_for('faculty.cycles'))
 
         cycle = FacultyBudgetCycle(
-            title=title,
-            start_date=start_date,
-            end_date=end_date,
-            submission_deadline=submission_deadline,
+            title=cycle_data['title'],
+            start_date=cycle_data['start_date'],
+            end_date=cycle_data['end_date'],
+            submission_deadline=cycle_data['submission_deadline'],
             status=status,
-            notes=cycle_notes,
+            notes=cycle_data['notes'],
             created_by_id=user.id,
             activated_at=datetime.utcnow() if status == 'active' else None,
             tenant_id=getattr(g, 'tenant_id', None),
@@ -540,30 +609,10 @@ def cycles():
         db.session.add(cycle)
         db.session.flush()
 
-        for floor in floor_options:
-            amount_raw = request.form.get(f'amount_{floor}', '0')
-            note = (request.form.get(f'faculty_note_{floor}') or '').strip()
-            try:
-                amount = float(amount_raw or 0)
-            except ValueError:
-                amount = 0
-
-            db.session.add(Budget(
-                floor=floor,
-                cycle_id=cycle.id,
-                allocated_by_id=user.id,
-                amount_allocated=amount,
-                allocation_type='faculty_cycle',
-                start_date=start_date,
-                end_date=end_date,
-                notes=cycle_notes or f'Faculty cycle {title}',
-                faculty_note=note,
-                is_faculty_allocation=True,
-                tenant_id=getattr(g, 'tenant_id', None),
-            ))
+        _sync_cycle_budgets(cycle, user, cycle_data['allocations'])
 
         db.session.commit()
-        flash(f'Faculty cycle "{title}" saved successfully.', 'success')
+        flash(f'Faculty cycle "{cycle.title}" saved successfully.', 'success')
         return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
 
     cycles = (
@@ -605,13 +654,45 @@ def cycle_detail(cycle_id):
             'submission': submissions_by_floor.get(budget.floor),
         })
 
+    editable_floors = _cycle_form_floor_options(user, cycle)
+    budgets_by_floor = {budget.floor: budget for budget in budgets}
+
     return render_template(
         'faculty/cycle_detail.html',
         current_user=user,
         cycle=cycle,
         floor_rows=floor_rows,
+        editable_floors=editable_floors,
+        budgets_by_floor=budgets_by_floor,
         today=date.today(),
     )
+
+
+@faculty_bp.route('/faculty/cycles/<int:cycle_id>/edit', methods=['POST'])
+def edit_cycle(cycle_id):
+    user = _require_faculty()
+    cycle = tenant_filter(FacultyBudgetCycle.query).filter_by(id=cycle_id).first_or_404()
+
+    if cycle.status == 'closed':
+        flash('Closed cycles cannot be edited.', 'error')
+        return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
+
+    floor_options = _cycle_form_floor_options(user, cycle)
+    cycle_data, error_message = _parse_cycle_form(floor_options)
+    if error_message:
+        flash(error_message, 'error')
+        return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
+
+    cycle.title = cycle_data['title']
+    cycle.start_date = cycle_data['start_date']
+    cycle.end_date = cycle_data['end_date']
+    cycle.submission_deadline = cycle_data['submission_deadline']
+    cycle.notes = cycle_data['notes']
+    _sync_cycle_budgets(cycle, user, cycle_data['allocations'])
+
+    db.session.commit()
+    flash('Cycle updated successfully.', 'success')
+    return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
 
 
 @faculty_bp.route('/faculty/cycles/<int:cycle_id>/activate', methods=['POST'])
