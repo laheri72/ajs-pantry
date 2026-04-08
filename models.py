@@ -30,7 +30,7 @@ class PlatformAudit(db.Model):
     action = db.Column(db.String(100), nullable=False) # e.g., 'provision_tenant', 'suspend_tenant'
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    performed_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    performed_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     
     performed_by = db.relationship('User', foreign_keys=[performed_by_id])
 
@@ -39,7 +39,7 @@ class TenantMixin:
 
 class User(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=True)
+    username = db.Column(db.String(64), nullable=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
     role = db.Column(db.String(20), nullable=False)
@@ -57,24 +57,27 @@ class Dish(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     category = db.Column(db.String(20), default='main')  # main, side, both
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 class Menu(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_menu_rotation', 'floor', 'date', 'is_buffer', 'assigned_team_id'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False)
     meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, dinner
     dish_type = db.Column(db.String(20), nullable=False, default='main')  # main, side
-    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'))
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), index=True)
     side_dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'))
     is_buffer = db.Column(db.Boolean, default=False)
-    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'))
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     floor = db.Column(db.Integer, nullable=False)
     skip_notifications = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -91,18 +94,20 @@ class Expense(db.Model, TenantMixin):
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     date = db.Column(db.Date, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    budget_id = db.Column(db.Integer, db.ForeignKey('budget.id'), index=True)
     report_submission_id = db.Column(db.Integer, db.ForeignKey('faculty_report_submission.id'), nullable=True, index=True)
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship('User', backref='expenses')
+    budget = db.relationship('Budget', foreign_keys=[budget_id])
 
 class TeaTask(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
-    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     floor = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -115,7 +120,7 @@ class Suggestion(db.Model, TenantMixin):
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -124,8 +129,8 @@ class Suggestion(db.Model, TenantMixin):
 
 class SuggestionVote(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
-    suggestion_id = db.Column(db.Integer, db.ForeignKey('suggestion.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    suggestion_id = db.Column(db.Integer, db.ForeignKey('suggestion.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     suggestion = db.relationship('Suggestion', backref=db.backref('votes', cascade='all, delete-orphan'))
@@ -136,8 +141,8 @@ class Feedback(db.Model, TenantMixin):
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
     rating = db.Column(db.Integer)  # 1-5 rating
-    menu_id = db.Column(db.Integer, db.ForeignKey('menu.id'))
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    menu_id = db.Column(db.Integer, db.ForeignKey('menu.id'), index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -152,10 +157,10 @@ class Request(db.Model, TenantMixin):
     request_type = db.Column(db.String(50), nullable=False)  # absence, maintenance, etc.
     start_date = db.Column(db.Date)
     end_date = db.Column(db.Date)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     floor = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='pending')
-    approved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     user = db.relationship('User', foreign_keys=[user_id])
@@ -171,7 +176,7 @@ class Bill(db.Model, TenantMixin):
     source = db.Column(db.String(50), default='manual')
     original_filename = db.Column(db.String(255), nullable=True)
     report_submission_id = db.Column(db.Integer, db.ForeignKey('faculty_report_submission.id'), nullable=True, index=True)
-    is_archived = db.Column(db.Boolean, default=False)
+    is_archived = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationship to items
@@ -183,8 +188,8 @@ class ProcurementItem(db.Model, TenantMixin):
     quantity = db.Column(db.String(50), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     priority = db.Column(db.String(20), default='medium')
-    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     floor = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -192,7 +197,7 @@ class ProcurementItem(db.Model, TenantMixin):
     # New financial fields
     actual_cost = db.Column(db.Numeric(12, 2), nullable=True)
     expense_recorded_at = db.Column(db.DateTime, nullable=True)
-    bill_id = db.Column(db.Integer, db.ForeignKey('bill.id'), nullable=True)
+    bill_id = db.Column(db.Integer, db.ForeignKey('bill.id'), nullable=True, index=True)
     
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
@@ -203,7 +208,7 @@ class Team(db.Model, TenantMixin):
     name = db.Column(db.String(100), nullable=False)
     icon = db.Column(db.String(50), nullable=True)  # emoji or short label
     floor = db.Column(db.Integer, nullable=False)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
@@ -211,8 +216,8 @@ class Team(db.Model, TenantMixin):
 
 class TeamMember(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
-    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team = db.relationship('Team', foreign_keys=[team_id])
@@ -256,6 +261,9 @@ class FacultyBudgetCycle(db.Model, TenantMixin):
 
 
 class FacultyReportSubmission(db.Model, TenantMixin):
+    __table_args__ = (
+        db.UniqueConstraint('cycle_id', 'floor', name='uq_cycle_floor_submission'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     cycle_id = db.Column(db.Integer, db.ForeignKey('faculty_budget_cycle.id'), nullable=False, index=True)
     print_report_id = db.Column(db.Integer, db.ForeignKey('expense_print_report.id'), nullable=True, index=True)
@@ -263,6 +271,7 @@ class FacultyReportSubmission(db.Model, TenantMixin):
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     report_title = db.Column(db.String(150), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='submitted', index=True)
+    allocated_amount = db.Column(db.Numeric(12, 2), nullable=True)
     submission_notes = db.Column(db.Text, nullable=True)
     review_notes = db.Column(db.Text, nullable=True)
     stored_filename = db.Column(db.String(255), nullable=False)
@@ -306,6 +315,9 @@ class ExpensePrintReport(db.Model, TenantMixin):
 
 
 class ExpensePrintReportBill(db.Model, TenantMixin):
+    __table_args__ = (
+        db.UniqueConstraint('print_report_id', 'bill_id', name='uq_expense_print_report_bill'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     print_report_id = db.Column(db.Integer, db.ForeignKey('expense_print_report.id'), nullable=False, index=True)
     bill_id = db.Column(db.Integer, db.ForeignKey('bill.id'), nullable=False, index=True)
@@ -325,7 +337,7 @@ class FloorLendBorrow(db.Model, TenantMixin):
     item_type = db.Column(db.String(20), nullable=False, default='grocery')
     notes = db.Column(db.Text)
     status = db.Column(db.String(20), nullable=False, default='pending')
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     borrower_marked_at = db.Column(db.DateTime)
     lender_verified_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -340,7 +352,7 @@ class SpecialEvent(db.Model, TenantMixin):
     description = db.Column(db.Text)
     date = db.Column(db.Date, nullable=False)
     floor = db.Column(db.Integer, nullable=False)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
@@ -351,7 +363,7 @@ class Announcement(db.Model, TenantMixin):
     title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
     floor = db.Column(db.Integer, nullable=False)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=True)
     is_archived = db.Column(db.Boolean, default=False)
@@ -386,13 +398,13 @@ class FacultyMessageFloor(db.Model, TenantMixin):
 
 class Garamat(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True, index=True)
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     reason = db.Column(db.Text, nullable=False)
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     floor = db.Column(db.Integer, nullable=False)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', foreign_keys=[user_id])
@@ -402,7 +414,7 @@ class Garamat(db.Model, TenantMixin):
 
 class PushSubscription(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     endpoint = db.Column(db.Text, nullable=False)
     p256dh = db.Column(db.String(255), nullable=False)
     auth = db.Column(db.String(255), nullable=False)

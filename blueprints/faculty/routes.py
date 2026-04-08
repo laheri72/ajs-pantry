@@ -251,7 +251,8 @@ def _save_submission_file(file_storage, cycle, floor, revision_no):
     filename = _build_report_filename(cycle, floor, revision_no)
     path = os.path.join(_report_storage_dir(), filename)
     file_storage.save(path)
-    return filename, path, os.path.getsize(path)
+    relative_path = f"{_tenant_slug()}/{filename}"
+    return filename, relative_path, os.path.getsize(path)
 
 
 def _safe_remove_file(path):
@@ -259,11 +260,16 @@ def _safe_remove_file(path):
         current_app.logger.warning('Skipping PDF cleanup because no storage path was provided.')
         return
     try:
-        if os.path.exists(path):
-            os.remove(path)
-            current_app.logger.info('Deleted stored Faculty PDF during cleanup: %s', path)
+        if os.path.isabs(path):
+            abs_path = path
         else:
-            current_app.logger.warning('Faculty PDF cleanup skipped because file was already missing: %s', path)
+            abs_path = os.path.normpath(os.path.join(current_app.config["REPORT_STORAGE_ROOT"], path))
+
+        if os.path.exists(abs_path):
+            os.remove(abs_path)
+            current_app.logger.info('Deleted stored Faculty PDF during cleanup: %s', abs_path)
+        else:
+            current_app.logger.warning('Faculty PDF cleanup skipped because file was already missing: %s', abs_path)
     except OSError:
         current_app.logger.exception('Faculty PDF cleanup failed for path: %s', path)
 
@@ -276,7 +282,11 @@ def _message_target_floors(message):
 
 def _build_submission_verification_data(submission, linked_bills):
     allocation = _cycle_for_floor(submission.cycle_id, submission.floor)
-    allocated_budget = float(allocation.amount_allocated) if allocation else 0
+    if submission.allocated_amount is not None:
+        allocated_budget = float(submission.allocated_amount)
+    else:
+        allocated_budget = float(allocation.amount_allocated) if allocation else 0
+    
     linked_bills_total = float(sum(float(bill.total_amount or 0) for bill in linked_bills))
     difference_amount = round(abs(allocated_budget - linked_bills_total), 2)
     verification_state = 'matched'
@@ -825,6 +835,7 @@ def reports_page():
                 submission.report_title = selected_print_report.report_title
                 submission.print_report_id = selected_print_report.id
                 submission.status = 'submitted'
+                submission.allocated_amount = allocation.amount_allocated if allocation else 0
                 submission.submission_notes = submission_notes
                 submission.review_notes = None
                 submission.stored_filename = stored_filename
@@ -850,6 +861,7 @@ def reports_page():
                     uploaded_by_id=user.id,
                     report_title=selected_print_report.report_title,
                     status='submitted',
+                    allocated_amount=allocation.amount_allocated if allocation else 0,
                     submission_notes=submission_notes,
                     stored_filename=stored_filename,
                     original_filename=upload.filename,
@@ -960,12 +972,22 @@ def delete_message(message_id):
 def download_report(submission_id):
     _require_faculty()
     submission = tenant_filter(FacultyReportSubmission.query).filter_by(id=submission_id).first_or_404()
-    if not submission.storage_path or not os.path.exists(submission.storage_path):
+    
+    if not submission.storage_path:
+        flash('No storage path found for this report.', 'error')
+        return redirect(url_for('faculty.report_detail', submission_id=submission.id))
+
+    if os.path.isabs(submission.storage_path):
+        abs_path = submission.storage_path
+    else:
+        abs_path = os.path.normpath(os.path.join(current_app.config["REPORT_STORAGE_ROOT"], submission.storage_path))
+
+    if not os.path.exists(abs_path):
         flash('The stored PDF could not be found on the server.', 'error')
         return redirect(url_for('faculty.report_detail', submission_id=submission.id))
 
     return send_file(
-        submission.storage_path,
+        abs_path,
         as_attachment=True,
         download_name=submission.stored_filename,
         mimetype='application/pdf',
@@ -985,12 +1007,22 @@ def download_floor_submission(submission_id):
     floor = _get_active_floor(user)
     if submission.floor != floor:
         abort(403)
-    if not submission.storage_path or not os.path.exists(submission.storage_path):
+
+    if not submission.storage_path:
+        flash('No storage path found for this report.', 'error')
+        return redirect(url_for('faculty.reports_page'))
+
+    if os.path.isabs(submission.storage_path):
+        abs_path = submission.storage_path
+    else:
+        abs_path = os.path.normpath(os.path.join(current_app.config["REPORT_STORAGE_ROOT"], submission.storage_path))
+
+    if not os.path.exists(abs_path):
         flash('The stored PDF could not be found on the server.', 'error')
         return redirect(url_for('faculty.reports_page'))
 
     return send_file(
-        submission.storage_path,
+        abs_path,
         as_attachment=True,
         download_name=submission.stored_filename,
         mimetype='application/pdf',
