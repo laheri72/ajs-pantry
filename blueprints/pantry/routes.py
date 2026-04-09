@@ -123,19 +123,7 @@ def dashboard():
         .first()
     )
 
-    top_team_row = (
-        tenant_filter(db.session.query(Menu.assigned_team_id.label('team_id'), func.sum(Feedback.rating).label('stars')))
-        .join(Feedback, Feedback.menu_id == Menu.id)
-        .filter(Menu.floor == floor, Feedback.created_at >= stars_since_dt, Menu.assigned_team_id.isnot(None))
-        .group_by(Menu.assigned_team_id)
-        .order_by(func.sum(Feedback.rating).desc())
-        .first()
-    )
-    if top_team_row and top_team_row.team_id:
-        t = tenant_filter(Team.query).filter_by(id=top_team_row.team_id).first()
-        stats['top_team_7d'] = f"{(t.icon or '').strip()} {(t.name or '').strip()}".strip() if t else None
-    else:
-        stats['top_team_7d'] = None
+
 
     upcoming_tea_duties = (
         tenant_filter(TeaTask.query).options(joinedload(TeaTask.assigned_to)).filter_by(floor=floor, assigned_to_id=user.id)

@@ -10,7 +10,10 @@ from flask_migrate import Migrate
 from datetime import datetime, timedelta
 from flask_caching import Cache
 from redis import Redis
-from rq import Queue
+try:
+    from rq import Queue
+except Exception:
+    Queue = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +39,7 @@ try:
     redis_conn = Redis.from_url(redis_url)
     # Test connection
     redis_conn.ping()
-    app.task_queue = Queue("ajs_pantry_tasks", connection=redis_conn)
+    app.task_queue = Queue("ajs_pantry_tasks", connection=redis_conn) if Queue else None
     app.config["CACHE_TYPE"] = "RedisCache"
     app.config["CACHE_REDIS_URL"] = redis_url
     logging.info("Redis connected and RQ queue initialized.")
