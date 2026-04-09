@@ -64,7 +64,7 @@ class Dish(db.Model, TenantMixin):
 
 class Menu(db.Model, TenantMixin):
     __table_args__ = (
-        db.Index('idx_menu_rotation', 'floor', 'date', 'is_buffer', 'assigned_team_id'),
+        db.Index('idx_menu_tenant_floor_date', 'tenant_id', 'floor', 'date', 'is_buffer', 'assigned_team_id'),
     )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -89,6 +89,9 @@ class Menu(db.Model, TenantMixin):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 class Expense(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_expense_tenant_floor_date', 'tenant_id', 'floor', 'date'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Float, nullable=False)
@@ -104,6 +107,9 @@ class Expense(db.Model, TenantMixin):
     budget = db.relationship('Budget', foreign_keys=[budget_id])
 
 class TeaTask(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_teatask_tenant_floor_date', 'tenant_id', 'floor', 'date'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False)
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
@@ -116,6 +122,9 @@ class TeaTask(db.Model, TenantMixin):
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
 class Suggestion(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_suggestion_tenant_floor', 'tenant_id', 'floor'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -137,6 +146,9 @@ class SuggestionVote(db.Model, TenantMixin):
     user = db.relationship('User')
 
 class Feedback(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_feedback_tenant_floor', 'tenant_id', 'floor'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -151,6 +163,9 @@ class Feedback(db.Model, TenantMixin):
     user = db.relationship('User', backref='feedbacks')
 
 class Request(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_request_tenant_floor_status', 'tenant_id', 'floor', 'status'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -167,6 +182,9 @@ class Request(db.Model, TenantMixin):
     approved_by = db.relationship('User', foreign_keys=[approved_by_id])
 
 class Bill(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_bill_tenant_floor', 'tenant_id', 'floor'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     bill_no = db.Column(db.String(100), nullable=False)
     bill_date = db.Column(db.Date, nullable=False)
@@ -183,6 +201,9 @@ class Bill(db.Model, TenantMixin):
     items = db.relationship('ProcurementItem', backref='bill', lazy=True)
 
 class ProcurementItem(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_procurement_tenant_floor_status', 'tenant_id', 'floor', 'status'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     item_name = db.Column(db.String(100), nullable=False)
     quantity = db.Column(db.String(50), nullable=False)
@@ -204,6 +225,9 @@ class ProcurementItem(db.Model, TenantMixin):
 
 
 class Team(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_team_tenant_floor', 'tenant_id', 'floor'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     icon = db.Column(db.String(50), nullable=True)  # emoji or short label
@@ -225,6 +249,9 @@ class TeamMember(db.Model, TenantMixin):
 
 
 class Budget(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_budget_tenant_floor', 'tenant_id', 'floor'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     floor = db.Column(db.Integer, nullable=False, index=True)
     cycle_id = db.Column(db.Integer, db.ForeignKey('faculty_budget_cycle.id'), nullable=True, index=True)

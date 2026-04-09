@@ -1,4 +1,4 @@
-from flask import session, abort, g
+from flask import session, abort, g, current_app
 from models import User
 from datetime import datetime
 from sqlalchemy import or_
@@ -166,7 +166,14 @@ from email.mime.multipart import MIMEMultipart
 from pywebpush import webpush, WebPushException
 
 def send_email_notification(to_email, subject, html_content):
-    """Sends an email notification using SMTP."""
+    """Dispatches an email notification, using the background queue if available."""
+    if hasattr(current_app, 'task_queue') and current_app.task_queue:
+        current_app.task_queue.enqueue('blueprints.utils._send_email_worker', to_email, subject, html_content)
+        return True
+    return _send_email_worker(to_email, subject, html_content)
+
+def _send_email_worker(to_email, subject, html_content):
+    """Synchronous worker that performs the actual email delivery."""
     gmail_user = os.environ.get("GMAIL_USER")
     gmail_pass = os.environ.get("GMAIL_PASS")
 
@@ -191,55 +198,63 @@ def send_email_notification(to_email, subject, html_content):
         return False
 
 def send_push_notification(user_id, title, body, icon=None, url=None):
-    """Sends a push notification to all subscriptions of a specific user."""
-    from models import PushSubscription
-    from app import db
+    """Dispatches a push notification, using the background queue if available."""
+    if hasattr(current_app, 'task_queue') and current_app.task_queue:
+        current_app.task_queue.enqueue('blueprints.utils._send_push_worker', user_id, title, body, icon, url)
+        return True
+    return _send_push_worker(user_id, title, body, icon, url)
+
+def _send_push_worker(user_id, title, body, icon=None, url=None):
+    """Synchronous worker that performs the actual push delivery."""
+    from models import PushSubscription, User
+    from app import db, app
     
-    subscriptions = PushSubscription.query.filter_by(user_id=user_id).all()
-    if not subscriptions:
-        return False
+    # Worker might not have application context in some setups, but RQ usually handles it if configured
+    with app.app_context():
+        subscriptions = PushSubscription.query.filter_by(user_id=user_id).all()
+        if not subscriptions:
+            return False
 
-    vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY")
-    vapid_public_key = os.environ.get("VAPID_PUBLIC_KEY")
-    vapid_claims = {"sub": "mailto:admin@maskan.local"} # Replace with your email if desired
+        vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY")
+        vapid_public_key = os.environ.get("VAPID_PUBLIC_KEY")
+        vapid_claims = {"sub": "mailto:admin@maskan.local"}
 
-    if not vapid_private_key or not vapid_public_key:
-        logging.warning("Push Notification failed: VAPID keys not found in environment.")
-        return False
+        if not vapid_private_key or not vapid_public_key:
+            logging.warning("Push Notification failed: VAPID keys not found in environment.")
+            return False
 
-    notification_data = {
-        "title": title,
-        "body": body,
-        "icon": icon or "/static/icons/icon-192.png",
-        "url": url or "/dashboard"
-    }
+        notification_data = {
+            "title": title,
+            "body": body,
+            "icon": icon or "/static/icons/icon-192.png",
+            "url": url or "/dashboard"
+        }
 
-    success_count = 0
-    for sub in subscriptions:
-        try:
-            webpush(
-                subscription_info={
-                    "endpoint": sub.endpoint,
-                    "keys": {
-                        "p256dh": sub.p256dh,
-                        "auth": sub.auth
-                    }
-                },
-                data=json.dumps(notification_data),
-                vapid_private_key=vapid_private_key,
-                vapid_claims=vapid_claims
-            )
-            success_count += 1
-        except WebPushException as ex:
-            logging.error(f"Push Notification Error: {ex}")
-            # If the subscription is no longer valid, we should probably delete it
-            if ex.response and ex.response.status_code in [404, 410]:
-                db.session.delete(sub)
-                db.session.commit()
-        except Exception as e:
-            logging.error(f"General Push Error: {e}")
+        success_count = 0
+        for sub in subscriptions:
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": sub.endpoint,
+                        "keys": {
+                            "p256dh": sub.p256dh,
+                            "auth": sub.auth
+                        }
+                    },
+                    data=json.dumps(notification_data),
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims=vapid_claims
+                )
+                success_count += 1
+            except WebPushException as ex:
+                logging.error(f"Push Notification Error: {ex}")
+                if ex.response and ex.response.status_code in [404, 410]:
+                    db.session.delete(sub)
+                    db.session.commit()
+            except Exception as e:
+                logging.error(f"General Push Error: {e}")
 
-    return success_count > 0
+        return success_count > 0
 
 def _require_user():
     user = _get_current_user()

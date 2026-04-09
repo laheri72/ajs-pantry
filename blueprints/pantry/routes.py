@@ -17,6 +17,68 @@ from ..utils import (
     FLOOR_MAX,
     visible_budget_condition,
 )
+from app import db, cache
+
+def _clear_dashboard_cache(tenant_id, floor):
+    """Helper to clear cached dashboard stats for a specific tenant and floor."""
+    cache.delete_memoized(_get_dashboard_stats, tenant_id, floor)
+
+@cache.memoize(timeout=300) # 5-minute cache
+def _get_dashboard_stats(tenant_id, floor):
+    """Heavy aggregate queries moved to a memoized function."""
+    now_utc = datetime.utcnow()
+    stars_since_dt = now_utc - timedelta(days=7)
+    
+    # Total spent: Legacy Expenses + Billed Procurement Costs
+    total_spent_proc = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
+        ProcurementItem.floor == floor, 
+        ProcurementItem.status == 'completed',
+        ProcurementItem.bill_id.isnot(None)
+    ).scalar() or 0
+    total_spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == floor).scalar() or 0
+    weekly_expenses = float(total_spent_proc) + float(total_spent_legacy)
+
+    # Pending Lend/Borrow for this floor
+    pending_lend_borrow_count = tenant_filter(FloorLendBorrow.query).filter(
+        or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor),
+        FloorLendBorrow.status == 'pending'
+    ).count()
+
+    user_count = tenant_filter(User.query).filter_by(floor=floor).count()
+    pending_requests = tenant_filter(Request.query).filter_by(floor=floor, status='pending').count()
+    
+    stars_7d = int(
+        (
+            tenant_filter(db.session.query(func.coalesce(func.sum(Feedback.rating), 0)))
+            .filter(Feedback.floor == floor, Feedback.created_at >= stars_since_dt, Feedback.menu_id.isnot(None))
+            .scalar()
+        )
+        or 0
+    )
+
+    # Top Team logic
+    top_team_label = None
+    top_team_row = (
+        tenant_filter(db.session.query(Menu.assigned_team_id.label('team_id'), func.sum(Feedback.rating).label('stars')))
+        .join(Feedback, Feedback.menu_id == Menu.id)
+        .filter(Menu.floor == floor, Feedback.created_at >= stars_since_dt, Menu.assigned_team_id.isnot(None))
+        .group_by(Menu.assigned_team_id)
+        .order_by(func.sum(Feedback.rating).desc())
+        .first()
+    )
+    if top_team_row and top_team_row.team_id:
+        t = Team.query.get(top_team_row.team_id)
+        if t:
+            top_team_label = f"{(t.icon or '').strip()} {(t.name or '').strip()}".strip()
+
+    return {
+        'user_count': user_count,
+        'pending_requests': pending_requests,
+        'weekly_expenses': weekly_expenses,
+        'stars_7d': stars_7d,
+        'pending_lend_borrow_count': pending_lend_borrow_count,
+        'top_team_7d': top_team_label
+    }
 
 @pantry_bp.route('/dashboard')
 def dashboard():
@@ -25,6 +87,7 @@ def dashboard():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
     
     # IST is UTC+5:30
     now_utc = datetime.utcnow()
@@ -33,42 +96,20 @@ def dashboard():
     
     upcoming_until = today + timedelta(days=2)
     since_dt = now_utc - timedelta(days=2)
-    stars_since_dt = now_utc - timedelta(days=7)
     
-    # Stats and restricted data
+    # Get Cached Stats
+    cached_stats = _get_dashboard_stats(tenant_id, floor)
+    
     is_privileged = user.role in ['admin', 'pantryHead']
-    pending_lend_borrow_count = 0
-    weekly_expenses = 0
-
-    if is_privileged:
-        # Total spent: Legacy Expenses + Billed Procurement Costs
-        total_spent_proc = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
-            ProcurementItem.floor == floor, 
-            ProcurementItem.status == 'completed',
-            ProcurementItem.bill_id.isnot(None)
-        ).scalar() or 0
-        total_spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == floor).scalar() or 0
-        weekly_expenses = float(total_spent_proc) + float(total_spent_legacy)
-
-        # Pending Lend/Borrow for this floor (either as lender or borrower)
-        pending_lend_borrow_count = tenant_filter(FloorLendBorrow.query).filter(
-            or_(FloorLendBorrow.lender_floor == floor, FloorLendBorrow.borrower_floor == floor),
-            FloorLendBorrow.status == 'pending'
-        ).count()
-
+    
     stats = {
-        'user_count': tenant_filter(User.query).filter_by(floor=floor).count(),
-        'pending_requests': tenant_filter(Request.query).filter_by(floor=floor, status='pending').count(),
-        'weekly_expenses': weekly_expenses,
-        'stars_7d': int(
-            (
-                tenant_filter(db.session.query(func.coalesce(func.sum(Feedback.rating), 0)))
-                .filter(Feedback.floor == floor, Feedback.created_at >= stars_since_dt, Feedback.menu_id.isnot(None))
-                .scalar()
-            )
-            or 0
-        ),
+        'user_count': cached_stats['user_count'],
+        'pending_requests': cached_stats['pending_requests'],
+        'weekly_expenses': cached_stats['weekly_expenses'] if is_privileged else 0,
+        'stars_7d': cached_stats['stars_7d'],
+        'top_team_7d': cached_stats['top_team_7d']
     }
+    pending_lend_borrow_count = cached_stats['pending_lend_borrow_count'] if is_privileged else 0
 
     # Upcoming Dish Logic: Show today's dish only if before 8 AM IST, else show next day's
     dish_query_date = today
@@ -1020,6 +1061,7 @@ def create_special_event():
     )
     db.session.add(new_event)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
 
     # Notify users on the floor via Push
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
@@ -1200,6 +1242,7 @@ def menus():
         )
         db.session.add(menu)
         db.session.commit()
+        _clear_dashboard_cache(tenant_id, floor)
 
         if assigned_to_id:
             send_push_notification(
@@ -1293,6 +1336,7 @@ def delete_menu(menu_id):
 
     db.session.delete(menu)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
     flash('Menu deleted successfully', 'success')
     return redirect(url_for('pantry.menus'))
 
@@ -1516,6 +1560,7 @@ def feedbacks():
             db.session.add(feedback)
 
         db.session.commit()
+        _clear_dashboard_cache(tenant_id, floor)
         flash('Evaluation saved successfully.', 'success')
         return redirect(url_for('pantry.feedbacks'))
 
@@ -1591,4 +1636,5 @@ def delete_feedback(feedback_id):
 
     db.session.delete(feedback)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
     return ('', 204)

@@ -8,6 +8,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from flask_migrate import Migrate
 from datetime import datetime, timedelta
+from flask_caching import Cache
+from redis import Redis
+from rq import Queue
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -18,11 +21,31 @@ class Base(DeclarativeBase):
 db = SQLAlchemy(model_class=Base)
 migrate = Migrate()
 
+# Initialize Cache
+cache = Cache()
+
 # Create the app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET")
 if not app.secret_key:
     raise RuntimeError("CRITICAL: SESSION_SECRET environment variable is missing.")
+
+# Redis and RQ Setup
+redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+try:
+    redis_conn = Redis.from_url(redis_url)
+    # Test connection
+    redis_conn.ping()
+    app.task_queue = Queue("ajs_pantry_tasks", connection=redis_conn)
+    app.config["CACHE_TYPE"] = "RedisCache"
+    app.config["CACHE_REDIS_URL"] = redis_url
+    logging.info("Redis connected and RQ queue initialized.")
+except Exception as e:
+    logging.warning(f"Redis not available ({e}). Falling back to SimpleCache and sync tasks.")
+    app.task_queue = None # Fallback logic will check this
+    app.config["CACHE_TYPE"] = "SimpleCache"
+
+cache.init_app(app)
 
 # Session Security for Shared PCs
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
