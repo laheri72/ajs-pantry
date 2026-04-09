@@ -14,6 +14,7 @@ from ..utils import (
     tenant_filter,
     visible_budget_condition,
 )
+from ..pantry.routes import _clear_dashboard_cache
 
 @finance_bp.route('/expenses', methods=['GET', 'POST'])
 def expenses():
@@ -54,6 +55,7 @@ def expenses():
                             bill.total_amount = bill_total
 
                     db.session.commit()
+                    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
                     flash(f'Cost for {item.item_name} recorded.', 'success')
             return redirect(url_for('finance.expenses'))
 
@@ -101,6 +103,7 @@ def expenses():
                 
                 bill.total_amount = total_amount
                 db.session.commit()
+                _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
                 flash(f'Bill {bill_no} recorded successfully with {len(item_ids)} items.', 'success')
             except Exception as e:
                 db.session.rollback()
@@ -362,6 +365,7 @@ def delete_bill(bill_id):
     
     db.session.delete(bill)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), bill.floor)
     flash('Bill record removed. Items returned to pending list (costs reset).', 'success')
     return redirect(url_for('finance.expenses'))
 
@@ -424,6 +428,7 @@ def atomic_reconcile():
         bill.total_amount = current_total
         
         db.session.commit()
+        _clear_dashboard_cache(getattr(g, 'tenant_id', None), bill.floor)
         return jsonify({'success': True, 'reconciled_count': len(reconciliations), 'new_total': float(bill.total_amount)})
     except Exception as e:
         db.session.rollback()
@@ -524,6 +529,7 @@ def atomic_reconcile_full():
             bill.total_amount = final_total
 
         db.session.commit()
+        _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
         return jsonify({'success': True, 'bill_id': bill.id})
     except Exception as e:
         db.session.rollback()
@@ -555,6 +561,7 @@ def delete_expense(expense_id):
 
     db.session.delete(expense)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), expense.floor)
     flash('Expense deleted successfully', 'success')
     return redirect(url_for('finance.expenses'))
 
@@ -676,6 +683,9 @@ def verify_return(record_id):
     db.session.commit()
     return redirect(url_for('finance.lend_borrow'))
 
+import uuid
+from flask import current_app
+
 @finance_bp.route('/expenses/import-receipt', methods=['POST'])
 def import_receipt():
     user = _require_user()
@@ -690,9 +700,9 @@ def import_receipt():
         return jsonify({'error': 'No file selected'}), 400
 
     # 1. Size Guard: Max 5MB
-    file.seek(0, 2)  # Seek to end
+    file.seek(0, 2)
     file_size = file.tell()
-    file.seek(0)     # Reset to beginning
+    file.seek(0)
     if file_size > 5 * 1024 * 1024:
         return jsonify({'error': 'File size exceeds 5MB limit.'}), 400
 
@@ -703,13 +713,32 @@ def import_receipt():
         return jsonify({'error': f"Unsupported file type: {mime_type}"}), 400
 
     try:
-        # Reset stream position just in case
-        file.seek(0)
+        # Check if RQ is available
+        if hasattr(current_app, 'task_queue') and current_app.task_queue:
+            # Async Path: Save to temp and enqueue
+            temp_dir = os.path.join(current_app.root_path, 'tmp', 'receipts')
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Generate a unique task ID
+            task_id = str(uuid.uuid4())
+            temp_path = os.path.join(temp_dir, f"{task_id}_{file.filename}")
+            file.save(temp_path)
+            
+            # Enqueue the job
+            current_app.task_queue.enqueue(
+                'blueprints.finance.routes._process_receipt_worker',
+                temp_path,
+                mime_type,
+                file.filename,
+                job_id=task_id
+            )
+            
+            return jsonify({'status': 'processing', 'task_id': task_id})
         
-        # Use Factory to process (Full pipeline: Extract Text -> Detect Parser -> Parse Data)
+        # Sync Fallback
         text = ParserFactory.get_text(file.stream, mime_type)
         if text == "ERROR_TESSERACT_NOT_FOUND":
-            return jsonify({'error': 'OCR Engine (Tesseract) is not installed on the server. Please contact administrator.'}), 500
+            return jsonify({'error': 'OCR Engine (Tesseract) is not installed on the server.'}), 500
             
         if not text:
             return jsonify({'error': 'Failed to extract text from receipt.'}), 500
@@ -724,10 +753,55 @@ def import_receipt():
         data['filename'] = file.filename
         return jsonify(data)
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        logging.error(f"Receipt Import Error: {str(e)}\n{error_details}")
+        logging.error(f"Receipt Import Error: {str(e)}")
         return jsonify({'error': f"Failed to parse receipt: {str(e)}"}), 500
+
+def _process_receipt_worker(file_path, mime_type, original_filename):
+    """RQ Worker: Processes the receipt from a temporary file."""
+    from app import app
+    with app.app_context():
+        try:
+            with open(file_path, 'rb') as f:
+                text = ParserFactory.get_text(f, mime_type)
+                
+            if not text or text == "ERROR_TESSERACT_NOT_FOUND":
+                return {'error': 'OCR_FAILED'}
+            
+            parser = ParserFactory.get_parser(text)
+            receipt_data = parser.parse(text)
+            
+            if not receipt_data:
+                return {'error': 'PARSE_FAILED'}
+            
+            data = receipt_data.to_dict()
+            data['filename'] = original_filename
+            return data
+        except Exception as e:
+            logging.error(f"Worker Error: {e}")
+            return {'error': str(e)}
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+@finance_bp.route('/expenses/import-status/<task_id>', methods=['GET'])
+def check_import_status(task_id):
+    """Checks the status of an async receipt processing task."""
+    if not hasattr(current_app, 'task_queue') or not current_app.task_queue:
+        return jsonify({'error': 'Background processing not configured'}), 400
+        
+    job = current_app.task_queue.fetch_job(task_id)
+    if not job:
+        return jsonify({'status': 'not_found'}), 404
+        
+    if job.is_finished:
+        result = job.result
+        if isinstance(result, dict) and 'error' in result:
+            return jsonify({'status': 'failed', 'error': result['error']})
+        return jsonify({'status': 'completed', 'data': result})
+    elif job.is_failed:
+        return jsonify({'status': 'failed'})
+    else:
+        return jsonify({'status': 'processing'})
 
 @finance_bp.route('/expenses/save-imported-bill', methods=['POST'])
 def save_imported_bill():
@@ -778,6 +852,7 @@ def save_imported_bill():
             db.session.add(item)
 
         db.session.commit()
+        _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
         return jsonify({'success': True, 'bill_id': bill.id})
     except Exception as e:
         db.session.rollback()

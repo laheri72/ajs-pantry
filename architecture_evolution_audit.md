@@ -147,7 +147,10 @@ Super Admins will need a macro-level dashboard showing DAU/MAU and feature adopt
 *   **API Decoupling:** Begin extracting Jinja views into standardized REST/JSON APIs.
 *   **Admin Tools:** Implement bulk reassignment tools for Pantry Heads and Admins.
 
-### ACHIEVED MILESTONES (Completed Feb 2026)
+### ACHIEVED MILESTONES (Completed April 2026)
+*   [x] **Background Job Queue:** Moved Tesseract OCR, Push Notifications, and Email dispatch into an RQ (Redis Queue) worker system to prevent WSGI worker locking.
+*   [x] **Dashboard Query Optimization:** Implemented Redis caching (Flask-Caching) for the heavy stats on the `/dashboard` route with smart invalidation.
+*   [x] **Database Indexes:** Added composite indexes for `(tenant_id, floor)` on all heavy operational tables (Expense, ProcurementItem, Request, TeaTask, etc.).
 *   [x] **Calendar Data Bounding:** The `/calendar` route now uses `start_bound` and `end_bound` to limit payload size.
 *   [x] **Financial Export:** Admins can now export expense reports to Excel (CSV).
 *   [x] **Menu Intelligence:** Implemented "Global Dish Library," "Dish Insights," and "One-Row Menu Model."

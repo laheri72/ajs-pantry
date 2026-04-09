@@ -22,3 +22,7 @@ pywebpush
 cryptography
 pytesseract
 Pillow
+redis
+rq
+Flask-Caching
+requests

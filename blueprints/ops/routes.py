@@ -14,6 +14,7 @@ from ..utils import (
     send_push_notification,
     send_email_notification
 )
+from ..pantry.routes import _clear_dashboard_cache
 
 @ops_bp.route('/tea', methods=['GET', 'POST'])
 def tea():
@@ -53,6 +54,7 @@ def tea():
         )
         db.session.add(task)
         db.session.commit()
+        _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
 
         if assigned_to_id:
             send_push_notification(
@@ -145,6 +147,7 @@ def complete_tea_task(task_id):
 
     task.status = 'completed'
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), task.floor)
     return ('', 204)
 
 @ops_bp.route('/tea/bulk-assign', methods=['POST'])
@@ -216,6 +219,7 @@ def bulk_assign_tea():
         current_date += timedelta(days=1)
 
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
     flash(f'Successfully generated {tasks_created} tea tasks.', 'success')
     return redirect(url_for('ops.tea'))
 
@@ -288,6 +292,7 @@ def fail_tea_task(task_id):
 
     task.status = 'failed'
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), task.floor)
     return ('', 204)
 
 @ops_bp.route('/tea/pending/<int:task_id>', methods=['POST'])
@@ -302,6 +307,7 @@ def reset_tea_task(task_id):
 
     task.status = 'pending'
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), task.floor)
     return ('', 204)
 
 @ops_bp.route('/requests', methods=['GET', 'POST'])
@@ -399,6 +405,7 @@ def update_request_status(request_id):
     req.status = new_status
     req.approved_by_id = user.id if new_status == 'approved' else None
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), req.floor)
 
     # Notify the user
     if req.user_id:
@@ -430,6 +437,7 @@ def delete_request(request_id):
 
     db.session.delete(req)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), req.floor)
     return ('', 204)
 
 @ops_bp.route('/procurement', methods=['GET', 'POST'])
@@ -494,6 +502,7 @@ def procurement():
 
             db.session.add_all(items_to_add)
             db.session.commit()
+            _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
 
             if assigned_to_id:
                 assigned_user = User.query.get(assigned_to_id)
@@ -668,6 +677,7 @@ def bulk_complete_procurement():
                 updated_count += 1
         
         db.session.commit()
+        _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
         flash(f'Successfully completed {updated_count} items.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -700,6 +710,7 @@ def complete_procurement_item(item_id):
 
     item.status = 'completed'
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), item.floor)
     if request.accept_mimetypes.accept_html:
         flash('Marked as completed', 'success')
         return redirect(url_for('ops.procurement'))
@@ -732,6 +743,7 @@ def revoke_procurement_item(item_id):
     item.actual_cost = None
     item.expense_recorded_at = None
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), item.floor)
 
     if request.accept_mimetypes.accept_html:
         flash('Item reverted to pending', 'success')
@@ -763,6 +775,7 @@ def delete_procurement_item(item_id):
 
     db.session.delete(item)
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), item.floor)
 
     if request.accept_mimetypes.accept_html:
         flash('Procurement item deleted successfully.', 'success')
