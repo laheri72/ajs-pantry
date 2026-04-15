@@ -1483,7 +1483,7 @@
             await saveGeneratedPrintReport(reportTitle, customBudget, totalSpent, remaining, summaryBillIds, voucherBillIds);
 
             let rowsHtml = '';
-            selectedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
+            selectedItems.sort((a, b) => new Date(a.date) - new Date(b.date));
 
             selectedItems.forEach(item => {
                 let shortDate = item.date;
@@ -1523,8 +1523,9 @@
             printTemplate.style.display = 'block';
             printTemplate.classList.add('report-summary');
             printTemplate.querySelector('h3').innerText = reportTitle;
-            printTemplate.querySelector('#printReportBody').innerHTML = rowsHtml;
-            printTemplate.querySelector('#printReportFooter').innerHTML = footerHtml;
+            printTemplate.querySelector('#printReportBody').innerHTML = rowsHtml + footerHtml;
+            const tfoot = printTemplate.querySelector('#printReportFooter');
+            if (tfoot) tfoot.style.display = 'none';
 
             // Collect voucher bill data
             const voucherBillsData = [];
