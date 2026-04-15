@@ -1058,6 +1058,20 @@
     </div>
 </div>
 
+<!-- Full Screen Glassmorphism Loader (Hidden by default) -->
+<div id="printReportLoader" class="d-none" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div class="spinner-grow text-teal mb-4" style="width: 4rem; height: 4rem;" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <div class="bg-white p-4 rounded-4 shadow d-flex flex-column align-items-center text-center" style="min-width: 320px;">
+        <h5 class="fw-bold text-teal mb-1"><i class="fas fa-cogs me-2"></i>AJS Pantry Engine</h5>
+        <p id="printReportLoaderText" class="text-secondary fw-semibold mb-0" style="font-size: 1.05rem;">Initializing Print Engine...</p>
+        <div class="progress mt-3 w-100" style="height: 6px;">
+            <div id="printReportLoaderProgress" class="progress-bar bg-teal progress-bar-striped progress-bar-animated" role="progressbar" style="width: 10%;"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Save Server Report Modal -->
 <div class="modal fade" id="saveServerReportModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
@@ -1439,6 +1453,10 @@
         const btn = document.getElementById('generateReportBtn');
         const originalHtml = btn.innerHTML;
         
+        const loader = document.getElementById('printReportLoader');
+        const loaderText = document.getElementById('printReportLoaderText');
+        const loaderProgress = document.getElementById('printReportLoaderProgress');
+        
         const reportTitle = document.getElementById('reportTitleInput').value.trim() || 'Expense Report';
         const customBudget = parseFloat(document.getElementById('printBudgetInput').value || 0);
         const selectedItems = [];
@@ -1453,10 +1471,16 @@
             return;
         }
 
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Preparing...';
-
         try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Preparing...';
+            
+            // Activate High-End Loader
+            loader.classList.remove('d-none');
+            loaderText.innerText = "Initializing Engine...";
+            loaderProgress.style.width = "10%";
+            await new Promise(r => setTimeout(r, 150)); // let UI breath
+
             for (const group of checkedGroups) {
                 const billId = group.getAttribute('data-bill-id');
                 if (!loadedBills.has(billId)) {
@@ -1515,10 +1539,17 @@
                 .map(group => parseInt(group.getAttribute('data-bill-id'), 10))
                 .filter(Boolean);
 
+            loaderText.innerText = "Saving Cloud Blueprint...";
+            loaderProgress.style.width = "20%";
             const savedData = await saveGeneratedPrintReport(reportTitle, customBudget, totalSpent, remaining, summaryBillIds, voucherBillIds);
 
             let rowsHtml = '';
-            selectedItems.sort((a, b) => new Date(a.date) - new Date(b.date));
+            // Ensure strict oldest-first chronological sort via ISO string comparison
+            selectedItems.sort((a, b) => {
+                if (a.date < b.date) return -1;
+                if (a.date > b.date) return 1;
+                return 0;
+            });
 
             selectedItems.forEach(item => {
                 let shortDate = item.date;
@@ -1564,7 +1595,19 @@
 
             // Collect voucher bill data
             const voucherBillsData = [];
+            const totalVouchers = voucherChecked.length;
+            let currentVoucher = 0;
+
+            if (totalVouchers > 0) {
+                loaderText.innerText = `Assembling Vouchers (0 of ${totalVouchers})...`;
+                loaderProgress.style.width = "30%";
+            }
+
             for (const vcbtn of voucherChecked) {
+                currentVoucher++;
+                loaderText.innerText = `Fetching Itemized Vouchers (${currentVoucher} of ${totalVouchers})...`;
+                loaderProgress.style.width = `${30 + (currentVoucher / totalVouchers) * 50}%`;
+                
                 const billId = vcbtn.getAttribute('data-bill-id');
                 const billNo = vcbtn.getAttribute('data-bill-no');
                 const billDate = vcbtn.getAttribute('data-bill-date');
@@ -1579,6 +1622,10 @@
                 } catch(e) { items = []; }
                 voucherBillsData.push({ bill_no: billNo, bill_date: billDate, shop_name: shopName, total_amount: parseFloat(totalAmt), items: items });
             }
+
+            loaderText.innerText = "Rendering High-Quality Layout...";
+            loaderProgress.style.width = "90%";
+            await new Promise(r => setTimeout(r, 200)); // allow DOM to paint
 
             const voucherHtml = voucherBillsData.length > 0 ? generateVoucherHTML(voucherBillsData, reportTitle) : '';
 
@@ -1725,6 +1772,7 @@
             console.error(error);
             alert('An error occurred while preparing the report data.');
         } finally {
+            loader.classList.add('d-none');
             btn.disabled = false;
             btn.innerHTML = originalHtml;
         }
