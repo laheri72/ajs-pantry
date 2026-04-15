@@ -145,6 +145,11 @@ def expenses():
     ).order_by(Bill.bill_date.desc()).paginate(page=bills_page, per_page=15, error_out=False)
     bills = bills_pagination.items
     
+    # Get ALL active bills for this floor (UNPAGINATED) - for Print Module
+    all_active_bills = tenant_filter(Bill.query).filter_by(
+        floor=floor, is_archived=False
+    ).order_by(Bill.bill_date.desc()).all()
+    
     # Get all archived bills for this floor (PAGINATED)
     archived_page = request.args.get('archived_page', 1, type=int)
     archived_pagination = tenant_filter(Bill.query).options(joinedload(Bill.items)).filter_by(
@@ -210,6 +215,7 @@ def expenses():
         remaining_balance=remaining_balance,
         pending_procurements=pending_procurements,
         bills=bills,
+        all_active_bills=all_active_bills,
         bills_pagination=bills_pagination,
         archived_bills=archived_bills,
         archived_pagination=archived_pagination,
