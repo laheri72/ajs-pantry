@@ -816,7 +816,7 @@
 
                     <div class="accordion accordion-selection border rounded overflow-auto mb-3"
                         style="max-height: 350px;" id="billSelectionAccordion">
-                        {% for bill in bills if not bill.is_archived %}
+                        {% for bill in all_active_bills %}
                         <div class="accordion-item border-0 border-bottom">
                             <div class="accordion-header d-flex align-items-center px-3 py-2 bg-light">
                                 <div class="form-check me-2">
@@ -897,7 +897,7 @@
 
                     <!-- VOUCHER SELECTION SUB-SECTION -->
 
-                    {% set active_bills_vch = bills | selectattr('is_archived', 'equalto', false) | list %}
+                    {% set active_bills_vch = all_active_bills %}
 
                     {% if active_bills_vch %}
 
