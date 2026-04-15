@@ -1,0 +1,225 @@
+Testing invoice_224863459.pdf
+--- EXTRACTED TEXT ---
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                     Page 1 of 1  
+                              Avenue E-Commerce Limited          TAX INVOICE      
+                                                                                  
+                      Avenue E-Commerce Ltd. Unit No. 1, Ground Floor, Marwah Industrial Estate, Saki Vihar AAY00426H0005186
+                             Road, Andheri (East), Mumbai Maharashtra -400072     
+    ORDER NUMBER: 224863459 INVOICE DATE:07/04/26 CUSTOMER NAME: Hatim Janab Maanak
+                                            DELIVERY MODE: HOME DELIVERY          
+    SHIPMENT NUMBER: 224863459-1                                                  
+                                                          Aljamea Tus Saifiyah Gate
+    ORDER DATE:  06/04/26                   DELIVERY ADDRESS:                     
+                                                          3,Aljamea Tus Saifiyah Gate
+    DELIVERY DATE: 07/04/26                               3, opp to Nafees Chambers,
+                                                          Marol Pipeline Rd, Bori 
+    DELIVERY TIME: 4:00 PM - 6:00 PM                      Colony,                 
+    TOTAL ITEMS: 6      TOTAL QUANTITY:  6                                        
+    SR        TAX                                              RATE    VALUE*     
+        HSN                    ITEM(S) PURCHASED         QTY                      
+    NO.     CATEGORY                                           (Rs.)    (Rs.)     
+                   CRATE ID: 00009595951188596957                                 
+     1. 04015000 1 Amul Fresh Cream -250ml                 1.0    68.00    68.00  
+     2. 19053100 2 Britannia Milk Bikis Biscuits 710Gm     1.0    73.00    73.00  
+     3. 09109100 2 Everest Meat Masala - 100gm             1.0    84.00    84.00  
+     4. 18050000 2 Hersheys Nat Unsw Cocoa Powdr 225G      1.0   331.00    331.00 
+                                                                                  
+     5. 21032000 2 Veeba Pasta & Pizza Sauce 280Gm         1.0    68.00    68.00  
+                   CRATE ID: 00009595951188596958                                 
+                                                                                  
+     6. 15121910 2 GEMINI REF SUNFLOWER OIL - 4.20 KG      1.0   929.00    929.00 
+                                             Sub Total                    1,553.00
+                                             Delivery Charges** 1 0.00      0.00  
+                                             Invoice Value                1,553.00
+                                             Amount                       1553.00 
+                                                                                  
+     *Above Prices inclusive of all taxes.                     POSTPAID           
+     < ------------------------ GST BREAKUP DETAILS (AMOUNT IN Rs.) ---------------------------> Cash to be collected during delivery
+        TAX CATEGORY TAXABLE DELIVERY CGST SGST CESS TOTAL                        
+                      AMOUNT CHARGES (Rs.) (Rs.) (Rs.) (Rs.) (Rs.) Total MRP Value: 1,855.00
+    1 - CGST@0% SGST@0% 68.00  0.00  0.00 0.00 0.00 68.00                         
+                                                        Total Savings:  302.00    
+    2 - CGST@2.50% SGST@2.50% 1414.28 0.00 35.36 35.36 0.00 1485.00               
+    4 - CGST@9% SGST@9% 0.00   0.00  0.00 0.00 0.00 0.00                          
+    7 - CGST@1.5% SGST@1.5% 0.00 0.00 0.00 0.00 0.00 0.00                         
+    8 - CGST@20% SGST@20% 0.00 0.00  0.00 0.00 0.00 0.00                          
+                 TOTAL 1482.28 0.00 35.36 35.36 0.00 1553.00                      
+       FSSAI NO: 11524005000323 CIN NO : U74120MH2014PLC259234 GSTN:27AANCA0090J1ZK
+    For Terms & Conditions as accepted by you while ordering please visit - https://dmart.in/dmart-terms-conditions
+    Customer Service Email: customerservice@dmart.in Customer Service Telephone:022-68120900
+    **If your order has multiple shipments, Delivery Charges is applied to only one shipment.
+    This is computer generated invoice and require no signature. Invoice is prepared and issued in accordance with Information Technology Act 2022.
+    INCLUDES GST SAVINGS ON APPLICABLE ITEMS (IF ANY) FROM 22/09/2025             
+        Registered Office: Anjaneya Co. Op. Soc. Ltd, Orchard Avenue, Nr. Hiranandani Foundation School, Powai, Mumbai, Maharashtra, India - 400076
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+
+----------------------
+
+--- PARSED DATA ---
+Bill No: 224863459
+Bill Date: 2026-04-07
+Total Amount: 1553.0
+Number of items: 0
+Items:
+Testing invoice_224882863.pdf
+--- EXTRACTED TEXT ---
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                     Page 1 of 1  
+                              Avenue E-Commerce Limited          TAX INVOICE      
+                                                                                  
+                      Avenue E-Commerce Ltd. Unit No. 1, Ground Floor, Marwah Industrial Estate, Saki Vihar AAY00426H0006080
+                             Road, Andheri (East), Mumbai Maharashtra -400072     
+    ORDER NUMBER: 224882863 INVOICE DATE:08/04/26 CUSTOMER NAME: Hatim Janab Maanak
+                                            DELIVERY MODE: HOME DELIVERY          
+    SHIPMENT NUMBER: 224882863-1                                                  
+                                                          Aljamea Tus Saifiyah Gate
+    ORDER DATE:  08/04/26                   DELIVERY ADDRESS:                     
+                                                          3,Aljamea Tus Saifiyah Gate
+    DELIVERY DATE: 08/04/26                               3, opp to Nafees Chambers,
+                                                          Marol Pipeline Rd, Bori 
+    DELIVERY TIME: 6:15 PM - 8:15 PM                      Colony,                 
+    TOTAL ITEMS: 3      TOTAL QUANTITY:  9                                        
+    SR        TAX                                              RATE    VALUE*     
+        HSN                    ITEM(S) PURCHASED         QTY                      
+    NO.     CATEGORY                                           (Rs.)    (Rs.)     
+                   CRATE ID: 00009595951188733528                                 
+     1. 19053100 2 BRITANNIA MILK BISCUIT 435 GM           1.0    68.00    68.00  
+     2. 19059020 2 Parle-G Original Gluco Biscuits 800gm   4.0    72.00    288.00 
+     3. 19041020 2 Premia Poha Basmati - 500gm             4.0    52.00    208.00 
+                                             Sub Total                     564.00 
+                                             Delivery Charges** 1 0.00      0.00  
+                                             Invoice Value                 564.00 
+                                             Amount                        564.00 
+                                                                                  
+     *Above Prices inclusive of all taxes.                     POSTPAID           
+     < ------------------------ GST BREAKUP DETAILS (AMOUNT IN Rs.) ---------------------------> Cash to be collected during delivery
+        TAX CATEGORY TAXABLE DELIVERY CGST SGST CESS TOTAL                        
+                      AMOUNT CHARGES (Rs.) (Rs.) (Rs.) (Rs.) (Rs.) Total MRP Value: 779.00
+    1 - CGST@0% SGST@0% 0.00   0.00  0.00 0.00 0.00 0.00                          
+                                                        Total Savings:  215.00    
+    2 - CGST@2.50% SGST@2.50% 537.15 0.00 13.43 13.43 0.00 564.01                 
+    4 - CGST@9% SGST@9% 0.00   0.00  0.00 0.00 0.00 0.00                          
+    7 - CGST@1.5% SGST@1.5% 0.00 0.00 0.00 0.00 0.00 0.00                         
+    8 - CGST@20% SGST@20% 0.00 0.00  0.00 0.00 0.00 0.00                          
+                 TOTAL 537.15  0.00 13.43 13.43 0.00 564.01                       
+       FSSAI NO: 11524005000323 CIN NO : U74120MH2014PLC259234 GSTN:27AANCA0090J1ZK
+    For Terms & Conditions as accepted by you while ordering please visit - https://dmart.in/dmart-terms-conditions
+    Customer Service Email: customerservice@dmart.in Customer Service Telephone:022-68120900
+    **If your order has multiple shipments, Delivery Charges is applied to only one shipment.
+    This is computer generated invoice and require no signature. Invoice is prepared and issued in accordance with Information Technology Act 2022.
+    INCLUDES GST SAVINGS ON APPLICABLE ITEMS (IF ANY) FROM 22/09/2025             
+        Registered Office: Anjaneya Co. Op. Soc. Ltd, Orchard Avenue, Nr. Hiranandani Foundation School, Powai, Mumbai, Maharashtra, India - 400076
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+
+----------------------
+
+--- PARSED DATA ---
+Bill No: 224882863
+Bill Date: 2026-04-08
+Total Amount: 564.0
+Number of items: 0
+Items:
+Testing invoice_226676683.pdf
+--- EXTRACTED TEXT ---
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                     Page 1 of 1  
+                              Avenue E-Commerce Limited          TAX INVOICE      
+                                                                                  
+                      Avenue E-Commerce Ltd. Unit No. 1, Ground Floor, Marwah Industrial Estate, Saki Vihar AAY00426H0009200
+                             Road, Andheri (East), Mumbai Maharashtra -400072     
+    ORDER NUMBER: 226676683 INVOICE DATE:13/04/26 CUSTOMER NAME: Hatim Janab Maanak
+                                            DELIVERY MODE: HOME DELIVERY          
+    SHIPMENT NUMBER: 226676683-1                                                  
+                                                          Aljamea Tus Saifiyah Gate
+    ORDER DATE:  12/04/26                   DELIVERY ADDRESS:                     
+                                                          3,Aljamea Tus Saifiyah Gate
+    DELIVERY DATE: 13/04/26                               3, opp to Nafees Chambers,
+                                                          Marol Pipeline Rd, Bori 
+    DELIVERY TIME: 7:00 AM - 10:00 AM                     Colony,                 
+    TOTAL ITEMS: 5      TOTAL QUANTITY:  9                                        
+    SR        TAX                                              RATE    VALUE*     
+        HSN                    ITEM(S) PURCHASED         QTY                      
+    NO.     CATEGORY                                           (Rs.)    (Rs.)     
+                   CRATE ID: 00009595951189183528                                 
+     1. 19053100 2 Britannia Milk Bikis Biscuits 710Gm     5.0    73.00    365.00 
+     2. 21039090 2 Ching'S Schezwan Chutney 590Gm          1.0   139.00    139.00 
+     3. 19041090 2 Kelloggs Chocos Super Saver Pack 1.05Kg 1.0   397.00    397.00 
+     4. 33051090 4 Nivea Actv Clean Bfh Shower Gel 250Ml   1.0   146.00    146.00 
+                                                                                  
+                   CRATE ID: 00009595951189207320G4                               
+     5. 04051000 2 Mother Dairy Pasteuri Butt-500G         1.0   270.00    270.00 
+                                             Sub Total                    1,317.00
+                                                                                  
+                                             Delivery Charges** 1 0.00      0.00  
+                                             Invoice Value                1,317.00
+                                             Promo Discount                50.00  
+                                             Amount                       1267.00 
+     *Above Prices inclusive of all taxes.                     POSTPAID           
+     < ------------------------ GST BREAKUP DETAILS (AMOUNT IN Rs.) ---------------------------> Cash to be collected during delivery
+        TAX CATEGORY TAXABLE DELIVERY CGST SGST CESS TOTAL                        
+                      AMOUNT CHARGES (Rs.) (Rs.) (Rs.) (Rs.) (Rs.) Total MRP Value: 1,795.00
+    1 - CGST@0% SGST@0% 0.00   0.00  0.00 0.00 0.00 0.00                          
+                                                        Total Savings:  528.00    
+    2 - CGST@2.50% SGST@2.50% 1115.24 0.00 27.88 27.88 0.00 1171.00               
+    4 - CGST@9% SGST@9% 123.73 0.00 11.13 11.13 0.00 145.99                       
+    7 - CGST@1.5% SGST@1.5% 0.00 0.00 0.00 0.00 0.00 0.00                         
+    8 - CGST@20% SGST@20% 0.00 0.00  0.00 0.00 0.00 0.00                          
+                 TOTAL 1238.97 0.00 39.01 39.01 0.00 1316.99                      
+       FSSAI NO: 11524005000323 CIN NO : U74120MH2014PLC259234 GSTN:27AANCA0090J1ZK
+    For Terms & Conditions as accepted by you while ordering please visit - https://dmart.in/dmart-terms-conditions
+    Customer Service Email: customerservice@dmart.in Customer Service Telephone:022-68120900
+    **If your order has multiple shipments, Delivery Charges is applied to only one shipment.
+    This is computer generated invoice and require no signature. Invoice is prepared and issued in accordance with Information Technology Act 2022.
+    INCLUDES GST SAVINGS ON APPLICABLE ITEMS (IF ANY) FROM 22/09/2025             
+        Registered Office: Anjaneya Co. Op. Soc. Ltd, Orchard Avenue, Nr. Hiranandani Foundation School, Powai, Mumbai, Maharashtra, India - 400076
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                                  
+
+----------------------
+
+--- PARSED DATA ---
+Bill No: 226676683
+Bill Date: 2026-04-13
+Total Amount: 1267.0
+Number of items: 0
+Items:

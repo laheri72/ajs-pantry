@@ -79,7 +79,8 @@ class DMartParser(BaseParser):
         
         # Fallback to Old Format if no items found with the new pattern
         if not data.items:
-            old_item_pattern = re.compile(r'^(\d+)\.\s+(\d{4,10})\s+(\d+)\s+(.*?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)', re.MULTILINE)
+            # Allow optional leading whitespace before the item number
+            old_item_pattern = re.compile(r'^\s*(\d+)\.\s+(\d{4,10})\s+(\d+)\s+(.*?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)', re.MULTILINE)
             matches = old_item_pattern.findall(text)
             for m in matches:
                 try:
