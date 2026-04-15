@@ -1055,6 +1055,41 @@
             </div>
         </div>
     </div>
+    </div>
+</div>
+
+<!-- Save Server Report Modal -->
+<div class="modal fade" id="saveServerReportModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold text-teal"><i class="fas fa-cloud-upload-alt me-2"></i>Save Report to Cloud</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" tabindex="-1"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="text-secondary mb-4">Would you like to securely store the PDF you just printed in the cloud server for permanent record keeping?</p>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-uppercase">Upload Printed PDF</label>
+                    <input type="file" id="adhocPdfUpload" class="form-control rounded-3" accept=".pdf,application/pdf">
+                    <div class="form-text mt-2"><i class="fas fa-info-circle me-1"></i>Select the exact PDF file you just saved to your computer. Max 5MB.</div>
+                </div>
+                
+                <div class="alert justify-content-between p-3 rounded-3 alert-warning d-flex align-items-center mt-4">
+                    <div>
+                        <i class="fas fa-exclamation-triangle me-2"></i><strong>Archive Pending</strong>
+                        <div class="small">Bills will only be archived if you upload and save the report!</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0 pt-0 flex-nowrap">
+                <button type="button" class="btn btn-light rounded-pill w-50 py-2 border" id="skipSaveReportBtn" tabindex="-1">Skip & Don't Save</button>
+                <button type="button" class="btn btn-teal rounded-pill w-50 py-2" id="confirmSaveReportBtn">
+                    Upload & Save <i class="fas fa-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Original Printable Report (Hidden) -->
@@ -1480,7 +1515,7 @@
                 .map(group => parseInt(group.getAttribute('data-bill-id'), 10))
                 .filter(Boolean);
 
-            await saveGeneratedPrintReport(reportTitle, customBudget, totalSpent, remaining, summaryBillIds, voucherBillIds);
+            const savedData = await saveGeneratedPrintReport(reportTitle, customBudget, totalSpent, remaining, summaryBillIds, voucherBillIds);
 
             let rowsHtml = '';
             selectedItems.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1680,9 +1715,9 @@
                 w.print(); 
                 w.close(); 
                 
-                // AFTER PRINT: Trigger Auto-Archive Flow
+                // AFTER PRINT: Prompt Save Report Sequence
                 setTimeout(() => {
-                    handlePostPrintArchival(checkedGroups);
+                    promptSaveReportOnServer(savedData.print_report_id, checkedGroups);
                 }, 1000);
             }, 700);
 
@@ -1815,6 +1850,67 @@
         });
 
         return html;
+    }
+
+    function promptSaveReportOnServer(reportId, checkedGroups) {
+        document.getElementById('adhocPdfUpload').value = '';
+        const modal = new bootstrap.Modal(document.getElementById('saveServerReportModal'));
+        modal.show();
+
+        const skipBtn = document.getElementById('skipSaveReportBtn');
+        let confirmBtn = document.getElementById('confirmSaveReportBtn');
+
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.replaceWith(newConfirmBtn);
+        confirmBtn = newConfirmBtn;
+        
+        const newSkipBtn = skipBtn.cloneNode(true);
+        skipBtn.replaceWith(newSkipBtn);
+
+        newSkipBtn.addEventListener('click', function() {
+            modal.hide();
+        });
+
+        confirmBtn.addEventListener('click', async function() {
+            const fileInput = document.getElementById('adhocPdfUpload');
+            if (fileInput.files.length === 0) {
+                alert('Please select the PDF file first.');
+                return;
+            }
+            const file = fileInput.files[0];
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                alert('Only PDF files are accepted.');
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`/expenses/print-reports/${reportId}/upload-pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    modal.hide();
+                    setTimeout(() => {
+                        handlePostPrintArchival(checkedGroups);
+                    }, 500);
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Network error during upload.');
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = 'Upload & Save <i class="fas fa-arrow-right ms-1"></i>';
+            }
+        });
     }
 
     async function handlePostPrintArchival(checkedGroups) {

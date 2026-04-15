@@ -50,7 +50,12 @@ from ..utils import (
 
 @faculty_bp.before_request
 def _faculty_auth_guard():
-    shared_staff_endpoints = {'faculty.reports_page', 'faculty.download_floor_submission'}
+    shared_staff_endpoints = {
+        'faculty.reports_page', 
+        'faculty.download_floor_submission',
+        'faculty.download_adhoc_report',
+        'faculty.delete_adhoc_report'
+    }
     if request.endpoint == 'faculty.login' or request.endpoint in shared_staff_endpoints:
         return None
 
@@ -881,6 +886,13 @@ def reports_page():
 
         saved_print_reports = _saved_print_reports_for_floor(floor, active_cycle.id)
 
+    # Fetch Ad-hoc / irregular saved reports for this floor
+    adhoc_reports = tenant_filter(ExpensePrintReport.query).filter(
+        ExpensePrintReport.floor == floor,
+        ExpensePrintReport.cycle_id == None,
+        ExpensePrintReport.storage_path != None
+    ).order_by(ExpensePrintReport.created_at.desc()).all()
+
     return render_template(
         'reports.html',
         current_user=user,
@@ -889,9 +901,65 @@ def reports_page():
         allocation=allocation,
         submission=submission,
         saved_print_reports=saved_print_reports,
+        adhoc_reports=adhoc_reports,
         today=date.today(),
     )
 
+from flask import send_from_directory
+
+@faculty_bp.route('/reports/adhoc/<int:report_id>/download')
+def download_adhoc_report(report_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+        
+    floor = _get_active_floor(user)
+    report = tenant_filter(ExpensePrintReport.query).filter_by(id=report_id).first_or_404()
+    
+    if user.role != 'admin' and report.floor != floor:
+        abort(403)
+        
+    if not report.storage_path:
+        flash("This report does not have a saved PDF file.", "error")
+        return redirect(url_for('faculty.reports_page'))
+        
+    base_dir = current_app.config.get("REPORT_STORAGE_ROOT", os.path.join(current_app.root_path, "tmp", "reports"))
+    
+    file_dir = os.path.dirname(os.path.normpath(os.path.join(base_dir, report.storage_path)))
+    filename = os.path.basename(report.storage_path)
+    
+    try:
+        return send_from_directory(file_dir, filename, as_attachment=True, download_name=report.stored_filename)
+    except FileNotFoundError:
+        flash("File missing from server. It might have been deleted.", "error")
+        return redirect(url_for('faculty.reports_page'))
+
+@faculty_bp.route('/reports/adhoc/<int:report_id>/delete', methods=['POST'])
+def delete_adhoc_report(report_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+        
+    floor = _get_active_floor(user)
+    report = tenant_filter(ExpensePrintReport.query).filter_by(id=report_id).first_or_404()
+    
+    if user.role != 'admin' and report.floor != floor:
+        abort(403)
+
+    if report.storage_path:
+        base_dir = current_app.config.get("REPORT_STORAGE_ROOT", os.path.join(current_app.root_path, "tmp", "reports"))
+        abs_path = os.path.normpath(os.path.join(base_dir, report.storage_path))
+        if os.path.exists(abs_path):
+            try:
+                os.remove(abs_path)
+            except OSError:
+                pass
+                
+    db.session.delete(report)
+    db.session.commit()
+    
+    flash("Ad-Hoc Report and its PDF have been permanently deleted.", "success")
+    return redirect(url_for('faculty.reports_page'))
 
 @faculty_bp.route('/faculty/reports/<int:submission_id>')
 def report_detail(submission_id):
