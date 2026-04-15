@@ -328,6 +328,13 @@ class ExpensePrintReport(db.Model, TenantMixin):
     total_spent = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     remaining_balance = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    
+    # Ad-hoc cloud storage paths (nullable for unsaved legacy reports)
+    stored_filename = db.Column(db.String(255), nullable=True)
+    original_filename = db.Column(db.String(255), nullable=True)
+    storage_path = db.Column(db.Text, nullable=True)
+    file_size_bytes = db.Column(db.BigInteger, nullable=True, default=0)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

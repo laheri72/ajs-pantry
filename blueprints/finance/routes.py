@@ -232,6 +232,23 @@ def expenses():
         active_floor=floor
     )
 
+import os
+from werkzeug.utils import secure_filename
+import re
+
+def _tenant_slug_gen():
+    tenant_name = getattr(g, 'tenant_name', None) or 'tenant'
+    slug = re.sub(r'[^a-z0-9]+', '-', tenant_name.lower()).strip('-')
+    return slug or 'tenant'
+
+def _finance_report_storage_dir():
+    from flask import current_app
+    base_dir = current_app.config.get("REPORT_STORAGE_ROOT", os.path.join(current_app.root_path, "tmp", "reports"))
+    path = os.path.join(base_dir, _tenant_slug_gen())
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 @finance_bp.route('/expenses/print-reports/save', methods=['POST'])
 def save_print_report():
     user = _require_user()
@@ -309,6 +326,69 @@ def save_print_report():
         'print_report_id': print_report.id,
         'report_title': print_report.report_title,
     })
+
+@finance_bp.route('/expenses/print-reports/<int:report_id>/upload-pdf', methods=['POST'])
+def upload_print_report_pdf(report_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    floor = _get_active_floor(user)
+    report = tenant_filter(ExpensePrintReport.query).filter_by(id=report_id).first()
+    
+    if not report or (user.role != 'admin' and report.floor != floor):
+        return jsonify({'error': 'Report not found or access denied.'}), 404
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Size Guard: Max 5MB
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > 5 * 1024 * 1024:
+        return jsonify({'error': 'File size exceeds 5MB limit.'}), 400
+
+    if not file.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Only PDF files are supported.'}), 400
+
+    try:
+        from flask import current_app
+        storage_dir = _finance_report_storage_dir()
+        
+        timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        new_filename = f"{_tenant_slug_gen()}_Irregular_Floor-{report.floor}_{report.id}_{timestamp}.pdf"
+        
+        path = os.path.join(storage_dir, new_filename)
+        file.save(path)
+        
+        relative_path = f"{_tenant_slug_gen()}/{new_filename}"
+        
+        # Remove old file if it existed
+        if report.storage_path:
+            base_d = current_app.config.get("REPORT_STORAGE_ROOT", os.path.join(current_app.root_path, "tmp", "reports"))
+            old_abs_path = os.path.normpath(os.path.join(base_d, report.storage_path))
+            if os.path.exists(old_abs_path):
+                try:
+                    os.remove(old_abs_path)
+                except OSError:
+                    pass
+            
+        report.original_filename = file.filename
+        report.stored_filename = new_filename
+        report.storage_path = relative_path
+        report.file_size_bytes = file_size
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'File securely uploaded and saved.'})
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Ad-hoc PDF Upload Error: {str(e)}")
+        return jsonify({'error': f"Failed to process upload: {str(e)}"}), 500
 
 @finance_bp.route('/bills/<int:bill_id>/archive', methods=['POST'])
 def archive_bill(bill_id):
