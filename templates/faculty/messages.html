@@ -10,7 +10,7 @@
                 <h3 class="fw-bold mb-1">Formal Faculty Messages</h3>
                 <div class="text-muted small">Send professional notices to Pantry Heads across the tenant or to selected floors only.</div>
             </div>
-            <form method="POST">
+            <form method="POST" id="messageForm">
                 <div class="mb-3">
                     <label class="form-label fw-bold">Title</label>
                     <input type="text" name="title" class="form-control rounded-4" placeholder="e.g. Budget review meeting" required>
@@ -39,7 +39,7 @@
                         {% endfor %}
                     </div>
                 </div>
-                <button class="btn btn-success rounded-pill px-4 w-100">
+                <button type="submit" id="btnSendMessage" class="btn btn-success rounded-pill px-4 w-100">
                     <i class="fas fa-paper-plane me-2"></i>Send Message
                 </button>
             </form>
@@ -107,6 +107,28 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Email Sending Loader Modal -->
+<div class="modal fade" id="emailLoaderModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-body p-4">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <div class="spinner-border text-teal" role="status" style="width: 2.5rem; height: 2.5rem;" id="emailLoaderSpinner">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0" id="emailLoaderTitle">Preparing Delivery...</h5>
+                        <p class="text-muted small mb-0">Please do not close this window.</p>
+                    </div>
+                </div>
+                <ul class="list-group list-group-flush border-top" id="emailChecklist" style="max-height: 250px; overflow-y: auto;">
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -123,6 +145,107 @@
 
         scopeSelect.addEventListener('change', syncTargetFloorsPanel);
         syncTargetFloorsPanel();
+
+        const messageForm = document.getElementById('messageForm');
+        const emailLoaderModal = new bootstrap.Modal(document.getElementById('emailLoaderModal'));
+        const btnSendMessage = document.getElementById('btnSendMessage');
+
+        if (messageForm) {
+            messageForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                // Let HTML5 validation run first
+                if (!messageForm.checkValidity()) {
+                    messageForm.reportValidity();
+                    return;
+                }
+                
+                // Show modal and disable button
+                emailLoaderModal.show();
+                btnSendMessage.disabled = true;
+                btnSendMessage.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+                
+                const checklistUl = document.getElementById('emailChecklist');
+                checklistUl.innerHTML = '';
+                document.getElementById('emailLoaderSpinner').classList.remove('d-none');
+                document.getElementById('emailLoaderTitle').innerText = 'Saving message...';
+
+                try {
+                    const formData = new FormData(messageForm);
+                    const response = await fetch(window.location.href, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to create message.');
+                    }
+
+                    const data = await response.json();
+                    if (data.message_id && data.recipients && data.recipients.length > 0) {
+                        document.getElementById('emailLoaderTitle').innerText = `Sending strictly to ${data.recipients.length} recipients...`;
+                        
+                        // Populate checklist visually first
+                        data.recipients.forEach(r => {
+                            const li = document.createElement('li');
+                            li.className = 'list-group-item px-0 py-2 d-flex align-items-center gap-3 border-bottom';
+                            li.id = `recipient-item-${r.id}`;
+                            li.innerHTML = `
+                                <div class="text-secondary" id="recipient-icon-${r.id}"><i class="fas fa-circle-notch fa-spin"></i></div>
+                                <div class="fw-medium">${r.name}</div>
+                            `;
+                            checklistUl.appendChild(li);
+                        });
+
+                        // Process queue sequentially to prevent crushing UI / network mapping
+                        for (const r of data.recipients) {
+                            try {
+                                const sendRes = await fetch(`/faculty/messages/${data.message_id}/send_single`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json'
+                                    },
+                                    body: JSON.stringify({ user_id: r.id })
+                                });
+                                // Mark as done
+                                const iconContainer = document.getElementById(`recipient-icon-${r.id}`);
+                                if (iconContainer) {
+                                    if(sendRes.ok) {
+                                        iconContainer.className = 'text-success';
+                                        iconContainer.innerHTML = '<i class="fas fa-check-circle"></i>';
+                                    } else {
+                                        iconContainer.className = 'text-danger';
+                                        iconContainer.innerHTML = '<i class="fas fa-times-circle"></i>';
+                                    }
+                                }
+                            } catch (err) {
+                                const iconContainer = document.getElementById(`recipient-icon-${r.id}`);
+                                if (iconContainer) {
+                                    iconContainer.className = 'text-warning';
+                                    iconContainer.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                                }
+                            }
+                        }
+
+                        document.getElementById('emailLoaderSpinner').classList.add('d-none');
+                        document.getElementById('emailLoaderTitle').innerText = 'All Mails Dispatched Successfully!';
+                        
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1200);
+                    } else {
+                        // In case of no recipients returned
+                        window.location.reload();
+                    }
+                } catch (error) {
+                    console.error('Error in send queue:', error);
+                    window.location.reload();
+                }
+            });
+        }
     })();
 </script>
 {% endblock %}

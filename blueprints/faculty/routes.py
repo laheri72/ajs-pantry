@@ -42,6 +42,7 @@ from ..utils import (
     _get_tenant_floor_options,
     _require_faculty,
     _require_user,
+    send_email_notification,
     send_push_notification,
     tenant_filter,
     visible_budget_condition,
@@ -132,6 +133,27 @@ def _cycle_for_floor(cycle_id, floor):
         )
         .first()
     )
+
+
+def _is_cycle_fully_verified(cycle):
+    if not cycle:
+        return True
+    budgets = tenant_filter(Budget.query).filter_by(cycle_id=cycle.id).all()
+    if not budgets:
+        return True
+    submissions = tenant_filter(FacultyReportSubmission.query).filter_by(cycle_id=cycle.id).all()
+    submissions_by_floor = {s.floor: s for s in submissions}
+    for budget in budgets:
+        try:
+            val = float(budget.amount_allocated)
+        except (ValueError, TypeError):
+            val = 0.0
+        if val == 0.0:
+            continue
+        sub = submissions_by_floor.get(budget.floor)
+        if not sub or sub.status != 'verified':
+            return False
+    return True
 
 
 def _parse_selected_ids(values):
@@ -556,16 +578,12 @@ def messages():
 
         db.session.commit()
 
-        for recipient in recipients:
-            send_push_notification(
-                user_id=recipient.id,
-                title=f"Faculty Message: {message.title}",
-                body=message.content[:100] + ("..." if len(message.content) > 100 else ""),
-                icon="/static/icons/icon-192.png",
-                url="/dashboard",
-            )
+        if request.headers.get('Accept') == 'application/json':
+            from flask import jsonify
+            recipient_list = [{"id": r.id, "name": r.full_name or r.username or r.email or 'Pantry Head'} for r in recipients]
+            return jsonify({"message_id": message.id, "recipients": recipient_list})
 
-        flash('Faculty message sent to Pantry Heads successfully.', 'success')
+        flash('Faculty message created.', 'success')
         return redirect(url_for('faculty.messages'))
 
     active_messages = (
@@ -589,6 +607,46 @@ def messages():
         floor_options=floor_options,
         message_target_floors=_message_target_floors,
     )
+
+
+@faculty_bp.route('/faculty/messages/<int:message_id>/send_single', methods=['POST'])
+def send_single_message(message_id):
+    from flask import jsonify
+    user = _require_faculty()
+    message = tenant_filter(FacultyMessage.query).filter_by(id=message_id).first_or_404()
+    
+    data = request.get_json() or {}
+    recipient_id = data.get('user_id')
+    
+    if not recipient_id:
+        return jsonify({"status": "error", "message": "user_id is required"}), 400
+        
+    recipient = User.query.get(recipient_id)
+    if not recipient:
+        return jsonify({"status": "error", "message": "user not found"}), 404
+        
+    send_push_notification(
+        user_id=recipient.id,
+        title=f"Faculty Message: {message.title}",
+        body=message.content[:100] + ("..." if len(message.content) > 100 else ""),
+        icon="/static/icons/icon-192.png",
+        url="/dashboard",
+    )
+    
+    if recipient.email:
+        tenant_name = getattr(g, 'tenant_name', 'Maskan')
+        email_subject = f"[{tenant_name}] Faculty Message: {message.title}"
+        email_html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2c3e50;">{message.title}</h2>
+            <p style="white-space: pre-wrap; font-size: 16px; color: #333;">{message.content}</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="font-size: 12px; color: #888;">Log in to your pantry dashboard to manage and reply if necessary.</p>
+        </div>
+        """
+        send_email_notification(recipient.email, email_subject, email_html)
+        
+    return jsonify({"status": "success"})
 
 
 @faculty_bp.route('/faculty/cycles', methods=['GET', 'POST'])
@@ -672,6 +730,10 @@ def cycle_detail(cycle_id):
     editable_floors = _cycle_form_floor_options(user, cycle)
     budgets_by_floor = {budget.floor: budget for budget in budgets}
 
+    active_cycle = _current_active_cycle()
+    all_verified = _is_cycle_fully_verified(cycle)
+    active_cycle_verified = _is_cycle_fully_verified(active_cycle) if active_cycle else True
+
     return render_template(
         'faculty/cycle_detail.html',
         current_user=user,
@@ -680,6 +742,9 @@ def cycle_detail(cycle_id):
         editable_floors=editable_floors,
         budgets_by_floor=budgets_by_floor,
         today=date.today(),
+        all_verified=all_verified,
+        active_cycle=active_cycle,
+        active_cycle_verified=active_cycle_verified,
     )
 
 
@@ -716,7 +781,7 @@ def activate_cycle(cycle_id):
     cycle = tenant_filter(FacultyBudgetCycle.query).filter_by(id=cycle_id).first_or_404()
     existing_active = _current_active_cycle()
     if existing_active and existing_active.id != cycle.id:
-        flash('Close the currently active cycle before activating another one.', 'error')
+        flash(f'Close the currently active cycle "{existing_active.title}" before activating another one.', 'error')
         return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
 
     cycle.status = 'active'
@@ -736,6 +801,10 @@ def close_cycle(cycle_id):
     if cycle.status != 'active':
         flash('Only active cycles can be closed.', 'error')
         return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
+    if not _is_cycle_fully_verified(cycle):
+        flash('Cannot close cycle until all floors have submitted reports and they are verified.', 'error')
+        return redirect(url_for('faculty.cycle_detail', cycle_id=cycle.id))
+        
     cycle.status = 'closed'
     cycle.closed_at = datetime.utcnow()
     db.session.commit()
