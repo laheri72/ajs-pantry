@@ -64,8 +64,13 @@
                 </div>
                 <div class="d-flex gap-2 faculty-actions-mobile">
                     <button name="action" value="save_draft" class="btn btn-outline-secondary rounded-pill px-4">Save Draft</button>
+                    {% if not active_cycle %}
                     <button name="action" value="activate_now" class="btn btn-success rounded-pill px-4">Save and Activate</button>
+                    {% endif %}
                 </div>
+                {% if active_cycle %}
+                <div class="small text-muted mt-2"><i class="fas fa-info-circle me-1"></i>An active cycle already exists. You can only save this as a draft until the active cycle is closed.</div>
+                {% endif %}
             </form>
         </div>
     </div>

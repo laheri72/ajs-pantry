@@ -12,12 +12,22 @@
     <div class="d-flex gap-2 faculty-actions-mobile">
         {% if cycle.status == 'draft' %}
         <button class="btn btn-outline-secondary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#editCycleModal">Edit Cycle</button>
+        {% if active_cycle %}
+        <button class="btn btn-success rounded-pill px-4" disabled title="You must fully verify and close the active cycle '{{ active_cycle.title }}' before activating another one.">Activate Cycle</button>
+        {% else %}
         <form method="POST" action="{{ url_for('faculty.activate_cycle', cycle_id=cycle.id) }}">
             <button class="btn btn-success rounded-pill px-4">Activate Cycle</button>
         </form>
+        {% endif %}
         {% elif cycle.status == 'active' %}
         <button class="btn btn-outline-secondary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#editCycleModal">Edit Cycle</button>
+        {% if all_verified %}
         <button class="btn btn-outline-dark rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#closeCycleModal">Close Cycle</button>
+        {% else %}
+        <span tabindex="0" data-bs-toggle="tooltip" title="All floors must verify their reports before closing.">
+            <button class="btn btn-outline-dark rounded-pill px-4" disabled style="pointer-events: none;">Close Cycle</button>
+        </span>
+        {% endif %}
         {% endif %}
         <form method="POST" action="{{ url_for('faculty.delete_cycle', cycle_id=cycle.id) }}" onsubmit="return confirm('Delete this cycle and all its budgets, saved print reports, linked submissions, and stored PDFs? This cannot be undone.');">
             <button class="btn btn-outline-danger rounded-pill px-4">Delete Cycle</button>
@@ -198,6 +208,12 @@
             if (modal && modal.parentElement !== document.body) {
                 document.body.appendChild(modal);
             }
+        });
+
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
         });
 
         document.querySelectorAll('.faculty-modal').forEach(function (modal) {
