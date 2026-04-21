@@ -39,7 +39,7 @@
             <div class="stat-card bg-primary h-100">
                 <div class="stat-icon"><i class="fas fa-wallet"></i></div>
                 <div class="stat-content">
-                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Total Budget (All Floors)</p>
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Budget Allocation</p>
                     <h3 class="fw-bold">&#8377;{{ "%.0f"|format(total_budget_all) }}</h3>
                 </div>
             </div>
@@ -48,17 +48,17 @@
             <div class="stat-card bg-danger h-100">
                 <div class="stat-icon"><i class="fas fa-shopping-basket"></i></div>
                 <div class="stat-content">
-                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Cumulative Spending</p>
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Total Spent</p>
                     <h3 class="fw-bold">&#8377;{{ "%.0f"|format(total_spent_all) }}</h3>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card bg-warning h-100 text-white">
-                <div class="stat-icon"><i class="fas fa-star"></i></div>
+            <div class="stat-card {% if total_remaining_all < 0 %}bg-danger{% else %}bg-success{% endif %} h-100">
+                <div class="stat-icon"><i class="fas fa-scale-balanced"></i></div>
                 <div class="stat-content">
-                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Avg System Satisfaction</p>
-                    <h3 class="fw-bold">{{ system_avg_rating }}/5.0</h3>
+                    <p class="small text-uppercase fw-bold mb-0 opacity-75">Balance</p>
+                    <h3 class="fw-bold">&#8377;{{ "%.0f"|format(total_remaining_all) }}</h3>
                 </div>
             </div>
         </div>

@@ -44,6 +44,16 @@
                         <option value="suspended" {% if tenant.subscription_status == 'suspended' %}selected{% endif %}>Administrative Hold</option>
                     </select>
                 </div>
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-muted d-block">FACULTY WORKFLOW</label>
+                    <input type="hidden" name="faculty_workflow_enabled" value="0">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="facultyWorkflowToggle" name="faculty_workflow_enabled" value="1" {% if tenant.faculty_workflow_enabled %}checked{% endif %}>
+                        <label class="form-check-label small text-muted" for="facultyWorkflowToggle">
+                            Enable Faculty cycles, report submissions, and Faculty login for this tenant
+                        </label>
+                    </div>
+                </div>
                 <button class="btn btn-ceo w-100 shadow-sm">Commit Changes</button>
             </form>
         </div>
@@ -62,6 +72,11 @@
 
         <div class="card card-expert p-3 p-md-4 mt-4">
             <h6 class="fw-bold mb-4"><i class="fas fa-building-columns me-2 text-warning"></i>Faculty Access</h6>
+            {% if not tenant.faculty_workflow_enabled %}
+            <div class="alert alert-light border rounded-4 small">
+                Faculty workflow is currently disabled for this tenant. Existing Faculty accounts are preserved, but provisioning and password resets are paused until the toggle is enabled again.
+            </div>
+            {% endif %}
             {% if faculty_users %}
             <div class="mb-4">
                 {% for faculty_user in faculty_users %}
@@ -74,21 +89,21 @@
                         <input type="hidden" name="faculty_user_id" value="{{ faculty_user.id }}">
                         <div class="mb-2">
                             <label class="form-label small fw-bold text-muted">UPDATED NAME</label>
-                            <input type="text" name="faculty_name" class="form-control border-light bg-white" value="{{ faculty_user.full_name or '' }}">
+                            <input type="text" name="faculty_name" class="form-control border-light bg-white" value="{{ faculty_user.full_name or '' }}" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                         </div>
                         <div class="mb-2">
                             <label class="form-label small fw-bold text-muted">UPDATED TR NUMBER</label>
-                            <input type="text" name="faculty_tr_number" class="form-control border-light bg-white" value="{{ faculty_user.tr_number or '' }}">
+                            <input type="text" name="faculty_tr_number" class="form-control border-light bg-white" value="{{ faculty_user.tr_number or '' }}" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                         </div>
                         <div class="mb-2">
                             <label class="form-label small fw-bold text-muted">UPDATED EMAIL / TR</label>
-                            <input type="text" name="faculty_email" class="form-control border-light bg-white" value="{{ faculty_user.email }}">
+                            <input type="text" name="faculty_email" class="form-control border-light bg-white" value="{{ faculty_user.email }}" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                         </div>
                         <div class="mb-0">
                             <label class="form-label small fw-bold text-muted">RESET PASSWORD</label>
-                            <input type="text" name="faculty_password" class="form-control border-light bg-white" placeholder="New password for this Faculty user">
+                            <input type="text" name="faculty_password" class="form-control border-light bg-white" placeholder="New password for this Faculty user" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                         </div>
-                        <button class="btn btn-outline-primary w-100 shadow-sm mt-3">Update This Faculty User</button>
+                        <button class="btn btn-outline-primary w-100 shadow-sm mt-3" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>Update This Faculty User</button>
                     </form>
                 </div>
                 {% endfor %}
@@ -101,21 +116,21 @@
                 <div class="fw-bold mb-3">Add Another Faculty User</div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">FACULTY NAME</label>
-                    <input type="text" name="faculty_name" class="form-control border-light bg-light" value="">
+                    <input type="text" name="faculty_name" class="form-control border-light bg-light" value="" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">FACULTY TR NUMBER</label>
-                    <input type="text" name="faculty_tr_number" class="form-control border-light bg-light" value="">
+                    <input type="text" name="faculty_tr_number" class="form-control border-light bg-light" value="" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">FACULTY EMAIL / TR</label>
-                    <input type="text" name="faculty_email" class="form-control border-light bg-light" value="" placeholder="e.g. 25687 or faculty email">
+                    <input type="text" name="faculty_email" class="form-control border-light bg-light" value="" placeholder="e.g. 25687 or faculty email" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-bold text-muted">PASSWORD</label>
-                    <input type="text" name="faculty_password" class="form-control border-light bg-light" placeholder="Initial Faculty password">
+                    <input type="text" name="faculty_password" class="form-control border-light bg-light" placeholder="Initial Faculty password" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>
                 </div>
-                <button class="btn btn-ceo w-100 shadow-sm">Provision Faculty</button>
+                <button class="btn btn-ceo w-100 shadow-sm" {% if not tenant.faculty_workflow_enabled %}disabled{% endif %}>Provision Faculty</button>
             </form>
         </div>
     </div>

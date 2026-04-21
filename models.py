@@ -21,6 +21,7 @@ class Tenant(db.Model):
     name = db.Column(db.String(255), nullable=False)
     floor_count = db.Column(db.Integer, default=11)
     is_active = db.Column(db.Boolean, default=True)
+    faculty_workflow_enabled = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     subscription_status = db.Column(db.String(50), default='active')
 

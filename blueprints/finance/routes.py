@@ -1,16 +1,18 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g
 from app import db
-from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, FacultyBudgetCycle, ExpensePrintReport, ExpensePrintReportBill
+from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, ExpensePrintReport, ExpensePrintReportBill
 from .services.parser_factory import ParserFactory
 from datetime import datetime, date
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 import logging
 from . import finance_bp
+from ..budgeting import build_floor_budget_ledger
 from ..utils import (
     _require_user,
     _get_active_floor,
     _get_floor_options_for_admin,
+    current_tenant_faculty_workflow_enabled,
     tenant_filter,
     visible_budget_condition,
 )
@@ -110,26 +112,17 @@ def expenses():
                 flash(f'Error recording bill: {str(e)}', 'error')
             return redirect(url_for('finance.expenses'))
 
-    # 2. Financial Calculations
-    # Total Budget Allocated
-    total_budget = tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
-        Budget.floor == floor,
-        visible_budget_condition(),
-    ).scalar() or 0
-    
-    # Total Spent (Current System: Billed Procurements with Costs)
-    # We only count items that are officially recorded in a bill to match user expectations
-    total_spent_procurement = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
-        ProcurementItem.floor == floor, 
-        ProcurementItem.status == 'completed',
-        ProcurementItem.bill_id.isnot(None)
-    ).scalar() or 0
-    
-    # Legacy Expenses (Optional: include in total spent if desired)
-    total_spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == floor).scalar() or 0
-    
-    total_spent = float(total_spent_procurement) + float(total_spent_legacy)
-    remaining_balance = float(total_budget) - total_spent
+    faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
+    budget_ledger = build_floor_budget_ledger(
+        floor=floor,
+        faculty_workflow_enabled=faculty_workflow_enabled,
+    )
+    current_budget_period = budget_ledger['current_period']
+    total_budget = budget_ledger['current_allocated_amount']
+    total_spent = budget_ledger['current_spent_amount']
+    remaining_balance = budget_ledger['current_remaining_balance']
+    current_available_budget = budget_ledger['current_available_budget']
+    carryforward_balance = budget_ledger['carryforward_balance']
 
     # 3. Data for Ledger
     # Get completed procurements for this floor that are NOT yet in a bill
@@ -158,24 +151,9 @@ def expenses():
     archived_bills = archived_pagination.items
     
     # Get budget history
-    budgets = tenant_filter(Budget.query).filter(
-        Budget.floor == floor,
-        visible_budget_condition(),
-    ).order_by(Budget.start_date.desc(), Budget.created_at.desc()).all()
-
-    active_cycle = (
-        tenant_filter(FacultyBudgetCycle.query)
-        .filter_by(status='active')
-        .order_by(FacultyBudgetCycle.start_date.desc())
-        .first()
-    )
-    active_cycle_allocation = None
-    if active_cycle:
-        active_cycle_allocation = tenant_filter(Budget.query).filter(
-            Budget.cycle_id == active_cycle.id,
-            Budget.floor == floor,
-            visible_budget_condition(),
-        ).first()
+    budget_periods = budget_ledger['periods']
+    active_cycle = budget_ledger['active_cycle'] if faculty_workflow_enabled else None
+    active_cycle_allocation = budget_ledger['active_cycle_allocation']
     
     # Legacy expenses for reference (PAGINATED)
     legacy_page = request.args.get('legacy_page', 1, type=int)
@@ -219,12 +197,16 @@ def expenses():
         bills_pagination=bills_pagination,
         archived_bills=archived_bills,
         archived_pagination=archived_pagination,
-        budgets=budgets,
+        budget_periods=budget_periods,
         legacy_expenses=legacy_expenses,
         legacy_pagination=legacy_pagination,
         unique_shops=unique_shops,
         suggested_bill_no=suggested_bill_no,
         is_manager=is_manager,
+        faculty_workflow_enabled=faculty_workflow_enabled,
+        current_budget_period=current_budget_period,
+        current_available_budget=current_available_budget,
+        carryforward_balance=carryforward_balance,
         active_cycle=active_cycle,
         active_cycle_allocation=active_cycle_allocation,
         today=date.today(),
@@ -278,23 +260,14 @@ def save_print_report():
     if len(bills) != len(all_bill_ids):
         return jsonify({'error': 'One or more bills were invalid for this floor.'}), 400
 
-    active_cycle = (
-        tenant_filter(FacultyBudgetCycle.query)
-        .filter_by(status='active')
-        .order_by(FacultyBudgetCycle.start_date.desc())
-        .first()
+    faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
+    budget_ledger = build_floor_budget_ledger(
+        floor=floor,
+        faculty_workflow_enabled=faculty_workflow_enabled,
     )
-    active_cycle_allocation = None
-    if active_cycle:
-        active_cycle_allocation = tenant_filter(Budget.query).filter(
-            Budget.cycle_id == active_cycle.id,
-            Budget.floor == floor,
-            visible_budget_condition(),
-        ).first()
-
-    if active_cycle_allocation:
-        report_budget = float(active_cycle_allocation.amount_allocated or 0)
-        remaining_balance = report_budget - total_spent
+    active_cycle = budget_ledger['active_cycle'] if faculty_workflow_enabled else None
+    report_budget = budget_ledger['current_available_budget']
+    remaining_balance = report_budget - total_spent
 
     print_report = ExpensePrintReport(
         cycle_id=active_cycle.id if active_cycle else None,
@@ -624,11 +597,61 @@ def atomic_reconcile_full():
 
 @finance_bp.route('/budgets/add', methods=['POST'])
 def add_budget():
-    abort(403)
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+    if current_tenant_faculty_workflow_enabled():
+        flash('Manual budget allocation is disabled while Faculty workflow is enabled for this tenant.', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    floor = _get_active_floor(user)
+    try:
+        amount = float(request.form.get('amount') or 0)
+        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        end_date_raw = request.form.get('end_date')
+        end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date() if end_date_raw else None
+    except Exception:
+        flash('Invalid budget data', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    budget = Budget(
+        floor=floor,
+        amount_allocated=amount,
+        allocation_type=(request.form.get('allocation_type') or 'manual').strip() or 'manual',
+        start_date=start_date,
+        end_date=end_date,
+        notes=request.form.get('notes'),
+        allocated_by_id=user.id,
+        is_faculty_allocation=False,
+        tenant_id=getattr(g, 'tenant_id', None)
+    )
+    db.session.add(budget)
+    db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
+    flash('Manual budget allocation added.', 'success')
+    return redirect(url_for('finance.expenses'))
 
 @finance_bp.route('/budgets/<int:budget_id>/delete', methods=['POST'])
 def delete_budget(budget_id):
-    abort(403)
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+    if current_tenant_faculty_workflow_enabled():
+        flash('Manual budget deletion is disabled while Faculty workflow is enabled for this tenant.', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    budget = tenant_filter(Budget.query).filter_by(id=budget_id).first_or_404()
+    if budget.cycle_id is not None:
+        flash('Faculty cycle budgets can only be managed from the Faculty portal.', 'error')
+        return redirect(url_for('finance.expenses'))
+    if user.role != 'admin' and budget.floor != user.floor:
+        abort(403)
+
+    db.session.delete(budget)
+    db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), budget.floor)
+    flash('Manual budget allocation deleted successfully.', 'success')
+    return redirect(url_for('finance.expenses'))
 
 @finance_bp.route('/expenses/<int:expense_id>/delete', methods=['POST'])
 def delete_expense(expense_id):

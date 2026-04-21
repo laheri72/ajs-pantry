@@ -1,7 +1,7 @@
 from flask import session, abort, g, current_app
 from models import User
 from datetime import datetime
-from sqlalchemy import or_
+from sqlalchemy import and_, or_, select
 
 FLOOR_MIN = 1
 FLOOR_MAX = 11
@@ -121,6 +121,38 @@ def _get_tenant_floor_options(user=None):
     limit = tenant.floor_count if tenant and tenant.floor_count else FLOOR_MAX
     return list(range(FLOOR_MIN, limit + 1))
 
+def faculty_workflow_enabled_for_tenant(tenant_id=None, tenant=None):
+    from models import Tenant
+
+    if tenant is not None:
+        return bool(getattr(tenant, 'faculty_workflow_enabled', True))
+
+    tenant_id = tenant_id if tenant_id is not None else getattr(g, 'tenant_id', None)
+    if tenant_id is None:
+        return True
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return True
+
+    return bool(getattr(tenant, 'faculty_workflow_enabled', True))
+
+def faculty_workflow_enabled_for_user(user=None):
+    user = user or _get_current_user()
+    if not user or not user.tenant_id:
+        return True
+    return faculty_workflow_enabled_for_tenant(tenant_id=user.tenant_id)
+
+def current_tenant_faculty_workflow_enabled(default=True):
+    if hasattr(g, 'faculty_workflow_enabled'):
+        return bool(g.faculty_workflow_enabled)
+
+    tenant_id = getattr(g, 'tenant_id', None)
+    if tenant_id is None:
+        return default
+
+    return faculty_workflow_enabled_for_tenant(tenant_id=tenant_id)
+
 def _require_staff_for_floor(user):
     if not user:
         abort(401)
@@ -136,12 +168,24 @@ def _require_faculty(user=None):
         abort(403)
     return user
 
-def visible_budget_condition():
-    from models import Budget, FacultyBudgetCycle
+def visible_budget_condition(faculty_enabled=None):
+    return visible_budget_condition_for_tenant(faculty_enabled)
 
+def visible_budget_condition_for_tenant(faculty_enabled=None):
+    from models import Budget, FacultyBudgetCycle, Tenant
+
+    cycle_visible = Budget.cycle.has(FacultyBudgetCycle.status != 'draft')
+
+    if faculty_enabled is False:
+        return Budget.cycle_id.is_(None)
+
+    if faculty_enabled is True:
+        return or_(Budget.cycle_id.is_(None), cycle_visible)
+
+    enabled_tenants = select(Tenant.id).where(Tenant.faculty_workflow_enabled.is_(True))
     return or_(
         Budget.cycle_id.is_(None),
-        Budget.cycle.has(FacultyBudgetCycle.status != 'draft')
+        and_(cycle_visible, Budget.tenant_id.in_(enabled_tenants))
     )
 
 def _require_team_access(user, team):

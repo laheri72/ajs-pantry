@@ -5,7 +5,9 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 from . import pantry_bp
+from ..budgeting import build_floor_budget_ledger
 from ..utils import (
+    current_tenant_faculty_workflow_enabled,
     _require_user,
     _get_active_floor,
     _require_staff_for_floor,
@@ -15,7 +17,6 @@ from ..utils import (
     send_email_notification,
     FLOOR_MIN,
     FLOOR_MAX,
-    visible_budget_condition,
 )
 from app import db, cache
 
@@ -110,6 +111,7 @@ def dashboard():
         'top_team_7d': cached_stats['top_team_7d']
     }
     pending_lend_borrow_count = cached_stats['pending_lend_borrow_count'] if is_privileged else 0
+    faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
 
     # Upcoming Dish Logic: Show today's dish only if before 8 AM IST, else show next day's
     dish_query_date = today
@@ -163,7 +165,7 @@ def dashboard():
     active_cycle = None
     active_cycle_allocation = None
     current_cycle_submission = None
-    if is_privileged:
+    if is_privileged and faculty_workflow_enabled:
         active_cycle = (
             tenant_filter(FacultyBudgetCycle.query)
             .filter_by(status='active')
@@ -174,7 +176,6 @@ def dashboard():
             active_cycle_allocation = tenant_filter(Budget.query).filter(
                 Budget.cycle_id == active_cycle.id,
                 Budget.floor == floor,
-                visible_budget_condition(),
             ).first()
             if active_cycle_allocation:
                 current_cycle_submission = tenant_filter(FacultyReportSubmission.query).filter_by(
@@ -309,7 +310,7 @@ def dashboard():
                 'category': 'Faculty Cycle',
             })
 
-    if user.role == 'pantryHead':
+    if user.role == 'pantryHead' and faculty_workflow_enabled:
         faculty_messages = (
             tenant_filter(FacultyMessage.query)
             .options(joinedload(FacultyMessage.created_by), joinedload(FacultyMessage.target_floors))
@@ -378,41 +379,23 @@ def dashboard():
                 morning_brief['breakfast_feedback_count'] = feedback_stats[1]
         
         # 3. Budget Alert
-        start_of_week = today - timedelta(days=today.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
-        
-        # Get all budgets that overlap with the current week
-        active_budgets = tenant_filter(Budget.query).filter(
-            Budget.floor == floor,
-            Budget.start_date <= end_of_week,
-            or_(Budget.end_date >= start_of_week, Budget.end_date.is_(None)),
-            visible_budget_condition(),
-        ).all()
-        
-        if active_budgets:
-            total_allocated = sum(float(b.amount_allocated) for b in active_budgets)
-            
-            # Spent this week: Legacy Expenses + Finalized Procurement
-            spent_proc = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
-                ProcurementItem.floor == floor,
-                ProcurementItem.status == 'completed',
-                ProcurementItem.bill_id.isnot(None),
-                ProcurementItem.expense_recorded_at >= datetime.combine(start_of_week, datetime.min.time())
-            ).scalar() or 0
-            
-            spent_legacy = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(
-                Expense.floor == floor,
-                Expense.date >= start_of_week
-            ).scalar() or 0
-            
-            total_spent = float(spent_proc) + float(spent_legacy)
-            
-            if total_allocated > 0:
-                morning_brief['budget_usage_pct'] = min(100, round((total_spent / total_allocated) * 100))
-            
-            # Days remaining in the current week or until the earliest end_date
+        floor_budget_ledger = build_floor_budget_ledger(
+            floor=floor,
+            faculty_workflow_enabled=faculty_workflow_enabled,
+        )
+        current_budget_period = floor_budget_ledger['current_period']
+        available_budget = floor_budget_ledger['current_available_budget']
+        current_spent = floor_budget_ledger['current_spent_amount']
+
+        if available_budget > 0:
+            morning_brief['budget_usage_pct'] = min(100, round((current_spent / available_budget) * 100))
+
+        if current_budget_period and current_budget_period.get('effective_end_date'):
+            remaining_days = (current_budget_period['effective_end_date'] - today).days
+        else:
+            end_of_week = today - timedelta(days=today.weekday()) + timedelta(days=6)
             remaining_days = (end_of_week - today).days
-            morning_brief['budget_remaining_days'] = max(0, remaining_days)
+        morning_brief['budget_remaining_days'] = max(0, remaining_days)
                 
         # 4. Procurement Pending
         morning_brief['pending_procurement_count'] = tenant_filter(ProcurementItem.query).filter(

@@ -146,7 +146,13 @@ with app.app_context():
     except Exception as e:
         logging.warning(f"Admin management failed: {e}")
 
-from blueprints.utils import _get_current_user, _get_active_floor, _display_name_for, _get_floor_options_for_admin
+from blueprints.utils import (
+    _get_active_floor,
+    _get_current_user,
+    _display_name_for,
+    _get_floor_options_for_admin,
+    faculty_workflow_enabled_for_tenant,
+)
 
 @app.before_request
 def enforce_tenancy():
@@ -192,7 +198,13 @@ def enforce_tenancy():
         g.tenant_id = user.tenant_id
         g.tenant_name = tenant.name
         g.is_super_admin = False
+        g.faculty_workflow_enabled = faculty_workflow_enabled_for_tenant(tenant=tenant)
         session['tenant_id'] = str(user.tenant_id)
+        if user.role == 'faculty' and not g.faculty_workflow_enabled:
+            from flask import flash
+            session.clear()
+            flash('Faculty workflow is disabled for this tenant right now.', 'error')
+            return redirect(url_for('faculty.login'))
     elif is_faculty_route or request.path.startswith('/faculty'):
         from flask import flash
         session.clear()
@@ -212,7 +224,8 @@ def inject_current_user():
         "now": datetime.utcnow(),
         "tenant_name": getattr(g, 'tenant_name', None),
         "is_super_admin": getattr(g, 'is_super_admin', False),
-        "is_faculty": bool(current_user and current_user.role == 'faculty')
+        "is_faculty": bool(current_user and current_user.role == 'faculty'),
+        "faculty_workflow_enabled": getattr(g, 'faculty_workflow_enabled', True),
     }
 
 @app.route('/favicon.ico')

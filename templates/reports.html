@@ -7,27 +7,42 @@
     <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
         <div>
             <h2 class="fw-bold text-teal"><i class="fas fa-file-invoice me-2"></i>Reports & Submissions</h2>
-            <div class="text-muted">Manage your Faculty budget cycle submissions and permanently saved personal PDFs.</div>
+            <div class="text-muted">
+                {% if faculty_workflow_enabled %}
+                Manage your Faculty budget cycle submissions and permanently saved personal PDFs.
+                {% else %}
+                Faculty submissions are disabled for this tenant. You can still review permanently saved personal PDFs here.
+                {% endif %}
+            </div>
         </div>
         <a href="{{ url_for('finance.expenses') }}" class="btn btn-outline-teal rounded-pill px-4">
             <i class="fas fa-print me-2"></i>Open Expenses Report Tool
         </a>
     </div>
 
+    {% if not faculty_workflow_enabled %}
+    <div class="alert alert-light border rounded-4 mb-4">
+        This tenant is currently using manual budgeting. Faculty cycle submission is turned off, so budgeting and voucher printing continue from Expenses while your personal saved PDFs remain available below.
+    </div>
+    {% endif %}
+
     <ul class="nav nav-tabs mb-4 border-0" id="reportsTab" role="tablist">
+        {% if faculty_workflow_enabled %}
         <li class="nav-item" role="presentation">
             <button class="nav-link active fw-bold px-4 rounded-top-3 text-teal" id="faculty-tab" data-bs-toggle="tab" data-bs-target="#faculty" type="button" role="tab" aria-selected="true" style="border: 1px solid #dee2e6; border-bottom: none; background: #fff;">
                 <i class="fas fa-university me-1"></i> Faculty Cycle Submission
             </button>
         </li>
-        <li class="nav-item ms-2" role="presentation">
-            <button class="nav-link fw-bold px-4 rounded-top-3 text-teal" id="adhoc-tab" data-bs-toggle="tab" data-bs-target="#adhoc" type="button" role="tab" aria-selected="false" style="border: 1px solid #dee2e6; border-bottom: none; background: #f8f9fa;">
+        {% endif %}
+        <li class="nav-item {% if faculty_workflow_enabled %}ms-2{% endif %}" role="presentation">
+            <button class="nav-link {% if not faculty_workflow_enabled %}active{% endif %} fw-bold px-4 rounded-top-3 text-teal" id="adhoc-tab" data-bs-toggle="tab" data-bs-target="#adhoc" type="button" role="tab" aria-selected="{{ 'false' if faculty_workflow_enabled else 'true' }}" style="border: 1px solid #dee2e6; border-bottom: none; background: {{ '#f8f9fa' if faculty_workflow_enabled else '#fff' }};">
                 <i class="fas fa-user-lock me-1"></i> Saved Personal Reports
             </button>
         </li>
     </ul>
 
     <div class="tab-content" id="reportsTabContent">
+        {% if faculty_workflow_enabled %}
         <!-- Faculty Tab -->
         <div class="tab-pane fade show active" id="faculty" role="tabpanel" aria-labelledby="faculty-tab">
 
@@ -135,9 +150,10 @@
     </div>
     {% endif %}
         </div>
+        {% endif %}
         
         <!-- Personal Tab -->
-        <div class="tab-pane fade" id="adhoc" role="tabpanel" aria-labelledby="adhoc-tab">
+        <div class="tab-pane fade {% if not faculty_workflow_enabled %}show active{% endif %}" id="adhoc" role="tabpanel" aria-labelledby="adhoc-tab">
             <div class="card shadow-sm border-0 rounded-4">
                 <div class="card-body p-0">
                     <div class="p-4 border-bottom bg-light rounded-top-4">
