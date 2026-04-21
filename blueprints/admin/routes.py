@@ -6,7 +6,9 @@ from datetime import datetime, date
 from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError
 from . import admin_bp
+from ..budgeting import build_floor_budget_ledger
 from ..utils import (
+    current_tenant_faculty_workflow_enabled,
     _require_user,
     _get_active_floor,
     _require_team_access,
@@ -312,13 +314,18 @@ def admin():
     total_users = tenant_filter(User.query).filter(User.role != 'faculty').count()
     total_budget_all = float(
         tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
-            visible_budget_condition()
+            visible_budget_condition(True)
         ).scalar() or 0
     )
-    
-    total_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.status == 'completed').scalar() or 0)
+    total_spent_proc = float(
+        tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
+            ProcurementItem.status == 'completed'
+        ).scalar() or 0
+    )
     total_spent_legacy = float(tenant_filter(db.session.query(func.sum(Expense.amount))).scalar() or 0)
     total_spent_all = total_spent_proc + total_spent_legacy
+    total_remaining_all = total_budget_all - total_spent_all
+    faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
     
     system_avg_rating = tenant_filter(db.session.query(func.avg(Feedback.rating))).scalar() or 0
     
@@ -342,24 +349,21 @@ def admin():
             ph_display = ph.full_name or ph.username or ph.email or 'Pantry Head'
 
         f_user_count = tenant_filter(User.query).filter_by(floor=f).count()
-        f_budget = float(
-            tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
-                Budget.floor == f,
-                visible_budget_condition(),
-            ).scalar() or 0
+        floor_budget_ledger = build_floor_budget_ledger(
+            floor=f,
+            faculty_workflow_enabled=faculty_workflow_enabled,
         )
-        f_spent_proc = float(tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(ProcurementItem.floor == f, ProcurementItem.status == 'completed').scalar() or 0)
-        f_spent_legacy = float(tenant_filter(db.session.query(func.sum(Expense.amount))).filter(Expense.floor == f).scalar() or 0)
-        f_spent = f_spent_proc + f_spent_legacy
+        f_budget = floor_budget_ledger['current_allocated_amount']
+        f_spent = floor_budget_ledger['current_spent_amount']
+        f_remaining = floor_budget_ledger['current_remaining_balance']
         f_rating = tenant_filter(db.session.query(func.avg(Feedback.rating))).filter(Feedback.floor == f).scalar() or 0
-        
         floor_data.append({
             'floor': f,
             'user_count': f_user_count,
             'pantry_head': ph_display,
             'budget': f_budget,
             'spent': f_spent,
-            'remaining': f_budget - f_spent,
+            'remaining': f_remaining,
             'avg_rating': round(float(f_rating), 1)
         })
 
@@ -370,6 +374,7 @@ def admin():
         total_users=total_users,
         total_budget_all=total_budget_all,
         total_spent_all=total_spent_all,
+        total_remaining_all=total_remaining_all,
         system_avg_rating=round(float(system_avg_rating), 1),
         total_bills=total_bills,
         menus_this_month=menus_this_month,

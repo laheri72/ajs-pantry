@@ -219,10 +219,19 @@ def update_config(tenant_id):
     require_super_admin()
     tenant = Tenant.query.get_or_404(tenant_id)
     old_floors = tenant.floor_count
+    old_faculty_workflow = bool(getattr(tenant, 'faculty_workflow_enabled', True))
     tenant.floor_count = int(request.form.get('floor_count'))
     tenant.subscription_status = request.form.get('subscription_status')
+    tenant.faculty_workflow_enabled = '1' in request.form.getlist('faculty_workflow_enabled')
     db.session.commit()
-    log_platform_action('config_update', f'Updated tenant "{tenant.name}": Floors {old_floors}->{tenant.floor_count}, Tier: {tenant.subscription_status}')
+    log_platform_action(
+        'config_update',
+        (
+            f'Updated tenant "{tenant.name}": Floors {old_floors}->{tenant.floor_count}, '
+            f'Tier: {tenant.subscription_status}, '
+            f'Faculty workflow {old_faculty_workflow}->{tenant.faculty_workflow_enabled}'
+        )
+    )
     flash('Configuration updated', 'success')
     return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 
@@ -241,6 +250,10 @@ def toggle_tenant(tenant_id):
 def manage_faculty(tenant_id):
     require_super_admin()
     tenant = Tenant.query.get_or_404(tenant_id)
+    if not getattr(tenant, 'faculty_workflow_enabled', True):
+        flash('Enable the Faculty workflow for this tenant before provisioning or updating Faculty accounts.', 'error')
+        return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
     action = (request.form.get('action') or 'provision').strip()
     faculty_user_id = request.form.get('faculty_user_id')
     faculty_user = None

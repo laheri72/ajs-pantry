@@ -36,10 +36,13 @@ from models import (
     User,
 )
 from . import faculty_bp
+from ..budgeting import build_floor_budget_ledger
 from ..utils import (
     _ensure_username_from_full_name,
     _get_active_floor,
     _get_tenant_floor_options,
+    current_tenant_faculty_workflow_enabled,
+    faculty_workflow_enabled_for_user,
     _require_faculty,
     _require_user,
     send_email_notification,
@@ -64,6 +67,11 @@ def _faculty_auth_guard():
     if not user:
         session.clear()
         flash('Your Faculty session expired. Please sign in again.', 'error')
+        return redirect(url_for('faculty.login'))
+
+    if not faculty_workflow_enabled_for_user(user):
+        session.clear()
+        flash('Faculty workflow is disabled for this tenant right now.', 'error')
         return redirect(url_for('faculty.login'))
 
     if user.role != 'faculty':
@@ -115,6 +123,8 @@ def _build_report_filename(cycle, floor, revision_no):
 
 
 def _current_active_cycle():
+    if not current_tenant_faculty_workflow_enabled():
+        return None
     return (
         tenant_filter(FacultyBudgetCycle.query)
         .filter_by(status='active')
@@ -375,6 +385,9 @@ def login():
         user = User.query.filter_by(email=email, role='faculty').first()
         if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
             flash('Invalid Faculty credentials', 'error')
+            return render_template('faculty/login.html')
+        if not faculty_workflow_enabled_for_user(user):
+            flash('Faculty workflow is disabled for this tenant right now.', 'error')
             return render_template('faculty/login.html')
 
         if _ensure_username_from_full_name(user, db.session):
@@ -833,16 +846,22 @@ def reports_page():
         abort(403)
 
     floor = _get_active_floor(user)
+    faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
     active_cycle = _current_active_cycle()
     allocation = _cycle_for_floor(active_cycle.id, floor) if active_cycle else None
     submission = None
     saved_print_reports = []
 
-    if active_cycle:
+    if faculty_workflow_enabled and active_cycle:
         submission = tenant_filter(FacultyReportSubmission.query).filter_by(
             cycle_id=active_cycle.id,
             floor=floor,
         ).first()
+        floor_budget_ledger = build_floor_budget_ledger(
+            floor=floor,
+            faculty_workflow_enabled=faculty_workflow_enabled,
+        )
+        current_available_budget = floor_budget_ledger['current_available_budget']
 
         if request.method == 'POST':
             if not allocation:
@@ -909,7 +928,7 @@ def reports_page():
                 submission.report_title = selected_print_report.report_title
                 submission.print_report_id = selected_print_report.id
                 submission.status = 'submitted'
-                submission.allocated_amount = allocation.amount_allocated if allocation else 0
+                submission.allocated_amount = current_available_budget
                 submission.submission_notes = submission_notes
                 submission.review_notes = None
                 submission.stored_filename = stored_filename
@@ -935,7 +954,7 @@ def reports_page():
                     uploaded_by_id=user.id,
                     report_title=selected_print_report.report_title,
                     status='submitted',
-                    allocated_amount=allocation.amount_allocated if allocation else 0,
+                    allocated_amount=current_available_budget,
                     submission_notes=submission_notes,
                     stored_filename=stored_filename,
                     original_filename=upload.filename,
@@ -966,6 +985,7 @@ def reports_page():
         'reports.html',
         current_user=user,
         active_floor=floor,
+        faculty_workflow_enabled=faculty_workflow_enabled,
         active_cycle=active_cycle,
         allocation=allocation,
         submission=submission,
@@ -1108,6 +1128,9 @@ def delete_message(message_id):
 @faculty_bp.route('/faculty/reports/<int:submission_id>/download')
 def download_report(submission_id):
     _require_faculty()
+    if not current_tenant_faculty_workflow_enabled():
+        flash('Faculty workflow is disabled for this tenant right now.', 'error')
+        return redirect(url_for('faculty.login'))
     submission = tenant_filter(FacultyReportSubmission.query).filter_by(id=submission_id).first_or_404()
     
     if not submission.storage_path:
@@ -1139,6 +1162,9 @@ def download_floor_submission(submission_id):
         return redirect(url_for('auth.staff_login'))
     if user.role not in {'admin', 'pantryHead'}:
         abort(403)
+    if not current_tenant_faculty_workflow_enabled():
+        flash('Faculty report submission is disabled for this tenant. Use Expenses for manual budgeting and printing.', 'error')
+        return redirect(url_for('finance.expenses'))
 
     submission = tenant_filter(FacultyReportSubmission.query).filter_by(id=submission_id).first_or_404()
     floor = _get_active_floor(user)
