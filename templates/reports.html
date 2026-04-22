@@ -35,9 +35,15 @@
         </li>
         {% endif %}
         <li class="nav-item {% if faculty_workflow_enabled %}ms-2{% endif %}" role="presentation">
-            <button class="nav-link {% if not faculty_workflow_enabled %}active{% endif %} fw-bold px-4 rounded-top-3 text-teal" id="adhoc-tab" data-bs-toggle="tab" data-bs-target="#adhoc" type="button" role="tab" aria-selected="{{ 'false' if faculty_workflow_enabled else 'true' }}" style="border: 1px solid #dee2e6; border-bottom: none; background: {{ '#f8f9fa' if faculty_workflow_enabled else '#fff' }};">
+            {% if faculty_workflow_enabled %}
+            <button class="nav-link fw-bold px-4 rounded-top-3 text-teal" id="adhoc-tab" data-bs-toggle="tab" data-bs-target="#adhoc" type="button" role="tab" aria-selected="false" style="border: 1px solid #dee2e6; border-bottom: none; background: #f8f9fa;">
                 <i class="fas fa-user-lock me-1"></i> Saved Personal Reports
             </button>
+            {% else %}
+            <button class="nav-link active fw-bold px-4 rounded-top-3 text-teal" id="adhoc-tab" data-bs-toggle="tab" data-bs-target="#adhoc" type="button" role="tab" aria-selected="true" style="border: 1px solid #dee2e6; border-bottom: none; background: #fff;">
+                <i class="fas fa-user-lock me-1"></i> Saved Personal Reports
+            </button>
+            {% endif %}
         </li>
     </ul>
 
