@@ -38,6 +38,182 @@
     .bg-teal-light {
         background-color: #e0f2f1;
     }
+    .receipt-review-modal .modal-content {
+        overflow: hidden;
+        border: 0;
+    }
+    .receipt-review-modal .modal-body {
+        padding: 0;
+        background: #f5f7fb;
+    }
+    .receipt-review-shell {
+        min-height: 72vh;
+    }
+    .receipt-review-pane {
+        background: #fff;
+    }
+    .receipt-preview-pane {
+        background: linear-gradient(180deg, #0f2f45 0%, #173f59 100%);
+        color: #fff;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .receipt-preview-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .receipt-preview-meta {
+        min-width: 0;
+    }
+    .receipt-preview-filename {
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+    .receipt-preview-frame {
+        height: calc(72vh - 84px);
+        min-height: 460px;
+        padding: 1rem;
+    }
+    .receipt-preview-surface {
+        width: 100%;
+        height: 100%;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        overflow: auto;
+        position: relative;
+    }
+    .receipt-preview-surface iframe,
+    .receipt-preview-surface img {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+        background: #fff;
+    }
+    .receipt-preview-surface img {
+        object-fit: contain;
+        height: auto;
+        min-height: 100%;
+    }
+    .receipt-preview-placeholder {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 0.75rem;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.8);
+        padding: 2rem;
+    }
+    .receipt-review-pane {
+        display: flex;
+        flex-direction: column;
+    }
+    .receipt-review-header {
+        padding: 1.25rem 1.25rem 0.75rem;
+        background: #fff;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .receipt-review-scroll {
+        padding: 1rem 1.25rem 1.25rem;
+        overflow: auto;
+        max-height: 72vh;
+    }
+    .receipt-review-card {
+        border: 1px solid #e5ebf2;
+        border-radius: 1rem;
+        background: #fff;
+        box-shadow: 0 12px 32px rgba(15, 33, 52, 0.06);
+    }
+    .receipt-review-card .table {
+        margin-bottom: 0;
+    }
+    .receipt-review-total {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        background: #f8fafc;
+        box-shadow: 0 -8px 24px rgba(15, 33, 52, 0.06);
+    }
+    .review-match-row {
+        background: #e8f7f0;
+    }
+    .review-match-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        border-radius: 999px;
+        padding: 0.2rem 0.55rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #0d6b4d;
+        background: #d7f4e5;
+    }
+    .receipt-review-note {
+        border-radius: 0.9rem;
+        background: #eef7ff;
+        color: #29567a;
+        border: 1px solid #d4e8fb;
+        padding: 0.85rem 1rem;
+        font-size: 0.92rem;
+    }
+    .receipt-import-status {
+        border-radius: 0.9rem;
+        border: 1px solid #dbe7f5;
+        background: #fff;
+        padding: 0.9rem 1rem;
+    }
+    .receipt-import-error {
+        border-color: #f5c2c7;
+        background: #fff5f5;
+        color: #842029;
+    }
+    .receipt-mobile-toggle {
+        display: none;
+    }
+    @media (max-width: 991.98px) {
+        .receipt-review-shell {
+            min-height: auto;
+        }
+        .receipt-preview-pane {
+            border-right: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .receipt-preview-frame {
+            height: 42vh;
+            min-height: 280px;
+        }
+        .receipt-review-scroll {
+            max-height: none;
+        }
+    }
+    @media (max-width: 767.98px) {
+        .receipt-mobile-toggle {
+            display: flex;
+            padding: 0.75rem 1rem 0;
+            background: #f5f7fb;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .receipt-mobile-only-hidden {
+            display: none !important;
+        }
+        .receipt-preview-pane,
+        .receipt-review-pane {
+            width: 100%;
+        }
+        .receipt-preview-frame {
+            height: 36vh;
+            min-height: 240px;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -768,59 +944,131 @@
 
 <!-- PDF Review Modal -->
 <div class="modal fade" id="reviewImportModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable receipt-review-modal">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Review Imported Bill</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <div id="import-loader" class="text-center py-5 d-none">
-                    <div class="spinner-border text-primary mb-3" role="status"></div>
-                    <p class="text-muted">Scanning Receipt... Please wait.</p>
+            <div class="receipt-mobile-toggle">
+                <div class="btn-group w-100" role="group" aria-label="Receipt review sections">
+                    <button type="button" class="btn btn-outline-primary active" id="review-section-preview-btn" onclick="setReceiptReviewSection('preview')">
+                        Original
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="review-section-form-btn" onclick="setReceiptReviewSection('form')">
+                        Review
+                    </button>
                 </div>
-                <div id="import-content">
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted">BILL NO.</label>
-                            <input type="text" id="review-bill-no" class="form-control">
+            </div>
+            <div class="modal-body">
+                <div class="row g-0 receipt-review-shell">
+                    <div class="col-lg-5 receipt-review-pane receipt-preview-pane" id="receipt-preview-pane">
+                        <div class="receipt-preview-toolbar">
+                            <div class="receipt-preview-meta flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                    <span class="badge rounded-pill bg-light text-dark" id="receipt-preview-type-badge">Preview</span>
+                                    <span class="small text-white-50" id="receipt-preview-status-label">Ready for review</span>
+                                </div>
+                                <div class="receipt-preview-filename" id="receipt-preview-filename">No file selected</div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="#" class="btn btn-sm btn-outline-light disabled" id="receipt-preview-open-link" target="_blank" rel="noopener">
+                                    <i class="fas fa-expand me-1"></i>Open larger
+                                </a>
+                                <button type="button" class="btn btn-sm btn-light text-primary" onclick="triggerReceiptReplacement()">
+                                    <i class="fas fa-sync-alt me-1"></i>Replace file
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted">DATE</label>
-                            <input type="date" id="review-bill-date" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted">VENDOR</label>
-                            <input type="text" id="review-shop-name" class="form-control">
+                        <div class="receipt-preview-frame">
+                            <div class="receipt-preview-surface" id="receipt-preview-surface">
+                                <div class="receipt-preview-placeholder" id="receipt-preview-placeholder">
+                                    <i class="fas fa-file-upload fa-2x"></i>
+                                    <div class="fw-semibold">Upload a receipt to review it side by side.</div>
+                                    <div class="small">PDFs use your browser's native viewer. Images stay scrollable so you can inspect every line.</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Detected Item</th>
-                                    <th>Match to Procurement Item</th>
-                                    <th class="text-end">Cost (₹)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="review-items-body"></tbody>
-                                                         <tfoot>
-                                                             <tr class="table-light fw-bold">
-                                                                 <td colspan="2" class="text-end">Total Amount (₹)</td>
-                                                                 <td class="text-end" style="width: 150px;">
-                                                                     <input type="number" step="0.01" id="review-total-amount-input" class="form-control form-control-sm text-end fw-bold">
-                                                                 </td>
-                                                             </tr>
-                                                             <tr>
-                                                                 <td colspan="3" class="text-start bg-light rounded-bottom">
-                                                                     <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addManualReviewItem()">
-                                                                         <i class="fas fa-plus me-1"></i> Add Missing Item
-                                                                     </button>
-                                                                 </td>
-                                                             </tr>
-                                                         </tfoot>
-                            
-                        </table>
+                    <div class="col-lg-7 receipt-review-pane" id="receipt-review-form-pane">
+                        <div class="receipt-review-header">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                                <div>
+                                    <div class="small text-uppercase text-muted fw-semibold mb-1">Import workspace</div>
+                                    <h6 class="fw-bold mb-1">Cross-check the parsed bill before saving</h6>
+                                    <div class="text-muted small">Compare the receipt on the left with extracted items before saving.</div>
+                                </div>
+                                <div class="receipt-import-status d-flex align-items-center gap-2" id="import-status-box">
+                                    <span class="spinner-border spinner-border-sm text-primary d-none" id="import-loader" role="status"></span>
+                                    <i class="fas fa-check-circle text-success d-none" id="import-ready-icon"></i>
+                                    <i class="fas fa-exclamation-circle text-danger d-none" id="import-error-icon"></i>
+                                    <span class="small fw-semibold" id="import-status-text">Choose a receipt to begin.</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="receipt-review-scroll">
+                            <div class="receipt-review-note mb-3">
+                                <i class="fas fa-eye me-2"></i>Verify the merchant, date, total, and each line item against the original document before confirming the bill.
+                            </div>
+                            <div id="import-error-message" class="receipt-import-status receipt-import-error mb-3 d-none">
+                                <div class="fw-semibold mb-1">Import could not be completed.</div>
+                                <div class="small mb-3" id="import-error-detail">Please try another file or upload again.</div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="retryCurrentReceiptImport()">
+                                        <i class="fas fa-rotate-right me-1"></i>Retry import
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger" onclick="triggerReceiptReplacement()">
+                                        <i class="fas fa-upload me-1"></i>Replace file
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="import-content" class="d-none">
+                                <div class="receipt-review-card mb-3">
+                                    <div class="p-3 border-bottom">
+                                        <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold text-muted">BILL NO.</label>
+                                                <input type="text" id="review-bill-no" class="form-control">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold text-muted">DATE</label>
+                                                <input type="date" id="review-bill-date" class="form-control">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label small fw-bold text-muted">VENDOR</label>
+                                                <input type="text" id="review-shop-name" class="form-control">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover align-middle">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th style="min-width: 240px;">Detected Item</th>
+                                                    <th style="min-width: 240px;">Match to Procurement Item</th>
+                                                    <th class="text-end" style="width: 150px;">Cost (&#8377;)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="review-items-body"></tbody>
+                                            <tfoot>
+                                                <tr class="receipt-review-total fw-bold">
+                                                    <td colspan="2" class="text-end">Total Amount (&#8377;)</td>
+                                                    <td class="text-end">
+                                                        <input type="number" step="0.01" id="review-total-amount-input" class="form-control form-control-sm text-end fw-bold">
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                    <div class="p-3 border-top bg-light-subtle d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                        <div class="small text-muted">Missing something from the receipt? Add it before confirming the bill.</div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addManualReviewItem()">
+                                            <i class="fas fa-plus me-1"></i>Add Missing Item
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2272,108 +2520,440 @@
     // Receipt Import Logic
     var currentImportedData = null;
     var unbilledItems = [];
+    var currentReceiptFile = null;
+    var currentReceiptObjectUrl = null;
+    var currentReceiptImportRun = 0;
+    var currentReceiptSection = 'preview';
+    var receiptReviewModalEl = document.getElementById('reviewImportModal');
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getReceiptReviewModal() {
+        return bootstrap.Modal.getOrCreateInstance(receiptReviewModalEl);
+    }
+
+    function revokeReceiptPreviewUrl() {
+        if (currentReceiptObjectUrl) {
+            URL.revokeObjectURL(currentReceiptObjectUrl);
+            currentReceiptObjectUrl = null;
+        }
+    }
+
+    function setReceiptPreviewStatus(text) {
+        var label = document.getElementById('receipt-preview-status-label');
+        if (label) {
+            label.textContent = text;
+        }
+    }
+
+    function setImportStatus(state, text) {
+        var loader = document.getElementById('import-loader');
+        var readyIcon = document.getElementById('import-ready-icon');
+        var errorIcon = document.getElementById('import-error-icon');
+        var statusText = document.getElementById('import-status-text');
+        var statusBox = document.getElementById('import-status-box');
+
+        if (!loader || !readyIcon || !errorIcon || !statusText || !statusBox) return;
+
+        loader.classList.toggle('d-none', state !== 'loading');
+        readyIcon.classList.toggle('d-none', state !== 'ready');
+        errorIcon.classList.toggle('d-none', state !== 'error');
+        statusBox.classList.toggle('receipt-import-error', state === 'error');
+        statusText.textContent = text;
+    }
+
+    function setReceiptReviewSection(section) {
+        currentReceiptSection = section;
+
+        var previewPane = document.getElementById('receipt-preview-pane');
+        var formPane = document.getElementById('receipt-review-form-pane');
+        var previewBtn = document.getElementById('review-section-preview-btn');
+        var formBtn = document.getElementById('review-section-form-btn');
+        var isMobile = window.innerWidth < 768;
+
+        if (!previewPane || !formPane || !previewBtn || !formBtn) return;
+
+        previewPane.classList.toggle('receipt-mobile-only-hidden', isMobile && section !== 'preview');
+        formPane.classList.toggle('receipt-mobile-only-hidden', isMobile && section !== 'form');
+        previewBtn.classList.toggle('active', section === 'preview');
+        formBtn.classList.toggle('active', section === 'form');
+    }
+
+    function resetReceiptImportUi() {
+        currentImportedData = null;
+        unbilledItems = [];
+
+        var tbody = document.getElementById('review-items-body');
+        var saveBtn = document.getElementById('save-imported-btn');
+        var previewSurface = document.getElementById('receipt-preview-surface');
+        var previewFileName = document.getElementById('receipt-preview-filename');
+        var previewTypeBadge = document.getElementById('receipt-preview-type-badge');
+        var previewOpenLink = document.getElementById('receipt-preview-open-link');
+        var importContent = document.getElementById('import-content');
+        var importError = document.getElementById('import-error-message');
+        var importErrorDetail = document.getElementById('import-error-detail');
+
+        if (tbody) tbody.innerHTML = '';
+        if (document.getElementById('review-bill-no')) document.getElementById('review-bill-no').value = '';
+        if (document.getElementById('review-bill-date')) document.getElementById('review-bill-date').value = '';
+        if (document.getElementById('review-shop-name')) document.getElementById('review-shop-name').value = '';
+        if (document.getElementById('review-total-amount-input')) document.getElementById('review-total-amount-input').value = '';
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i> Confirm & Save Bill';
+        }
+
+        if (importContent) importContent.classList.add('d-none');
+        if (importError) importError.classList.add('d-none');
+        if (importErrorDetail) importErrorDetail.textContent = 'Please try another file or upload again.';
+
+        if (previewSurface) {
+            previewSurface.innerHTML = `
+                <div class="receipt-preview-placeholder" id="receipt-preview-placeholder">
+                    <i class="fas fa-file-upload fa-2x"></i>
+                    <div class="fw-semibold">Upload a receipt to review it side by side.</div>
+                    <div class="small">PDFs use your browser's native viewer. Images stay scrollable so you can inspect every line.</div>
+                </div>
+            `;
+        }
+
+        if (previewFileName) previewFileName.textContent = 'No file selected';
+        if (previewTypeBadge) previewTypeBadge.textContent = 'Preview';
+        if (previewOpenLink) {
+            previewOpenLink.href = '#';
+            previewOpenLink.classList.add('disabled');
+        }
+
+        setReceiptPreviewStatus('Ready for review');
+        setImportStatus('idle', 'Choose a receipt to begin.');
+        setReceiptReviewSection('preview');
+    }
+
+    function resetReceiptImportSession() {
+        currentReceiptImportRun += 1;
+        currentReceiptFile = null;
+        revokeReceiptPreviewUrl();
+        resetReceiptImportUi();
+        var input = document.getElementById('receiptImportInput');
+        if (input) input.value = '';
+    }
+
+    function renderReceiptPreview(file) {
+        if (!file) return;
+
+        revokeReceiptPreviewUrl();
+        currentReceiptObjectUrl = URL.createObjectURL(file);
+
+        var previewSurface = document.getElementById('receipt-preview-surface');
+        var previewFileName = document.getElementById('receipt-preview-filename');
+        var previewTypeBadge = document.getElementById('receipt-preview-type-badge');
+        var previewOpenLink = document.getElementById('receipt-preview-open-link');
+        var isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+        if (previewFileName) previewFileName.textContent = file.name;
+        if (previewTypeBadge) previewTypeBadge.textContent = isPdf ? 'PDF' : 'Image';
+        if (previewOpenLink) {
+            previewOpenLink.href = currentReceiptObjectUrl;
+            previewOpenLink.classList.remove('disabled');
+        }
+
+        if (previewSurface) {
+            previewSurface.innerHTML = isPdf
+                ? `<iframe title="Original receipt preview" src="${currentReceiptObjectUrl}#view=FitH"></iframe>`
+                : `<img src="${currentReceiptObjectUrl}" alt="Original receipt preview">`;
+        }
+    }
+
+    function triggerReceiptReplacement() {
+        var input = document.getElementById('receiptImportInput');
+        if (input) {
+            input.click();
+        }
+    }
+
+    function showReceiptImportError(message) {
+        var importContent = document.getElementById('import-content');
+        var errorBox = document.getElementById('import-error-message');
+        var errorDetail = document.getElementById('import-error-detail');
+        var saveBtn = document.getElementById('save-imported-btn');
+
+        if (importContent) importContent.classList.add('d-none');
+        if (errorBox) errorBox.classList.remove('d-none');
+        if (errorDetail) errorDetail.textContent = message;
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i> Confirm & Save Bill';
+        }
+
+        setImportStatus('error', 'Import needs attention.');
+        setReceiptPreviewStatus('Review source document');
+        if (window.innerWidth < 768) {
+            setReceiptReviewSection('form');
+        }
+    }
+
+    function getUnbilledOptionsHtml(selectedId) {
+        return unbilledItems.map(item => {
+            var selected = String(selectedId || '') === String(item.id) ? ' selected' : '';
+            return `<option value="${item.id}"${selected}>${escapeHtml(item.name)} (${escapeHtml(item.quantity)}) - ${escapeHtml(item.status)}</option>`;
+        }).join('');
+    }
+
+    function findBestProcurementMatch(itemName) {
+        var normalized = String(itemName || '').trim().toLowerCase();
+        if (!normalized) return null;
+
+        return unbilledItems.find(item => {
+            var candidate = String(item.name || '').trim().toLowerCase();
+            return candidate && (candidate.includes(normalized) || normalized.includes(candidate));
+        }) || null;
+    }
+
+    function updateReviewMatchState(selectEl) {
+        if (!selectEl) return;
+
+        var row = selectEl.closest('tr');
+        var indicator = row ? row.querySelector('.review-match-indicator') : null;
+        var hasMatch = !!selectEl.value;
+
+        if (row) {
+            row.classList.toggle('review-match-row', hasMatch);
+        }
+        if (indicator) {
+            indicator.classList.toggle('d-none', !hasMatch);
+        }
+    }
+
+    function buildReviewRow(item, index, matchedItem) {
+        var tr = document.createElement('tr');
+        var quantity = escapeHtml(item.quantity || '1');
+        var itemName = escapeHtml(item.name || '');
+        var itemCost = Number(item.cost || 0).toFixed(2);
+        var matchId = matchedItem ? matchedItem.id : '';
+
+        tr.innerHTML = `
+            <td>
+                <input type="text" class="form-control form-control-sm review-item-name" value="${itemName}" data-index="${index}" data-qty="${quantity}">
+                <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+                    <div class="text-muted small">Qty: ${quantity}</div>
+                    <span class="review-match-badge review-match-indicator ${matchId ? '' : 'd-none'}">
+                        <i class="fas fa-link"></i>Matched
+                    </span>
+                </div>
+            </td>
+            <td>
+                <select class="form-select form-select-sm procurement-match-select" data-index="${index}" onchange="updateReviewMatchState(this)">
+                    <option value="">-- Create as New --</option>
+                    ${getUnbilledOptionsHtml(matchId)}
+                </select>
+            </td>
+            <td class="text-end">
+                <input type="number" step="0.01" class="form-control form-control-sm text-end review-item-cost" value="${itemCost}" data-index="${index}" oninput="updateTotal()">
+            </td>
+        `;
+
+        if (matchId) {
+            tr.classList.add('review-match-row');
+        }
+
+        return tr;
+    }
+
+    function populateImportedReview(ocrData) {
+        currentImportedData = Object.assign({}, ocrData, {
+            filename: ocrData.filename || (currentReceiptFile ? currentReceiptFile.name : '')
+        });
+
+        var importContent = document.getElementById('import-content');
+        var errorBox = document.getElementById('import-error-message');
+        var saveBtn = document.getElementById('save-imported-btn');
+        var tbody = document.getElementById('review-items-body');
+        var totalAmount = Number(ocrData.total_amount || 0);
+
+        document.getElementById('review-bill-no').value = ocrData.bill_no || '';
+        document.getElementById('review-bill-date').value = ocrData.bill_date || '';
+        document.getElementById('review-shop-name').value = ocrData.shop_name || '';
+        document.getElementById('review-total-amount-input').value = totalAmount.toFixed(2);
+
+        tbody.innerHTML = '';
+        (ocrData.items || []).forEach(function(item, index) {
+            tbody.appendChild(buildReviewRow(item, index, findBestProcurementMatch(item.name)));
+        });
+
+        if (errorBox) errorBox.classList.add('d-none');
+        if (importContent) importContent.classList.remove('d-none');
+        if (saveBtn) saveBtn.disabled = false;
+
+        setImportStatus('ready', 'Parsed and ready to review.');
+        setReceiptPreviewStatus('Cross-check with extracted bill');
+
+        if (window.innerWidth < 768) {
+            setReceiptReviewSection('form');
+        }
+    }
+
+    async function loadUnbilledItems() {
+        try {
+            var response = await fetch('/procurement/unbilled');
+            var data = await response.json();
+            return response.ok ? (data.items || []) : [];
+        } catch (error) {
+            console.error('Unable to load unbilled items', error);
+            return [];
+        }
+    }
+
+    function humanizeReceiptImportError(rawError) {
+        if (!rawError) return 'Receipt import failed. Please try again.';
+        if (rawError === 'OCR_FAILED') return 'The OCR service could not read this receipt. Try a clearer image or another file.';
+        if (rawError === 'PARSE_FAILED') return 'The receipt text was read, but the bill details could not be parsed reliably.';
+        return rawError;
+    }
+
+    async function pollReceiptImportStatus(taskId, runId) {
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+            if (runId !== currentReceiptImportRun) {
+                return null;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            var response = await fetch(`/expenses/import-status/${taskId}`);
+            var data = await response.json();
+
+            if (runId !== currentReceiptImportRun) {
+                return null;
+            }
+
+            if (data.status === 'completed') {
+                return data.data || {};
+            }
+            if (data.status === 'failed') {
+                throw new Error(humanizeReceiptImportError(data.error));
+            }
+            if (data.status === 'not_found') {
+                throw new Error('The import job was not found. Please upload the receipt again.');
+            }
+        }
+
+        throw new Error('Receipt processing is taking too long. Please retry the import.');
+    }
+
+    async function startReceiptImport(file) {
+        if (!file) return;
+
+        currentReceiptImportRun += 1;
+        var runId = currentReceiptImportRun;
+        currentReceiptFile = file;
+        currentImportedData = null;
+
+        setReceiptReviewSection('preview');
+        renderReceiptPreview(file);
+        setReceiptPreviewStatus('Preparing import workspace');
+        setImportStatus('loading', 'Uploading and scanning receipt...');
+
+        var importContent = document.getElementById('import-content');
+        var errorBox = document.getElementById('import-error-message');
+        var saveBtn = document.getElementById('save-imported-btn');
+        var tbody = document.getElementById('review-items-body');
+
+        if (tbody) tbody.innerHTML = '';
+        if (importContent) importContent.classList.add('d-none');
+        if (errorBox) errorBox.classList.add('d-none');
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i> Confirm & Save Bill';
+        }
+
+        getReceiptReviewModal().show();
+
+        try {
+            var formData = new FormData();
+            formData.append('file', file);
+
+            var [ocrRes, availableItems] = await Promise.all([
+                fetch('/expenses/import-receipt', { method: 'POST', body: formData }),
+                loadUnbilledItems()
+            ]);
+
+            if (runId !== currentReceiptImportRun) {
+                return;
+            }
+
+            var ocrData = await ocrRes.json();
+            unbilledItems = availableItems;
+
+            if (ocrData.error) {
+                throw new Error(humanizeReceiptImportError(ocrData.error));
+            }
+
+            if (ocrData.status === 'processing') {
+                setImportStatus('loading', 'Scanning receipt... this can take a few seconds.');
+                setReceiptPreviewStatus('OCR in progress');
+                ocrData = await pollReceiptImportStatus(ocrData.task_id, runId);
+            }
+
+            if (runId !== currentReceiptImportRun) {
+                return;
+            }
+
+            populateImportedReview(ocrData);
+        } catch (error) {
+            if (runId !== currentReceiptImportRun) {
+                return;
+            }
+            showReceiptImportError(humanizeReceiptImportError(error.message || error));
+        }
+    }
 
     async function handleReceiptUpload(input) {
         if (!input.files || !input.files[0]) return;
-        
+
         var file = input.files[0];
-        var formData = new FormData();
-        formData.append('file', file);
+        input.value = '';
+        await startReceiptImport(file);
+    }
 
-        // Show modal and loader
-        var reviewModalEl = document.getElementById('reviewImportModal');
-        var reviewModal = new bootstrap.Modal(reviewModalEl);
-        document.getElementById('import-loader').classList.remove('d-none');
-        document.getElementById('import-content').classList.add('d-none');
-        document.getElementById('save-imported-btn').disabled = true;
-        reviewModal.show();
-
-        try {
-            // Parallel fetch: Receipt OCR and Unbilled Items
-            const [ocrRes, unbilledRes] = await Promise.all([
-                fetch('/expenses/import-receipt', { method: 'POST', body: formData }),
-                fetch('/procurement/unbilled')
-            ]);
-
-            const ocrData = await ocrRes.json();
-            const unbilledData = await unbilledRes.json();
-
-            if (ocrData.error) throw new Error(ocrData.error);
-            unbilledItems = unbilledData.items || [];
-            currentImportedData = ocrData;
-            
-            // Populate review modal header
-            document.getElementById('review-bill-no').value = ocrData.bill_no || '';
-            document.getElementById('review-bill-date').value = ocrData.bill_date || '';
-            document.getElementById('review-shop-name').value = ocrData.shop_name || '';
-            document.getElementById('review-total-amount-input').value = ocrData.total_amount.toFixed(2);
-
-            var tbody = document.getElementById('review-items-body');
-            tbody.innerHTML = '';
-
-            // Generate dropdown options once
-            const options = unbilledItems.map(i => `<option value="${i.id}">${i.name} (${i.quantity}) - ${i.status}</option>`).join('');
-
-            ocrData.items.forEach(function(item, index) {
-                var tr = document.createElement('tr');
-                // Try to find a fuzzy match by name
-                const bestMatch = unbilledItems.find(i => i.name.toLowerCase().includes(item.name.toLowerCase()) || item.name.toLowerCase().includes(i.name.toLowerCase()));
-                
-                tr.innerHTML = `<td>
-                                    <input type="text" class="form-control form-control-sm review-item-name" value="${item.name}" data-index="${index}" data-qty="${item.quantity}">
-                                    <div class="text-muted" style="font-size: 0.75rem;">Qty: ${item.quantity}</div>
-                                </td>
-                                <td>
-                                    <select class="form-select form-select-sm procurement-match-select" data-index="${index}">
-                                        <option value="">-- Create as New --</option>
-                                        ${options}
-                                    </select>
-                                </td>
-                                <td class="text-end">
-                                    <input type="number" step="0.01" class="form-control form-control-sm text-end review-item-cost" value="${item.cost.toFixed(2)}" data-index="${index}">
-                                </td>`;
-                tbody.appendChild(tr);
-
-                // Auto-select if match found
-                if (bestMatch) {
-                    const select = tr.querySelector('.procurement-match-select');
-                    select.value = bestMatch.id;
-                    tr.classList.add('table-success-light');
-                }
-            });
-
-            document.getElementById('import-loader').classList.add('d-none');
-            document.getElementById('import-content').classList.remove('d-none');
-            document.getElementById('save-imported-btn').disabled = false;
-        } catch (error) {
-            alert('Import failed: ' + error.message);
-            reviewModal.hide();
-        } finally {
-            input.value = '';
-        }
+    async function retryCurrentReceiptImport() {
+        if (!currentReceiptFile) return;
+        await startReceiptImport(currentReceiptFile);
     }
 
     function addManualReviewItem() {
         var tbody = document.getElementById('review-items-body');
         var tr = document.createElement('tr');
-        
-        // Generate dropdown options from existing unbilledItems
-        const options = unbilledItems.map(i => `<option value="${i.id}">${i.name} (${i.quantity}) - ${i.status}</option>`).join('');
 
-        tr.innerHTML = `<td>
-                            <input type="text" class="form-control form-control-sm review-item-name" placeholder="Item Name" required>
-                            <input type="text" class="form-control form-control-sm review-item-qty mt-1" placeholder="Qty" value="1" style="max-width: 80px;" required>
-                        </td>
-                        <td>
-                            <select class="form-select form-select-sm procurement-match-select">
-                                <option value="">-- Create as New --</option>
-                                ${options}
-                            </select>
-                            <button type="button" class="btn btn-sm btn-link text-danger p-0 mt-1" onclick="this.closest('tr').remove(); updateTotal();"><i class="fas fa-trash-alt me-1"></i>Remove</button>
-                        </td>
-                        <td class="text-end">
-                            <input type="number" step="0.01" class="form-control form-control-sm text-end review-item-cost" value="0.00" oninput="updateTotal()" required>
-                        </td>`;
+        tr.innerHTML = `
+            <td>
+                <input type="text" class="form-control form-control-sm review-item-name" placeholder="Item Name" required>
+                <input type="text" class="form-control form-control-sm review-item-qty mt-2" placeholder="Qty" value="1" style="max-width: 90px;" required>
+            </td>
+            <td>
+                <select class="form-select form-select-sm procurement-match-select" onchange="updateReviewMatchState(this)">
+                    <option value="">-- Create as New --</option>
+                    ${getUnbilledOptionsHtml()}
+                </select>
+                <div class="mt-2">
+                    <span class="review-match-badge review-match-indicator d-none">
+                        <i class="fas fa-link"></i>Matched
+                    </span>
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2" onclick="this.closest('tr').remove(); updateTotal();">
+                        <i class="fas fa-trash-alt me-1"></i>Remove
+                    </button>
+                </div>
+            </td>
+            <td class="text-end">
+                <input type="number" step="0.01" class="form-control form-control-sm text-end review-item-cost" value="0.00" oninput="updateTotal()" required>
+            </td>
+        `;
         tbody.appendChild(tr);
     }
 
@@ -2393,15 +2973,16 @@
 
         const reconciliationData = [];
         const newItemsData = [];
-        
+
         const rows = document.querySelectorAll('#review-items-body tr');
         rows.forEach(row => {
             const nameEl = row.querySelector('.review-item-name');
-            if (!nameEl || !nameEl.value.trim()) return; // Skip empty rows
+            if (!nameEl || !nameEl.value.trim()) return;
+
             const name = nameEl.value;
             const cost = parseFloat(row.querySelector('.review-item-cost').value) || 0;
             const procId = row.querySelector('.procurement-match-select').value;
-            
+
             let qty = '1';
             const qtyInput = row.querySelector('.review-item-qty');
             if (qtyInput) {
@@ -2409,11 +2990,11 @@
             } else {
                 qty = nameEl.getAttribute('data-qty') || '1';
             }
-            
+
             if (procId) {
                 reconciliationData.push({
                     procurement_id: procId,
-                    name: name, // We can also update name if backend supports it
+                    name: name,
                     cost: cost
                 });
             } else {
@@ -2457,6 +3038,15 @@
         .catch(error => {
             alert('Error during reconciliation: ' + error);
             btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-1"></i> Confirm & Save Bill';
+        });
+    }
+
+    if (receiptReviewModalEl) {
+        receiptReviewModalEl.addEventListener('hidden.bs.modal', resetReceiptImportSession);
+        setReceiptReviewSection(currentReceiptSection);
+        window.addEventListener('resize', function() {
+            setReceiptReviewSection(currentReceiptSection);
         });
     }
 
