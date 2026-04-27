@@ -45,9 +45,11 @@
     .receipt-review-modal .modal-body {
         padding: 0;
         background: #f5f7fb;
+        overflow: hidden;
     }
     .receipt-review-shell {
-        min-height: 72vh;
+        height: 72vh;
+        overflow: hidden;
     }
     .receipt-review-pane {
         background: #fff;
@@ -116,6 +118,11 @@
     .receipt-review-pane {
         display: flex;
         flex-direction: column;
+        height: 100%;
+        min-height: 0;
+    }
+    #receipt-review-form-pane {
+        overflow: hidden;
     }
     .receipt-review-header {
         padding: 1.25rem 1.25rem 0.75rem;
@@ -124,8 +131,13 @@
     }
     .receipt-review-scroll {
         padding: 1rem 1.25rem 1.25rem;
-        overflow: auto;
-        max-height: 72vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
     }
     .receipt-review-card {
         border: 1px solid #e5ebf2;
@@ -170,6 +182,12 @@
         border: 1px solid #dbe7f5;
         background: #fff;
         padding: 0.9rem 1rem;
+    }
+    .receipt-import-hint {
+        margin-top: 0.15rem;
+        color: #5f6f82;
+        font-size: 0.78rem;
+        line-height: 1.2;
     }
     .receipt-import-error {
         border-color: #f5c2c7;
@@ -944,7 +962,7 @@
 
 <!-- PDF Review Modal -->
 <div class="modal fade" id="reviewImportModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable receipt-review-modal">
+    <div class="modal-dialog modal-xl modal-dialog-centered receipt-review-modal">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title fw-bold"><i class="fas fa-file-invoice me-2"></i>Review Imported Bill</h5>
@@ -996,20 +1014,20 @@
                                 <div>
                                     <div class="small text-uppercase text-muted fw-semibold mb-1">Import workspace</div>
                                     <h6 class="fw-bold mb-1">Cross-check the parsed bill before saving</h6>
-                                    <div class="text-muted small">Compare the receipt on the left with extracted items before saving.</div>
+                                    <div class="text-muted small mb-0">Compare the receipt on the left with extracted items.</div>
                                 </div>
                                 <div class="receipt-import-status d-flex align-items-center gap-2" id="import-status-box">
                                     <span class="spinner-border spinner-border-sm text-primary d-none" id="import-loader" role="status"></span>
                                     <i class="fas fa-check-circle text-success d-none" id="import-ready-icon"></i>
                                     <i class="fas fa-exclamation-circle text-danger d-none" id="import-error-icon"></i>
-                                    <span class="small fw-semibold" id="import-status-text">Choose a receipt to begin.</span>
+                                    <div>
+                                        <span class="small fw-semibold" id="import-status-text">Choose a receipt to begin.</span>
+                                        <div class="receipt-import-hint">Quick check: vendor, date, total, items.</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <div class="receipt-review-scroll">
-                            <div class="receipt-review-note mb-3">
-                                <i class="fas fa-eye me-2"></i>Verify the merchant, date, total, and each line item against the original document before confirming the bill.
-                            </div>
                             <div id="import-error-message" class="receipt-import-status receipt-import-error mb-3 d-none">
                                 <div class="fw-semibold mb-1">Import could not be completed.</div>
                                 <div class="small mb-3" id="import-error-detail">Please try another file or upload again.</div>
