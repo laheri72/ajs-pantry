@@ -1101,6 +1101,7 @@ def menus():
         return redirect(url_for('pantry.calendar'))
 
     floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
     floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
     
@@ -1209,7 +1210,7 @@ def menus():
             assigned_team_id=assigned_team_id,
             floor=floor,
             created_by_id=user.id,
-            tenant_id=getattr(g, 'tenant_id', None)
+            tenant_id=tenant_id
         )
         db.session.add(menu)
         db.session.commit()
@@ -1307,7 +1308,7 @@ def delete_menu(menu_id):
 
     db.session.delete(menu)
     db.session.commit()
-    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), menu.floor)
     flash('Menu deleted successfully', 'success')
     return redirect(url_for('pantry.menus'))
 
@@ -1442,6 +1443,7 @@ def feedbacks():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
 
     if request.method == 'POST':
         form_type = (request.form.get('form_type') or 'feedback').strip()
@@ -1461,7 +1463,7 @@ def feedbacks():
                 dish_id=dish_id,
                 user_id=user.id,
                 floor=floor,
-                tenant_id=getattr(g, 'tenant_id', None)
+                tenant_id=tenant_id
             )
             db.session.add(suggestion)
             db.session.commit()
@@ -1526,7 +1528,7 @@ def feedbacks():
                 menu_id=menu.id,
                 user_id=user.id,
                 floor=menu.floor,
-                tenant_id=getattr(g, 'tenant_id', None)
+                tenant_id=tenant_id
             )
             db.session.add(feedback)
 
@@ -1607,5 +1609,5 @@ def delete_feedback(feedback_id):
 
     db.session.delete(feedback)
     db.session.commit()
-    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), feedback.floor)
     return ('', 204)
