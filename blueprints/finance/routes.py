@@ -124,6 +124,26 @@ def expenses():
     current_available_budget = budget_ledger['current_available_budget']
     carryforward_balance = budget_ledger['carryforward_balance']
 
+    # Tiny insight metrics: floor-level all-time totals (across periods).
+    floor_total_budget = float(
+        tenant_filter(db.session.query(func.sum(Budget.amount_allocated))).filter(
+            Budget.floor == floor,
+            visible_budget_condition(faculty_workflow_enabled),
+        ).scalar() or 0
+    )
+    floor_total_spent_proc = float(
+        tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
+            ProcurementItem.floor == floor,
+            ProcurementItem.status == 'completed',
+        ).scalar() or 0
+    )
+    floor_total_spent_legacy = float(
+        tenant_filter(db.session.query(func.sum(Expense.amount))).filter(
+            Expense.floor == floor,
+        ).scalar() or 0
+    )
+    floor_total_spent = floor_total_spent_proc + floor_total_spent_legacy
+
     # 3. Data for Ledger
     # Get completed procurements for this floor that are NOT yet in a bill
     # This list is usually small (pending to be recorded), so we keep it as .all()
@@ -207,6 +227,8 @@ def expenses():
         current_budget_period=current_budget_period,
         current_available_budget=current_available_budget,
         carryforward_balance=carryforward_balance,
+        floor_total_budget=floor_total_budget,
+        floor_total_spent=floor_total_spent,
         active_cycle=active_cycle,
         active_cycle_allocation=active_cycle_allocation,
         today=date.today(),
