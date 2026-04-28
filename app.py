@@ -230,13 +230,9 @@ def inject_current_user():
 
 @app.route('/favicon.ico')
 def favicon():
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
-        '<text y=".9em" font-size="90">🍳</text>'
-        '</svg>',
-        200,
-        {'Content-Type': 'image/svg+xml'}
-    )
+    from flask import send_from_directory
+    return send_from_directory(os.path.join(app.root_path, 'static', 'favicon_io'),
+                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 from blueprints.auth import auth_bp
 from blueprints.pantry import pantry_bp
