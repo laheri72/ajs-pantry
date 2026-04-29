@@ -212,11 +212,11 @@ from pywebpush import webpush, WebPushException
 def send_email_notification(to_email, subject, html_content):
     """Dispatches an email notification, using the background queue if available."""
     if hasattr(current_app, 'task_queue') and current_app.task_queue:
-        current_app.task_queue.enqueue('blueprints.utils._send_email_worker', to_email, subject, html_content)
+        current_app.task_queue.enqueue('blueprints.utils.send_email_worker', to_email, subject, html_content)
         return True
-    return _send_email_worker(to_email, subject, html_content)
+    return send_email_worker(to_email, subject, html_content)
 
-def _send_email_worker(to_email, subject, html_content):
+def send_email_worker(to_email, subject, html_content):
     """Synchronous worker that performs the actual email delivery."""
     gmail_user = os.environ.get("GMAIL_USER")
     gmail_pass = os.environ.get("GMAIL_PASS")
@@ -244,11 +244,11 @@ def _send_email_worker(to_email, subject, html_content):
 def send_push_notification(user_id, title, body, icon=None, url=None):
     """Dispatches a push notification, using the background queue if available."""
     if hasattr(current_app, 'task_queue') and current_app.task_queue:
-        current_app.task_queue.enqueue('blueprints.utils._send_push_worker', user_id, title, body, icon, url)
+        current_app.task_queue.enqueue('blueprints.utils.send_push_worker', user_id, title, body, icon, url)
         return True
-    return _send_push_worker(user_id, title, body, icon, url)
+    return send_push_worker(user_id, title, body, icon, url)
 
-def _send_push_worker(user_id, title, body, icon=None, url=None):
+def send_push_worker(user_id, title, body, icon=None, url=None):
     """Synchronous worker that performs the actual push delivery."""
     from models import PushSubscription, User
     from app import db, app
