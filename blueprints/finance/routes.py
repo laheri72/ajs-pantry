@@ -174,6 +174,24 @@ def expenses():
     budget_periods = budget_ledger['periods']
     active_cycle = budget_ledger['active_cycle'] if faculty_workflow_enabled else None
     active_cycle_allocation = budget_ledger['active_cycle_allocation']
+    editable_budget_ids = []
+    if is_manager and not faculty_workflow_enabled:
+        manual_budget_query = tenant_filter(Budget.query).filter(
+            Budget.floor == floor,
+            Budget.cycle_id.is_(None),
+            Budget.is_faculty_allocation.is_(False),
+        )
+        latest_manual_budget = manual_budget_query.order_by(Budget.created_at.desc(), Budget.id.desc()).first()
+        if latest_manual_budget:
+            editable_budget_ids.append(latest_manual_budget.id)
+
+        today_value = date.today()
+        current_manual_budget = manual_budget_query.filter(
+            Budget.start_date <= today_value,
+            or_(Budget.end_date.is_(None), Budget.end_date >= today_value),
+        ).order_by(Budget.start_date.desc(), Budget.created_at.desc(), Budget.id.desc()).first()
+        if current_manual_budget and current_manual_budget.id not in editable_budget_ids:
+            editable_budget_ids.append(current_manual_budget.id)
     
     # Legacy expenses for reference (PAGINATED)
     legacy_page = request.args.get('legacy_page', 1, type=int)
@@ -231,6 +249,7 @@ def expenses():
         floor_total_spent=floor_total_spent,
         active_cycle=active_cycle,
         active_cycle_allocation=active_cycle_allocation,
+        editable_budget_ids=editable_budget_ids,
         today=date.today(),
         current_user=user,
         active_floor=floor
@@ -262,9 +281,12 @@ def save_print_report():
     data = request.json or {}
     floor = _get_active_floor(user)
     report_title = (data.get('report_title') or '').strip() or 'Expense Report'
-    report_budget = float(data.get('report_budget') or 0)
-    total_spent = float(data.get('total_spent') or 0)
-    remaining_balance = float(data.get('remaining_balance') or 0)
+    try:
+        requested_report_budget = float(data.get('report_budget') or 0)
+        total_spent = float(data.get('total_spent') or 0)
+        remaining_balance = float(data.get('remaining_balance') or 0)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid report totals'}), 400
     summary_bill_ids = data.get('summary_bill_ids') or []
     voucher_bill_ids = data.get('voucher_bill_ids') or []
 
@@ -288,7 +310,9 @@ def save_print_report():
         faculty_workflow_enabled=faculty_workflow_enabled,
     )
     active_cycle = budget_ledger['active_cycle'] if faculty_workflow_enabled else None
-    report_budget = budget_ledger['current_available_budget']
+    # Use user-selected print-modal budget in manual/inactive-cycle mode.
+    # Keep budget locked to ledger only when an active Faculty cycle is present.
+    report_budget = budget_ledger['current_available_budget'] if active_cycle else requested_report_budget
     remaining_balance = report_budget - total_spent
 
     print_report = ExpensePrintReport(
@@ -673,6 +697,64 @@ def delete_budget(budget_id):
     db.session.commit()
     _clear_dashboard_cache(getattr(g, 'tenant_id', None), budget.floor)
     flash('Manual budget allocation deleted successfully.', 'success')
+    return redirect(url_for('finance.expenses'))
+
+@finance_bp.route('/budgets/<int:budget_id>/update', methods=['POST'])
+def update_budget(budget_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+    if current_tenant_faculty_workflow_enabled():
+        flash('Manual budget edits are disabled while Faculty workflow is enabled for this tenant.', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    budget = tenant_filter(Budget.query).filter_by(id=budget_id).first_or_404()
+    if budget.cycle_id is not None or budget.is_faculty_allocation:
+        flash('Faculty cycle budgets can only be managed from the Faculty portal.', 'error')
+        return redirect(url_for('finance.expenses'))
+    if user.role != 'admin' and budget.floor != user.floor:
+        abort(403)
+
+    manual_budget_query = tenant_filter(Budget.query).filter(
+        Budget.floor == budget.floor,
+        Budget.cycle_id.is_(None),
+        Budget.is_faculty_allocation.is_(False),
+    )
+    latest_manual_budget = manual_budget_query.order_by(Budget.created_at.desc(), Budget.id.desc()).first()
+    today_value = date.today()
+    current_manual_budget = manual_budget_query.filter(
+        Budget.start_date <= today_value,
+        or_(Budget.end_date.is_(None), Budget.end_date >= today_value),
+    ).order_by(Budget.start_date.desc(), Budget.created_at.desc(), Budget.id.desc()).first()
+    editable_budget_ids = {
+        row_id for row_id in [
+            latest_manual_budget.id if latest_manual_budget else None,
+            current_manual_budget.id if current_manual_budget else None,
+        ] if row_id is not None
+    }
+    if budget.id not in editable_budget_ids:
+        flash('Only the latest or current manual budget can be edited.', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    try:
+        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        end_date_raw = request.form.get('end_date')
+        end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date() if end_date_raw else None
+    except Exception:
+        flash('Invalid budget dates.', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    if end_date and end_date <= start_date:
+        flash('End date must be after the start date.', 'error')
+        return redirect(url_for('finance.expenses'))
+
+    budget.start_date = start_date
+    budget.end_date = end_date
+    budget.notes = (request.form.get('notes') or '').strip() or None
+
+    db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), budget.floor)
+    flash('Budget period updated successfully.', 'success')
     return redirect(url_for('finance.expenses'))
 
 @finance_bp.route('/expenses/<int:expense_id>/delete', methods=['POST'])
