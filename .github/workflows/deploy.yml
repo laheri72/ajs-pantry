@@ -22,5 +22,5 @@ jobs:
             source venv/bin/activate
             venv/bin/pip install -r requirements.txt
             export FLASK_APP=app.py
-            flask db upgrade
+            venv/bin/flask db upgrade
             sudo systemctl restart ajs-pantry
