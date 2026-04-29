@@ -2,7 +2,7 @@
 
 ---
 
-## 1. What The Project Does
+## 1. What The Project Does:
 
 AJS Pantry is a **production-hardened, multi-tenant SaaS platform** for managing residential hostel pantry operations. It serves multiple "tenants" (hostel organizations), each with multiple floors and a full hierarchy of roles. Core functionality covers:
 
