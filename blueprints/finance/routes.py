@@ -16,7 +16,7 @@ from ..utils import (
     tenant_filter,
     visible_budget_condition,
 )
-from ..pantry.routes import _clear_dashboard_cache
+from ..dashboard_cache import clear_dashboard_cache as _clear_dashboard_cache
 
 @finance_bp.route('/expenses', methods=['GET', 'POST'])
 def expenses():

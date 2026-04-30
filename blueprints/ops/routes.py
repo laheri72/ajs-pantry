@@ -14,7 +14,7 @@ from ..utils import (
     send_push_notification,
     send_email_notification
 )
-from ..pantry.routes import _clear_dashboard_cache
+from ..dashboard_cache import clear_dashboard_cache as _clear_dashboard_cache
 
 @ops_bp.route('/tea', methods=['GET', 'POST'])
 def tea():
