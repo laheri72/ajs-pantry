@@ -243,6 +243,16 @@ from blueprints.main import main_bp
 from blueprints.super_admin import super_admin_bp
 from blueprints.faculty import faculty_bp
 
+# Import route modules to register them before blueprint registration
+from blueprints.auth import routes as auth_routes
+from blueprints.pantry import routes as pantry_routes
+from blueprints.finance import routes as finance_routes
+from blueprints.ops import routes as ops_routes
+from blueprints.admin import routes as admin_routes
+from blueprints.main import routes as main_routes
+from blueprints.super_admin import routes as super_admin_routes
+from blueprints.faculty import routes as faculty_routes
+
 app.register_blueprint(auth_bp)
 app.register_blueprint(pantry_bp)
 app.register_blueprint(finance_bp)
