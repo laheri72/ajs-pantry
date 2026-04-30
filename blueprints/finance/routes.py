@@ -939,7 +939,7 @@ def import_receipt():
             
             # Enqueue the job
             current_app.task_queue.enqueue(
-                'blueprints.finance.routes._process_receipt_worker',
+                'blueprints.finance.workers._process_receipt_worker',
                 temp_path,
                 mime_type,
                 file.filename,
@@ -968,33 +968,6 @@ def import_receipt():
     except Exception as e:
         logging.error(f"Receipt Import Error: {str(e)}")
         return jsonify({'error': f"Failed to parse receipt: {str(e)}"}), 500
-
-def _process_receipt_worker(file_path, mime_type, original_filename):
-    """RQ Worker: Processes the receipt from a temporary file."""
-    from app import app
-    with app.app_context():
-        try:
-            with open(file_path, 'rb') as f:
-                text = ParserFactory.get_text(f, mime_type)
-                
-            if not text or text == "ERROR_TESSERACT_NOT_FOUND":
-                return {'error': 'OCR_FAILED'}
-            
-            parser = ParserFactory.get_parser(text)
-            receipt_data = parser.parse(text)
-            
-            if not receipt_data:
-                return {'error': 'PARSE_FAILED'}
-            
-            data = receipt_data.to_dict()
-            data['filename'] = original_filename
-            return data
-        except Exception as e:
-            logging.error(f"Worker Error: {e}")
-            return {'error': str(e)}
-        finally:
-            if os.path.exists(file_path):
-                os.remove(file_path)
 
 @finance_bp.route('/expenses/import-status/<task_id>', methods=['GET'])
 def check_import_status(task_id):
