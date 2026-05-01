@@ -130,6 +130,25 @@ This file serves as a master index for all routes within the modularized AJS Pan
 
 ---
 
+## 7. Super Admin Blueprint (`blueprints/super_admin/routes.py`)
+*Platform-wide tenant and global catalog governance.*
+
+| Route Path | Function Name | Methods | Description |
+|:---|:---|:---|:---|
+| `/platform-admin/login` | `login` | GET, POST | Super Admin login |
+| `/platform-admin/dashboard` | `dashboard` | GET | Platform analytics dashboard |
+| `/platform-admin/tenants` | `tenants_list` | GET | Tenant list and infrastructure status |
+| `/platform-admin/tenants/<tenant_id>` | `tenant_detail` | GET | Tenant configuration and Faculty account management |
+| `/platform-admin/dishes` | `global_dishes` | GET | Global dish catalog, duplicate candidates, trends, and audit log |
+| `/platform-admin/dishes/add` | `add_global_dish` | POST | Create a global dish |
+| `/platform-admin/dishes/<id>/edit` | `edit_global_dish` | POST | Edit global dish name/category |
+| `/platform-admin/dishes/<id>/archive` | `archive_global_dish` | POST | Archive or restore a global dish |
+| `/platform-admin/dishes/<id>/estimate` | `update_dish_estimate` | POST | Create or update the 30-person dish estimate |
+| `/platform-admin/dishes/merge/preview` | `preview_dish_merge` | POST | Preview a manual duplicate merge |
+| `/platform-admin/dishes/merge/confirm` | `confirm_dish_merge` | POST | Confirm manual merge and archive duplicate dishes |
+
+---
+
 ## Helper Functions Reference (`blueprints/utils.py`)
 *Critical internal logic used across routes:*
 *   `_get_current_user()`: Retrieves User object from session.

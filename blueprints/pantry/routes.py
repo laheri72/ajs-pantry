@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
-from models import User, Dish, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor
+from models import User, Dish, DishAuditLog, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -23,6 +23,69 @@ from app import db, cache
 def _clear_dashboard_cache(tenant_id, floor):
     """Helper to clear cached dashboard stats for a specific tenant and floor."""
     cache.delete_memoized(_get_dashboard_stats, tenant_id, floor)
+
+def _active_dish_query():
+    return Dish.query.filter(Dish.is_archived == False)
+
+def _find_global_dish_by_name(name, category=None):
+    normalized = normalize_dish_name(name)
+    if not normalized:
+        return None
+    query = _active_dish_query().filter(Dish.normalized_name == normalized)
+    if category == 'main':
+        query = query.filter(Dish.category.in_(['main', 'both']))
+    elif category == 'side':
+        query = query.filter(Dish.category.in_(['side', 'both']))
+    return query.order_by(Dish.id.asc()).first()
+
+def _log_dish_action(action, dish, user, description, details=None, target_dish_id=None):
+    db.session.add(DishAuditLog(
+        action=action,
+        dish_id=dish.id if dish else None,
+        target_dish_id=target_dish_id,
+        description=description,
+        details_json=details or {},
+        performed_by_id=user.id if user else None,
+        actor_tenant_id=getattr(g, 'tenant_id', None),
+    ))
+
+def _create_global_dish(name, category, user):
+    dish = Dish(
+        name=(name or '').strip(),
+        category=category,
+        created_by_id=user.id if user else None,
+        origin_tenant_id=getattr(g, 'tenant_id', None),
+    )
+    db.session.add(dish)
+    db.session.flush()
+    _log_dish_action(
+        'create',
+        dish,
+        user,
+        f'Created global dish "{dish.name}" from menu scheduling.',
+        {'category': category},
+    )
+    return dish
+
+def _estimate_payload_for(dish):
+    estimate = getattr(dish, 'estimate', None)
+    if not estimate:
+        return {
+            'available': False,
+            'serving_count': 30,
+            'summary': '',
+            'ingredients': [],
+            'tips': [],
+            'updated_at': None,
+        }
+    return {
+        'available': True,
+        'serving_count': estimate.serving_count or 30,
+        'summary': estimate.summary or '',
+        'ingredients': estimate.ingredients_json or [],
+        'tips': estimate.tips_json or [],
+        'updated_at': estimate.updated_at.isoformat() if estimate.updated_at else None,
+    }
 
 @cache.memoize(timeout=300) # 5-minute cache
 def _get_dashboard_stats(tenant_id, floor):
@@ -575,17 +638,18 @@ def bulk_schedule():
 
             new_dish_name = item.get('new_dish_name')
             
+            if dish_id and not _active_dish_query().filter_by(id=dish_id).first():
+                dish_id = None
+
             if not dish_id and not new_dish_name: continue 
 
             # Handle Main Dish creation
             if not dish_id and new_dish_name:
-                existing = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_dish_name.lower()).first()
+                existing = _find_global_dish_by_name(new_dish_name, category='main')
                 if existing:
                     dish_id = existing.id
                 else:
-                    new_dish = Dish(name=new_dish_name, category='main', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
-                    db.session.add(new_dish)
-                    db.session.flush()
+                    new_dish = _create_global_dish(new_dish_name, 'main', user)
                     dish_id = new_dish.id
 
             # Handle Side Dish creation
@@ -596,14 +660,14 @@ def bulk_schedule():
             else: side_dish_id = None if not side_dish_id else side_dish_id
 
             new_side_dish_name = item.get('new_side_dish_name')
+            if side_dish_id and not _active_dish_query().filter_by(id=side_dish_id).first():
+                side_dish_id = None
             if not side_dish_id and new_side_dish_name:
-                existing_side = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_side_dish_name.lower()).first()
+                existing_side = _find_global_dish_by_name(new_side_dish_name, category='side')
                 if existing_side:
                     side_dish_id = existing_side.id
                 else:
-                    new_side = Dish(name=new_side_dish_name, category='side', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
-                    db.session.add(new_side)
-                    db.session.flush()
+                    new_side = _create_global_dish(new_side_dish_name, 'side', user)
                     side_dish_id = new_side.id
 
             assigned_team_id = item.get('assigned_team_id')
@@ -642,8 +706,8 @@ def bulk_schedule():
                 members = tenant_filter(TeamMember.query).filter_by(team_id=assigned_team_id).all()
                 recipients.extend([m.user_id for m in members])
             
-            dish_obj = tenant_filter(Dish.query).filter_by(id=dish_id).first() if dish_id else None
-            side_obj = tenant_filter(Dish.query).filter_by(id=side_dish_id).first() if side_dish_id else None
+            dish_obj = Dish.query.filter_by(id=dish_id).first() if dish_id else None
+            side_obj = Dish.query.filter_by(id=side_dish_id).first() if side_dish_id else None
             dish_label = f"{dish_obj.name if dish_obj else menu.title}{' + ' + side_obj.name if side_obj else ''}"
 
             print(f"DEBUG: Found {len(recipients)} recipients for date {menu_date}")
@@ -1105,10 +1169,10 @@ def menus():
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
     floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
     
-    # Standardize on 'Dish' (singular) as per models.py
-    main_dishes = tenant_filter(Dish.query).filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
-    side_dishes = tenant_filter(Dish.query).filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
-    all_dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
+    # Dishes are global platform catalog entries; floor data remains tenant scoped.
+    main_dishes = _active_dish_query().filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    side_dishes = _active_dish_query().filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    all_dishes = _active_dish_query().order_by(func.lower(Dish.name).asc()).all()
 
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         try:
@@ -1136,15 +1200,16 @@ def menus():
             if not dish_id_val:
                 flash('Invalid dish selected', 'error')
                 return redirect(url_for('pantry.menus'))
-            dish = tenant_filter(Dish.query).filter_by(id=dish_id_val).first()
+            dish = _active_dish_query().filter_by(id=dish_id_val).first()
+            if not dish:
+                flash('Selected dish is no longer available', 'error')
+                return redirect(url_for('pantry.menus'))
         elif new_dish_name:
-            existing = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_dish_name.lower()).first()
+            existing = _find_global_dish_by_name(new_dish_name, category='main')
             if existing:
                 dish = existing
             else:
-                dish = Dish(name=new_dish_name, category='main', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
-                db.session.add(dish)
-                db.session.flush()
+                dish = _create_global_dish(new_dish_name, 'main', user)
         else:
             flash('Please select a main dish', 'error')
             return redirect(url_for('pantry.menus'))
@@ -1154,17 +1219,17 @@ def menus():
         new_side_dish_name = (request.form.get('new_side_dish_name') or '').strip()
 
         if new_side_dish_name:
-            existing_side = tenant_filter(Dish.query).filter(func.lower(Dish.name) == new_side_dish_name.lower()).first()
+            existing_side = _find_global_dish_by_name(new_side_dish_name, category='side')
             if existing_side:
                 side_dish_id = existing_side.id
             else:
-                side_dish = Dish(name=new_side_dish_name, category='side', created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
-                db.session.add(side_dish)
-                db.session.flush()
+                side_dish = _create_global_dish(new_side_dish_name, 'side', user)
                 side_dish_id = side_dish.id
         elif side_dish_id:
             try:
                 side_dish_id = int(side_dish_id)
+                if not _active_dish_query().filter_by(id=side_dish_id).first():
+                    side_dish_id = None
             except ValueError:
                 side_dish_id = None
 
@@ -1322,10 +1387,18 @@ def suggestions():
         return redirect(url_for('pantry.feedbacks') + '#suggestions')
 
     floor = _get_active_floor(user)
+    dish_id = request.form.get('dish_id') or None
+    if dish_id:
+        try:
+            dish_id_val = int(dish_id)
+        except (TypeError, ValueError):
+            dish_id_val = None
+        dish_id = dish_id_val if dish_id_val and _active_dish_query().filter_by(id=dish_id_val).first() else None
+
     suggestion = Suggestion(
         title=(request.form.get('title') or '').strip(),
         description=(request.form.get('description') or '').strip(),
-        dish_id=request.form.get('dish_id') or None,
+        dish_id=dish_id,
         user_id=user.id,
         floor=floor,
         tenant_id=getattr(g, 'tenant_id', None)
@@ -1350,6 +1423,9 @@ def get_dish_insights(dish_id):
         return jsonify({'error': 'Unauthorized'}), 401
     
     floor = _get_active_floor(user)
+    dish = Dish.query.filter_by(id=dish_id).first()
+    if not dish:
+        return jsonify({'error': 'Dish not found'}), 404
 
     # 1. Overall Avg Rating for this dish on this floor
     avg_rating = db.session.query(func.avg(Feedback.rating)).join(Menu).filter(
@@ -1385,7 +1461,8 @@ def get_dish_insights(dish_id):
     return jsonify({
         'avg_rating': round(float(avg_rating), 1),
         'champion': champion_name,
-        'suggestions': [s[0] for s in suggestions]
+        'suggestions': [s[0] for s in suggestions],
+        'estimate': _estimate_payload_for(dish),
     })
 
 @pantry_bp.route('/suggestions/<int:suggestion_id>/vote', methods=['POST'])
@@ -1452,6 +1529,12 @@ def feedbacks():
             title = (request.form.get('title') or '').strip()
             description = (request.form.get('description') or '').strip()
             dish_id = request.form.get('dish_id') or None
+            if dish_id:
+                try:
+                    dish_id_val = int(dish_id)
+                except (TypeError, ValueError):
+                    dish_id_val = None
+                dish_id = dish_id_val if dish_id_val and _active_dish_query().filter_by(id=dish_id_val).first() else None
 
             if not title or not description:
                 flash('Please provide both a title and description for your suggestion.', 'error')
@@ -1562,7 +1645,7 @@ def feedbacks():
         f.menu_id for f in tenant_filter(Feedback.query).filter_by(user_id=user.id).filter(Feedback.menu_id.isnot(None)).all()
     }
 
-    dishes = tenant_filter(Dish.query).order_by(func.lower(Dish.name).asc()).all()
+    dishes = _active_dish_query().order_by(func.lower(Dish.name).asc()).all()
     vote_count_subquery = (
         db.session.query(func.count(SuggestionVote.id))
         .filter(SuggestionVote.suggestion_id == Suggestion.id)

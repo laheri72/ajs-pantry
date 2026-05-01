@@ -162,6 +162,9 @@
             <a class="nav-link {% if request.endpoint == 'super_admin.tenants_list' or 'tenants' in request.path %}active{% endif %}" href="{{ url_for('super_admin.tenants_list') }}">
                 <i class="fas fa-server"></i> Infrastructure
             </a>
+            <a class="nav-link {% if request.endpoint and request.endpoint.startswith('super_admin.') and 'dishes' in request.path %}active{% endif %}" href="{{ url_for('super_admin.global_dishes') }}">
+                <i class="fas fa-utensils"></i> Global Dishes
+            </a>
             <!-- Removed placeholder features -->
             
             <div class="mt-auto mb-4 px-4">
