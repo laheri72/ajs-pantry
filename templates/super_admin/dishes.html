@@ -299,7 +299,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-muted">INGREDIENTS</label>
-                            <textarea name="ingredients_text" class="form-control" rows="8">{% if dish.estimate and dish.estimate.ingredients_json %}{% for item in dish.estimate.ingredients_json %}{% if item is mapping %}{{ item.get('item', '') }}{% if item.get('quantity') %}: {{ item.get('quantity') }}{% endif %}{% else %}{{ item }}{% endif %}
+                            <textarea name="ingredients_text" class="form-control" rows="8">{% if dish.estimate and dish.estimate.ingredients_json %}{% for item in dish.estimate.ingredients_json %}{% if item is mapping %}{{ item.get('name', '') }}{% if item.get('qty') %} - {{ item.get('qty') }}{% if item.get('unit') %} {{ item.get('unit') }}{% endif %}{% endif %}{% else %}{{ item }}{% endif %}
 {% endfor %}{% endif %}</textarea>
                         </div>
                         <div class="col-md-6">
