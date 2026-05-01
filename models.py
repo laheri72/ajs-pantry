@@ -7,6 +7,10 @@ from sqlalchemy import event
 from sqlalchemy.orm import with_loader_criteria
 from flask import g
 
+def normalize_dish_name(name):
+    """Return the minimal global-catalog key used for exact duplicate detection."""
+    return " ".join((name or "").strip().lower().split())
+
 class RoleEnum(Enum):
     SUPER_ADMIN = 'super_admin'
     ADMIN = 'admin'
@@ -54,14 +58,54 @@ class User(db.Model, TenantMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-class Dish(db.Model, TenantMixin):
+class Dish(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
+    normalized_name = db.Column(db.String(140), nullable=True, index=True)
     category = db.Column(db.String(20), default='main')  # main, side, both
+    is_archived = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    origin_tenant_id = db.Column(UUID(as_uuid=True), db.ForeignKey('tenants.id'), nullable=True, index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     created_by = db.relationship('User', foreign_keys=[created_by_id])
+    origin_tenant = db.relationship('Tenant', foreign_keys=[origin_tenant_id])
+    estimate = db.relationship('DishEstimate', back_populates='dish', uselist=False, cascade='all, delete-orphan')
+
+class DishEstimate(db.Model):
+    __tablename__ = 'dish_estimate'
+    id = db.Column(db.Integer, primary_key=True)
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=False, unique=True)
+    serving_count = db.Column(db.Integer, nullable=False, default=30)
+    summary = db.Column(db.Text, nullable=True)
+    ingredients_json = db.Column(db.JSON, nullable=True)
+    tips_json = db.Column(db.JSON, nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    updated_by_tenant_id = db.Column(UUID(as_uuid=True), db.ForeignKey('tenants.id'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    dish = db.relationship('Dish', back_populates='estimate')
+    updated_by = db.relationship('User', foreign_keys=[updated_by_id])
+    updated_by_tenant = db.relationship('Tenant', foreign_keys=[updated_by_tenant_id])
+
+class DishAuditLog(db.Model):
+    __tablename__ = 'dish_audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    action = db.Column(db.String(60), nullable=False, index=True)
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=True, index=True)
+    target_dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=True, index=True)
+    description = db.Column(db.Text, nullable=True)
+    details_json = db.Column(db.JSON, nullable=True)
+    performed_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    actor_tenant_id = db.Column(UUID(as_uuid=True), db.ForeignKey('tenants.id'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    dish = db.relationship('Dish', foreign_keys=[dish_id])
+    target_dish = db.relationship('Dish', foreign_keys=[target_dish_id])
+    performed_by = db.relationship('User', foreign_keys=[performed_by_id])
+    actor_tenant = db.relationship('Tenant', foreign_keys=[actor_tenant_id])
 
 class Menu(db.Model, TenantMixin):
     __table_args__ = (
@@ -456,6 +500,12 @@ class PushSubscription(db.Model, TenantMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', backref=db.backref('push_subscriptions', cascade='all, delete-orphan'))
+
+
+@event.listens_for(Dish, "before_insert")
+@event.listens_for(Dish, "before_update")
+def _set_dish_normalized_name(mapper, connection, target):
+    target.normalized_name = normalize_dish_name(target.name)
 
 
 @event.listens_for(db.session, "do_orm_execute")

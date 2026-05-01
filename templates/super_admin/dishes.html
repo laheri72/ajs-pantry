@@ -1,0 +1,321 @@
+{% extends "super_admin/base.html" %}
+
+{% block title %}Global Dishes - AJS Pantry{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-xl-row justify-content-between align-items-start align-items-xl-center mb-4 gap-3">
+    <div>
+        <h2 class="fw-bold mb-1">Global Dish Catalog</h2>
+        <p class="text-muted mb-0">Canonical dish names, estimates, duplicate review, and global dish audit history.</p>
+    </div>
+    <button class="btn btn-ceo shadow-sm" data-bs-toggle="modal" data-bs-target="#addDishModal">
+        <i class="fas fa-plus me-2"></i>Add Dish
+    </button>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-expert p-3 h-100">
+            <div class="small text-muted fw-bold text-uppercase">Active Dishes</div>
+            <div class="h3 fw-bold mb-0">{{ stats.active }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-expert p-3 h-100">
+            <div class="small text-muted fw-bold text-uppercase">With Estimates</div>
+            <div class="h3 fw-bold mb-0">{{ stats.with_estimates }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-expert p-3 h-100">
+            <div class="small text-muted fw-bold text-uppercase">Duplicate Groups</div>
+            <div class="h3 fw-bold mb-0">{{ stats.duplicate_groups }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-expert p-3 h-100">
+            <div class="small text-muted fw-bold text-uppercase">Archived</div>
+            <div class="h3 fw-bold mb-0">{{ stats.archived }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-expert p-3 p-md-4 mb-4">
+    <form method="GET" class="row g-3 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label small fw-bold text-muted">SEARCH</label>
+            <input type="search" name="q" class="form-control border-light bg-light" value="{{ filters.q }}" placeholder="Dish name or normalized key">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label small fw-bold text-muted">CATEGORY</label>
+            <select name="category" class="form-select border-light bg-light">
+                <option value="all" {% if filters.category == 'all' %}selected{% endif %}>All categories</option>
+                <option value="main" {% if filters.category == 'main' %}selected{% endif %}>Main</option>
+                <option value="side" {% if filters.category == 'side' %}selected{% endif %}>Side</option>
+                <option value="both" {% if filters.category == 'both' %}selected{% endif %}>Both</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label small fw-bold text-muted">STATUS</label>
+            <select name="status" class="form-select border-light bg-light">
+                <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active</option>
+                <option value="archived" {% if filters.status == 'archived' %}selected{% endif %}>Archived</option>
+                <option value="all" {% if filters.status == 'all' %}selected{% endif %}>All</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button class="btn btn-ceo">Apply</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="card card-expert">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="min-width: 980px;">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr>
+                            <th class="px-4 py-3">Dish</th>
+                            <th>Category</th>
+                            <th>Usage</th>
+                            <th>Estimate</th>
+                            <th>Status</th>
+                            <th class="text-end px-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dish in dishes %}
+                        {% set counts = reference_counts.get(dish.id, {}) %}
+                        {% set estimate = dish.estimate %}
+                        <tr>
+                            <td class="px-4 py-3">
+                                <div class="fw-bold text-dark">{{ dish.name }}</div>
+                                <div class="small text-muted">{{ dish.normalized_name or 'not normalized' }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ dish.category|title }}</span>
+                            </td>
+                            <td class="small">
+                                <div><strong>{{ counts.get('main_menus', 0) }}</strong> main menus</div>
+                                <div class="text-muted"><strong>{{ counts.get('side_menus', 0) }}</strong> side menus · <strong>{{ counts.get('suggestions', 0) }}</strong> suggestions</div>
+                            </td>
+                            <td>
+                                {% if estimate %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Ready for {{ estimate.serving_count or 30 }}</span>
+                                {% else %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">Missing</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if dish.is_archived %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">Archived</span>
+                                {% else %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Active</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end px-4">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-light fw-bold" data-bs-toggle="modal" data-bs-target="#editDish{{ dish.id }}">Edit</button>
+                                    <button type="button" class="btn btn-light fw-bold" data-bs-toggle="modal" data-bs-target="#estimateDish{{ dish.id }}">Estimate</button>
+                                    <form method="POST" action="{{ url_for('super_admin.archive_global_dish', dish_id=dish.id) }}">
+                                        <input type="hidden" name="archive" value="{{ '0' if dish.is_archived else '1' }}">
+                                        <button class="btn btn-light {{ 'text-success' if dish.is_archived else 'text-danger' }}" type="submit">
+                                            {{ 'Restore' if dish.is_archived else 'Archive' }}
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-5">No dishes match these filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if pagination and pagination.pages > 1 %}
+            <div class="p-3 border-top">
+                <nav>
+                    <ul class="pagination pagination-sm justify-content-center mb-0">
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('super_admin.global_dishes', page=pagination.prev_num, q=filters.q, category=filters.category, status=filters.status) if pagination.has_prev else '#' }}">Previous</a>
+                        </li>
+                        {% for page in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if page %}
+                            <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('super_admin.global_dishes', page=page, q=filters.q, category=filters.category, status=filters.status) }}">{{ page }}</a>
+                            </li>
+                            {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                            {% endif %}
+                        {% endfor %}
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('super_admin.global_dishes', page=pagination.next_num, q=filters.q, category=filters.category, status=filters.status) if pagination.has_next else '#' }}">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card card-expert p-3 p-md-4">
+            <h6 class="fw-bold mb-3"><i class="fas fa-chart-line me-2 text-primary"></i>Dish Usage Trend</h6>
+            <div class="list-group list-group-flush">
+                {% for row in usage_rows %}
+                <div class="list-group-item px-0 d-flex justify-content-between align-items-center border-0 border-bottom">
+                    <span class="fw-bold small">{{ row.name }}</span>
+                    <span class="badge bg-light text-dark">{{ row.menu_count }} menus</span>
+                </div>
+                {% else %}
+                <div class="text-muted small">No menu usage yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card card-expert p-3 p-md-4">
+            <h6 class="fw-bold mb-3"><i class="fas fa-code-branch me-2 text-warning"></i>Duplicate Candidates</h6>
+            {% for group in duplicate_groups %}
+            <form method="POST" action="{{ url_for('super_admin.preview_dish_merge') }}" class="border rounded-4 p-3 mb-3 bg-light">
+                <div class="small text-muted fw-bold mb-2">{{ group.normalized_name }}</div>
+                {% for dish in group.dishes %}
+                {% set counts = group.counts.get(dish.id, {}) %}
+                <label class="d-block bg-white rounded-3 border p-2 mb-2">
+                    <div class="d-flex gap-2">
+                        <input class="form-check-input mt-1" type="radio" name="canonical_id" value="{{ dish.id }}" {% if loop.first %}checked{% endif %}>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold small">{{ dish.name }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">ID {{ dish.id }} · {{ counts.get('main_menus', 0) + counts.get('side_menus', 0) }} menus · {{ counts.get('suggestions', 0) }} suggestions</div>
+                        </div>
+                        <input class="form-check-input mt-1" type="checkbox" name="source_ids" value="{{ dish.id }}" checked>
+                    </div>
+                </label>
+                {% endfor %}
+                <button type="submit" class="btn btn-outline-warning btn-sm w-100 fw-bold">Preview Merge</button>
+            </form>
+            {% else %}
+            <div class="text-muted small">No exact duplicate candidates right now.</div>
+            {% endfor %}
+        </div>
+
+        <div class="card card-expert p-3 p-md-4">
+            <h6 class="fw-bold mb-3"><i class="fas fa-fingerprint me-2 text-secondary"></i>Dish Audit Log</h6>
+            <div class="list-group list-group-flush">
+                {% for log in audit_logs %}
+                <div class="list-group-item px-0 border-0 border-bottom">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span class="badge bg-light text-dark">{{ log.action.replace('_', ' ')|upper }}</span>
+                        <span class="text-muted" style="font-size: 0.75rem;">{{ log.created_at.strftime('%b %d %H:%M') if log.created_at else '' }}</span>
+                    </div>
+                    <div class="small mt-1">{{ log.description }}</div>
+                    <div class="text-muted" style="font-size: 0.75rem;">By {{ log.performed_by.username if log.performed_by else 'System' }}</div>
+                </div>
+                {% else %}
+                <div class="text-muted small">No dish-level changes logged yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addDishModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+            <form method="POST" action="{{ url_for('super_admin.add_global_dish') }}">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title fw-bold">Add Global Dish</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small fw-bold text-muted">DISH NAME</label>
+                    <input type="text" name="name" class="form-control mb-3" required>
+                    <label class="form-label small fw-bold text-muted">CATEGORY</label>
+                    <select name="category" class="form-select">
+                        <option value="main">Main</option>
+                        <option value="side">Side</option>
+                        <option value="both">Both</option>
+                    </select>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-ceo">Create Dish</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% for dish in dishes %}
+<div class="modal fade" id="editDish{{ dish.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+            <form method="POST" action="{{ url_for('super_admin.edit_global_dish', dish_id=dish.id) }}">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title fw-bold">Edit Dish</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small fw-bold text-muted">DISH NAME</label>
+                    <input type="text" name="name" class="form-control mb-3" value="{{ dish.name }}" required>
+                    <label class="form-label small fw-bold text-muted">CATEGORY</label>
+                    <select name="category" class="form-select">
+                        <option value="main" {% if dish.category == 'main' %}selected{% endif %}>Main</option>
+                        <option value="side" {% if dish.category == 'side' %}selected{% endif %}>Side</option>
+                        <option value="both" {% if dish.category == 'both' %}selected{% endif %}>Both</option>
+                    </select>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-ceo">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="estimateDish{{ dish.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0">
+            <form method="POST" action="{{ url_for('super_admin.update_dish_estimate', dish_id=dish.id) }}">
+                <div class="modal-header border-0">
+                    <div>
+                        <h5 class="modal-title fw-bold">Estimate for {{ dish.name }}</h5>
+                        <div class="small text-muted">One ingredient per line. Use "Item: Quantity" for structured entries.</div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">SERVINGS</label>
+                            <input type="number" name="serving_count" class="form-control" value="{{ dish.estimate.serving_count if dish.estimate else 30 }}" min="1" max="1000">
+                        </div>
+                        <div class="col-md-9">
+                            <label class="form-label small fw-bold text-muted">SUMMARY</label>
+                            <input type="text" name="summary" class="form-control" value="{{ dish.estimate.summary if dish.estimate else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">INGREDIENTS</label>
+                            <textarea name="ingredients_text" class="form-control" rows="8">{% if dish.estimate and dish.estimate.ingredients_json %}{% for item in dish.estimate.ingredients_json %}{% if item is mapping %}{{ item.get('item', '') }}{% if item.get('quantity') %}: {{ item.get('quantity') }}{% endif %}{% else %}{{ item }}{% endif %}
+{% endfor %}{% endif %}</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">TIPS</label>
+                            <textarea name="tips_text" class="form-control" rows="8">{% if dish.estimate and dish.estimate.tips_json %}{% for tip in dish.estimate.tips_json %}{{ tip }}
+{% endfor %}{% endif %}</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-ceo">Save Estimate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

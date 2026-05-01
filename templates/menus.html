@@ -325,6 +325,28 @@
                             </div>
                         </div>
 
+                        <div class="col-12">
+                            <div id="dishEstimateWrap" class="d-none rounded-3 border bg-light p-3">
+                                <div class="d-flex flex-column flex-md-row justify-content-between gap-2 mb-2">
+                                    <div>
+                                        <div class="small fw-bold text-muted text-uppercase">Estimate for <span id="estimateServingCount">30</span> people</div>
+                                        <div id="estimateSummary" class="small text-dark mt-1"></div>
+                                    </div>
+                                    <span id="estimateStatus" class="badge bg-warning text-dark align-self-start">Not added yet</span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="small fw-bold text-muted mb-1">Ingredients</div>
+                                        <ul id="estimateIngredients" class="small mb-0 ps-3"></ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="small fw-bold text-muted mb-1">Cooking Notes</div>
+                                        <ul id="estimateTips" class="small mb-0 ps-3"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Hidden but present for legacy support -->
                         <input type="hidden" name="meal_type" value="breakfast">
 
@@ -661,10 +683,71 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function renderTextList(listEl, items, emptyText, formatter) {
+        listEl.innerHTML = '';
+        const safeItems = Array.isArray(items) ? items : [];
+        if (safeItems.length === 0) {
+            const li = document.createElement('li');
+            li.className = 'text-muted';
+            li.textContent = emptyText;
+            listEl.appendChild(li);
+            return;
+        }
+        safeItems.forEach(item => {
+            const li = document.createElement('li');
+            li.textContent = formatter(item);
+            listEl.appendChild(li);
+        });
+    }
+
+    function renderEstimateBox(estimate) {
+        const estimateWrap = document.getElementById('dishEstimateWrap');
+        const servingEl = document.getElementById('estimateServingCount');
+        const summaryEl = document.getElementById('estimateSummary');
+        const statusEl = document.getElementById('estimateStatus');
+        const ingredientsEl = document.getElementById('estimateIngredients');
+        const tipsEl = document.getElementById('estimateTips');
+
+        if (!estimateWrap || !estimate) return;
+        estimateWrap.classList.remove('d-none');
+        servingEl.textContent = estimate.serving_count || 30;
+
+        if (estimate.available) {
+            statusEl.className = 'badge bg-success align-self-start';
+            statusEl.textContent = 'Available';
+            summaryEl.textContent = estimate.summary || 'Basic estimate saved for this dish.';
+        } else {
+            statusEl.className = 'badge bg-warning text-dark align-self-start';
+            statusEl.textContent = 'Not added yet';
+            summaryEl.textContent = 'No estimate for this dish yet.';
+        }
+
+        renderTextList(
+            ingredientsEl,
+            estimate.ingredients,
+            'No ingredients added yet.',
+            item => {
+                if (item && typeof item === 'object') {
+                    const name = item.item || item.name || '';
+                    const quantity = item.quantity || '';
+                    return quantity ? `${name}: ${quantity}` : name;
+                }
+                return String(item || '');
+            }
+        );
+        renderTextList(
+            tipsEl,
+            estimate.tips,
+            'No cooking notes added yet.',
+            item => String(item || '')
+        );
+    }
+
     if (dishSelect) {
         dishSelect.addEventListener('change', function() {
             const dishId = this.value;
             const wrap = document.getElementById('dishInsightsWrap');
+            const estimateWrap = document.getElementById('dishEstimateWrap');
             const ratingEl = document.getElementById('insightRating');
             const championEl = document.getElementById('insightChampion');
             const suggestionsEl = document.getElementById('insightSuggestions');
@@ -672,6 +755,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!dishId) {
                 wrap.classList.add('d-none');
+                if (estimateWrap) estimateWrap.classList.add('d-none');
                 return;
             }
 
@@ -681,12 +765,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     wrap.classList.remove('d-none');
                     ratingEl.innerHTML = `${data.avg_rating || '0.0'} <i class="fas fa-star"></i>`;
                     championEl.innerText = `Champion: ${data.champion}`;
+                    renderEstimateBox(data.estimate);
                     
                     if (data.suggestions && data.suggestions.length > 0) {
                         const sList = data.suggestions.map(s => `- ${s}`).join('\n');
-                        suggestionsEl.innerHTML = '<ul class="ps-3 mb-0">' + 
-                            data.suggestions.map(s => `<li class="mb-1">${s}</li>`).join('') + 
-                            '</ul>';
+                        const ul = document.createElement('ul');
+                        ul.className = 'ps-3 mb-0';
+                        data.suggestions.forEach(s => {
+                            const li = document.createElement('li');
+                            li.className = 'mb-1';
+                            li.textContent = s;
+                            ul.appendChild(li);
+                        });
+                        suggestionsEl.innerHTML = '';
+                        suggestionsEl.appendChild(ul);
                         
                         document.getElementById('btnCopySuggestions').onclick = () => {
                             descField.value = (descField.value + "\n\nSuggestions to implement:\n" + sList).trim();

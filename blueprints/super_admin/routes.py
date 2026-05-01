@@ -1,10 +1,10 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, g
 from werkzeug.security import check_password_hash, generate_password_hash
 from app import db
-from models import User, Tenant, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow
+from models import User, Tenant, Dish, DishEstimate, DishAuditLog, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow, Suggestion, normalize_dish_name
 from . import super_admin_bp
 from ..utils import require_super_admin, visible_budget_condition
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import datetime, timedelta
 
 def log_platform_action(action, description):
@@ -15,6 +15,52 @@ def log_platform_action(action, description):
     )
     db.session.add(audit)
     db.session.commit()
+
+def _super_admin_user():
+    return User.query.get(session.get('user_id'))
+
+def _log_dish_audit(action, description, dish=None, details=None, target_dish=None):
+    user = _super_admin_user()
+    db.session.add(DishAuditLog(
+        action=action,
+        dish_id=dish.id if dish else None,
+        target_dish_id=target_dish.id if target_dish else None,
+        description=description,
+        details_json=details or {},
+        performed_by_id=user.id if user else None,
+        actor_tenant_id=user.tenant_id if user else None,
+    ))
+
+def _parse_ingredient_lines(raw_text):
+    items = []
+    for line in (raw_text or '').splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if ':' in line:
+            name, quantity = line.split(':', 1)
+            items.append({'item': name.strip(), 'quantity': quantity.strip()})
+        else:
+            items.append({'item': line, 'quantity': ''})
+    return items
+
+def _parse_tip_lines(raw_text):
+    return [line.strip() for line in (raw_text or '').splitlines() if line.strip()]
+
+def _dish_reference_counts(dish_ids):
+    if not dish_ids:
+        return {}
+    main_rows = db.session.query(Menu.dish_id, func.count(Menu.id)).filter(Menu.dish_id.in_(dish_ids)).group_by(Menu.dish_id).all()
+    side_rows = db.session.query(Menu.side_dish_id, func.count(Menu.id)).filter(Menu.side_dish_id.in_(dish_ids)).group_by(Menu.side_dish_id).all()
+    suggestion_rows = db.session.query(Suggestion.dish_id, func.count(Suggestion.id)).filter(Suggestion.dish_id.in_(dish_ids)).group_by(Suggestion.dish_id).all()
+    counts = {dish_id: {'main_menus': 0, 'side_menus': 0, 'suggestions': 0} for dish_id in dish_ids}
+    for dish_id, count in main_rows:
+        counts.setdefault(dish_id, {'main_menus': 0, 'side_menus': 0, 'suggestions': 0})['main_menus'] = count
+    for dish_id, count in side_rows:
+        counts.setdefault(dish_id, {'main_menus': 0, 'side_menus': 0, 'suggestions': 0})['side_menus'] = count
+    for dish_id, count in suggestion_rows:
+        counts.setdefault(dish_id, {'main_menus': 0, 'side_menus': 0, 'suggestions': 0})['suggestions'] = count
+    return counts
 
 @super_admin_bp.route('/platform-admin/login', methods=['GET', 'POST'])
 def login():
@@ -153,6 +199,284 @@ def dashboard():
                            stats=stats, 
                            audits=recent_audits,
                            at_risk=at_risk_tenants)
+
+@super_admin_bp.route('/platform-admin/dishes')
+def global_dishes():
+    require_super_admin()
+
+    q = (request.args.get('q') or '').strip()
+    category = (request.args.get('category') or 'all').strip()
+    status = (request.args.get('status') or 'active').strip()
+    page = request.args.get('page', 1, type=int)
+
+    query = Dish.query
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(or_(func.lower(Dish.name).like(like), Dish.normalized_name.like(like)))
+    if category in {'main', 'side', 'both'}:
+        query = query.filter(Dish.category == category)
+    if status == 'active':
+        query = query.filter(Dish.is_archived == False)
+    elif status == 'archived':
+        query = query.filter(Dish.is_archived == True)
+
+    dishes_pagination = query.order_by(Dish.is_archived.asc(), func.lower(Dish.name).asc()).paginate(
+        page=page,
+        per_page=40,
+        error_out=False,
+    )
+    dishes = dishes_pagination.items
+    dish_ids = [dish.id for dish in dishes]
+    reference_counts = _dish_reference_counts(dish_ids)
+
+    duplicate_rows = (
+        db.session.query(Dish.normalized_name, func.count(Dish.id).label('dish_count'))
+        .filter(Dish.is_archived == False, Dish.normalized_name.isnot(None), Dish.normalized_name != '')
+        .group_by(Dish.normalized_name)
+        .having(func.count(Dish.id) > 1)
+        .order_by(func.count(Dish.id).desc(), Dish.normalized_name.asc())
+        .limit(20)
+        .all()
+    )
+    duplicate_groups = []
+    for normalized_name, dish_count in duplicate_rows:
+        group_dishes = (
+            Dish.query
+            .filter(Dish.is_archived == False, Dish.normalized_name == normalized_name)
+            .order_by(Dish.id.asc())
+            .all()
+        )
+        group_counts = _dish_reference_counts([dish.id for dish in group_dishes])
+        duplicate_groups.append({
+            'normalized_name': normalized_name,
+            'dish_count': dish_count,
+            'dishes': group_dishes,
+            'counts': group_counts,
+        })
+
+    usage_rows = (
+        db.session.query(Dish.id, Dish.name, func.count(Menu.id).label('menu_count'))
+        .outerjoin(Menu, or_(Menu.dish_id == Dish.id, Menu.side_dish_id == Dish.id))
+        .filter(Dish.is_archived == False)
+        .group_by(Dish.id, Dish.name)
+        .order_by(func.count(Menu.id).desc(), func.lower(Dish.name).asc())
+        .limit(8)
+        .all()
+    )
+
+    stats = {
+        'total': Dish.query.count(),
+        'active': Dish.query.filter(Dish.is_archived == False).count(),
+        'archived': Dish.query.filter(Dish.is_archived == True).count(),
+        'with_estimates': DishEstimate.query.count(),
+        'duplicate_groups': len(duplicate_rows),
+    }
+    audit_logs = DishAuditLog.query.order_by(DishAuditLog.created_at.desc()).limit(20).all()
+
+    return render_template(
+        'super_admin/dishes.html',
+        dishes=dishes,
+        pagination=dishes_pagination,
+        reference_counts=reference_counts,
+        duplicate_groups=duplicate_groups,
+        usage_rows=usage_rows,
+        stats=stats,
+        audit_logs=audit_logs,
+        filters={'q': q, 'category': category, 'status': status},
+    )
+
+@super_admin_bp.route('/platform-admin/dishes/add', methods=['POST'])
+def add_global_dish():
+    require_super_admin()
+    name = (request.form.get('name') or '').strip()
+    category = (request.form.get('category') or 'main').strip()
+    if category not in {'main', 'side', 'both'}:
+        category = 'main'
+    normalized_name = normalize_dish_name(name)
+
+    if not name or not normalized_name:
+        flash('Dish name is required.', 'error')
+        return redirect(url_for('super_admin.global_dishes'))
+
+    existing = Dish.query.filter(Dish.is_archived == False, Dish.normalized_name == normalized_name).first()
+    if existing:
+        flash(f'An active global dish named "{existing.name}" already exists.', 'error')
+        return redirect(url_for('super_admin.global_dishes', q=name))
+
+    user = _super_admin_user()
+    dish = Dish(name=name, category=category, normalized_name=normalized_name, created_by_id=user.id if user else None)
+    db.session.add(dish)
+    db.session.flush()
+    _log_dish_audit('create', f'Created global dish "{dish.name}".', dish=dish, details={'category': category})
+    db.session.commit()
+    flash('Global dish created.', 'success')
+    return redirect(url_for('super_admin.global_dishes', q=name))
+
+@super_admin_bp.route('/platform-admin/dishes/<int:dish_id>/edit', methods=['POST'])
+def edit_global_dish(dish_id):
+    require_super_admin()
+    dish = Dish.query.get_or_404(dish_id)
+    name = (request.form.get('name') or '').strip()
+    category = (request.form.get('category') or dish.category or 'main').strip()
+    if category not in {'main', 'side', 'both'}:
+        category = dish.category or 'main'
+    normalized_name = normalize_dish_name(name)
+
+    if not name or not normalized_name:
+        flash('Dish name is required.', 'error')
+        return redirect(url_for('super_admin.global_dishes'))
+
+    duplicate = (
+        Dish.query
+        .filter(Dish.id != dish.id, Dish.is_archived == False, Dish.normalized_name == normalized_name)
+        .first()
+    )
+    if duplicate and not dish.is_archived:
+        flash(f'Rename blocked because "{duplicate.name}" already uses that exact normalized name.', 'error')
+        return redirect(url_for('super_admin.global_dishes', q=name))
+
+    old_state = {'name': dish.name, 'category': dish.category, 'normalized_name': dish.normalized_name}
+    dish.name = name
+    dish.category = category
+    dish.normalized_name = normalized_name
+    _log_dish_audit('edit', f'Edited global dish "{dish.name}".', dish=dish, details={'before': old_state, 'after': {'name': name, 'category': category, 'normalized_name': normalized_name}})
+    db.session.commit()
+    flash('Global dish updated.', 'success')
+    return redirect(url_for('super_admin.global_dishes', q=name))
+
+@super_admin_bp.route('/platform-admin/dishes/<int:dish_id>/archive', methods=['POST'])
+def archive_global_dish(dish_id):
+    require_super_admin()
+    dish = Dish.query.get_or_404(dish_id)
+    archive = (request.form.get('archive') or '1') == '1'
+    dish.is_archived = archive
+    action = 'archive' if archive else 'unarchive'
+    _log_dish_audit(action, f'{"Archived" if archive else "Restored"} global dish "{dish.name}".', dish=dish)
+    db.session.commit()
+    flash('Dish archived.' if archive else 'Dish restored.', 'success')
+    return redirect(request.referrer or url_for('super_admin.global_dishes'))
+
+@super_admin_bp.route('/platform-admin/dishes/<int:dish_id>/estimate', methods=['POST'])
+def update_dish_estimate(dish_id):
+    require_super_admin()
+    dish = Dish.query.get_or_404(dish_id)
+    try:
+        serving_count = int(request.form.get('serving_count') or 30)
+    except ValueError:
+        serving_count = 30
+    serving_count = max(1, min(serving_count, 1000))
+
+    summary = (request.form.get('summary') or '').strip()
+    ingredients = _parse_ingredient_lines(request.form.get('ingredients_text'))
+    tips = _parse_tip_lines(request.form.get('tips_text'))
+    user = _super_admin_user()
+
+    estimate = dish.estimate
+    if not estimate:
+        estimate = DishEstimate(dish=dish)
+        db.session.add(estimate)
+
+    estimate.serving_count = serving_count
+    estimate.summary = summary
+    estimate.ingredients_json = ingredients
+    estimate.tips_json = tips
+    estimate.updated_by_id = user.id if user else None
+    estimate.updated_by_tenant_id = user.tenant_id if user else None
+    _log_dish_audit(
+        'estimate_update',
+        f'Updated estimate for "{dish.name}".',
+        dish=dish,
+        details={'serving_count': serving_count, 'ingredient_count': len(ingredients), 'tip_count': len(tips)},
+    )
+    db.session.commit()
+    flash('Dish estimate updated.', 'success')
+    return redirect(url_for('super_admin.global_dishes', q=dish.name))
+
+@super_admin_bp.route('/platform-admin/dishes/merge/preview', methods=['POST'])
+def preview_dish_merge():
+    require_super_admin()
+    try:
+        canonical_id = int(request.form.get('canonical_id') or 0)
+    except ValueError:
+        canonical_id = 0
+    source_ids = []
+    for raw_id in request.form.getlist('source_ids'):
+        try:
+            source_ids.append(int(raw_id))
+        except ValueError:
+            continue
+    source_ids = sorted({source_id for source_id in source_ids if source_id != canonical_id})
+
+    canonical = Dish.query.get(canonical_id)
+    sources = Dish.query.filter(Dish.id.in_(source_ids)).order_by(Dish.id.asc()).all() if source_ids else []
+    if not canonical or not sources:
+        flash('Choose one canonical dish and at least one duplicate to merge.', 'error')
+        return redirect(url_for('super_admin.global_dishes'))
+
+    counts = _dish_reference_counts([dish.id for dish in sources])
+    totals = {
+        'main_menus': sum(c['main_menus'] for c in counts.values()),
+        'side_menus': sum(c['side_menus'] for c in counts.values()),
+        'suggestions': sum(c['suggestions'] for c in counts.values()),
+    }
+    return render_template(
+        'super_admin/dish_merge_preview.html',
+        canonical=canonical,
+        sources=sources,
+        counts=counts,
+        totals=totals,
+    )
+
+@super_admin_bp.route('/platform-admin/dishes/merge/confirm', methods=['POST'])
+def confirm_dish_merge():
+    require_super_admin()
+    try:
+        canonical_id = int(request.form.get('canonical_id') or 0)
+    except ValueError:
+        canonical_id = 0
+    source_ids = []
+    for raw_id in request.form.getlist('source_ids'):
+        try:
+            source_ids.append(int(raw_id))
+        except ValueError:
+            continue
+    source_ids = sorted({source_id for source_id in source_ids if source_id != canonical_id})
+
+    canonical = Dish.query.get(canonical_id)
+    sources = Dish.query.filter(Dish.id.in_(source_ids)).order_by(Dish.id.asc()).all() if source_ids else []
+    if not canonical or not sources:
+        flash('Merge confirmation failed because the selected dishes were not found.', 'error')
+        return redirect(url_for('super_admin.global_dishes'))
+
+    main_count = Menu.query.filter(Menu.dish_id.in_(source_ids)).update({Menu.dish_id: canonical.id}, synchronize_session=False)
+    side_count = Menu.query.filter(Menu.side_dish_id.in_(source_ids)).update({Menu.side_dish_id: canonical.id}, synchronize_session=False)
+    suggestion_count = Suggestion.query.filter(Suggestion.dish_id.in_(source_ids)).update({Suggestion.dish_id: canonical.id}, synchronize_session=False)
+    canonical.is_archived = False
+
+    for source in sources:
+        source.is_archived = True
+        _log_dish_audit(
+            'merge',
+            f'Merged "{source.name}" into canonical dish "{canonical.name}".',
+            dish=source,
+            target_dish=canonical,
+            details={
+                'canonical_id': canonical.id,
+                'main_menus_updated': main_count,
+                'side_menus_updated': side_count,
+                'suggestions_updated': suggestion_count,
+            },
+        )
+
+    _log_dish_audit(
+        'merge_canonical',
+        f'Selected "{canonical.name}" as canonical dish for {len(sources)} duplicate(s).',
+        dish=canonical,
+        details={'source_ids': source_ids},
+    )
+    db.session.commit()
+    flash(f'Merge complete. Updated {main_count + side_count} menu references and {suggestion_count} suggestions.', 'success')
+    return redirect(url_for('super_admin.global_dishes', q=canonical.name))
 
 @super_admin_bp.route('/platform-admin/tenants')
 def tenants_list():
