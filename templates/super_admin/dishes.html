@@ -291,23 +291,72 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted">SERVINGS</label>
-                            <input type="number" name="serving_count" class="form-control" value="{{ dish.estimate.serving_count if dish.estimate else 30 }}" min="1" max="1000">
+                            <input type="number" name="serving_count" class="form-control estimate-serving" value="{{ dish.estimate.serving_count if dish.estimate else 30 }}" min="1" max="1000" data-dish-id="{{ dish.id }}">
                         </div>
                         <div class="col-md-9">
                             <label class="form-label small fw-bold text-muted">SUMMARY</label>
-                            <input type="text" name="summary" class="form-control" value="{{ dish.estimate.summary if dish.estimate else '' }}">
+                            <input type="text" name="summary" class="form-control estimate-summary" value="{{ dish.estimate.summary if dish.estimate else '' }}" data-dish-id="{{ dish.id }}">
                         </div>
+
+                        <!-- INGREDIENTS SECTION -->
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-muted">INGREDIENTS</label>
-                            <textarea name="ingredients_text" class="form-control" rows="8">{% if dish.estimate and dish.estimate.ingredients_json %}{% for item in dish.estimate.ingredients_json %}{% if item is mapping %}{{ item.get('name', '') }}{% if item.get('qty') %} - {{ item.get('qty') }}{% if item.get('unit') %} {{ item.get('unit') }}{% endif %}{% endif %}{% else %}{{ item }}{% endif %}
-{% endfor %}{% endif %}</textarea>
+                            <div class="estimate-ingredients-container" data-dish-id="{{ dish.id }}" style="max-height: 350px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.5rem;">
+                                {% if dish.estimate and dish.estimate.ingredients_json %}
+                                    {% for item in dish.estimate.ingredients_json %}
+                                    <div class="ingredient-row input-group input-group-sm mb-2" style="gap: 0.5rem;">
+                                        <input type="text" class="form-control ingredient-name" placeholder="Ingredient name" value="{{ item.get('name', '') if item is mapping else '' }}">
+                                        <input type="number" class="form-control ingredient-qty" placeholder="Qty" value="{{ item.get('qty', '') if item is mapping else '' }}" style="max-width: 80px;">
+                                        <select class="form-select ingredient-unit" style="max-width: 100px;">
+                                            <option value="">--Unit--</option>
+                                            <option value="pcs" {% if item.get('unit') == 'pcs' %}selected{% endif %}>pcs</option>
+                                            <option value="g" {% if item.get('unit') == 'g' %}selected{% endif %}>g</option>
+                                            <option value="kg" {% if item.get('unit') == 'kg' %}selected{% endif %}>kg</option>
+                                            <option value="ml" {% if item.get('unit') == 'ml' %}selected{% endif %}>ml</option>
+                                            <option value="ltr" {% if item.get('unit') == 'ltr' %}selected{% endif %}>ltr</option>
+                                            <option value="heads" {% if item.get('unit') == 'heads' %}selected{% endif %}>heads</option>
+                                            <option value="loaves" {% if item.get('unit') == 'loaves' %}selected{% endif %}>loaves</option>
+                                            <option value="sets" {% if item.get('unit') == 'sets' %}selected{% endif %}>sets</option>
+                                            <option value="tsp" {% if item.get('unit') == 'tsp' %}selected{% endif %}>tsp</option>
+                                            <option value="tbsp" {% if item.get('unit') == 'tbsp' %}selected{% endif %}>tbsp</option>
+                                            <option value="cups" {% if item.get('unit') == 'cups' %}selected{% endif %}>cups</option>
+                                        </select>
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-ingredient" title="Remove ingredient">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-ingredient-row" data-dish-id="{{ dish.id }}">
+                                <i class="fas fa-plus me-1"></i> Add Ingredient
+                            </button>
                         </div>
+
+                        <!-- TIPS SECTION -->
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted">TIPS</label>
-                            <textarea name="tips_text" class="form-control" rows="8">{% if dish.estimate and dish.estimate.tips_json %}{% for tip in dish.estimate.tips_json %}{{ tip }}
-{% endfor %}{% endif %}</textarea>
+                            <label class="form-label small fw-bold text-muted">COOKING TIPS</label>
+                            <div class="estimate-tips-container" data-dish-id="{{ dish.id }}" style="max-height: 350px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.5rem;">
+                                {% if dish.estimate and dish.estimate.tips_json %}
+                                    {% for tip in dish.estimate.tips_json %}
+                                    <div class="tip-row input-group input-group-sm mb-2">
+                                        <input type="text" class="form-control tip-text" placeholder="Cooking tip" value="{{ tip if tip is string else '' }}">
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-tip" title="Remove tip">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2 add-tip-row" data-dish-id="{{ dish.id }}">
+                                <i class="fas fa-plus me-1"></i> Add Tip
+                            </button>
                         </div>
                     </div>
+
+                    <!-- Hidden fields for structured submission -->
+                    <input type="hidden" class="ingredients-json" name="ingredients_json">
+                    <input type="hidden" class="tips-json" name="tips_json">
                 </div>
                 <div class="modal-footer border-0">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -318,4 +367,122 @@
     </div>
 </div>
 {% endfor %}
+
+<!-- Estimate Edit Modal Scripts -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add Ingredient Row
+    document.querySelectorAll('.add-ingredient-row').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const dishId = this.dataset.dishId;
+            const container = document.querySelector(`.estimate-ingredients-container[data-dish-id="${dishId}"]`);
+            const row = document.createElement('div');
+            row.className = 'ingredient-row input-group input-group-sm mb-2';
+            row.style.gap = '0.5rem';
+            row.innerHTML = `
+                <input type="text" class="form-control ingredient-name" placeholder="Ingredient name">
+                <input type="number" class="form-control ingredient-qty" placeholder="Qty" style="max-width: 80px;">
+                <select class="form-select ingredient-unit" style="max-width: 100px;">
+                    <option value="">--Unit--</option>
+                    <option value="pcs">pcs</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="ml">ml</option>
+                    <option value="ltr">ltr</option>
+                    <option value="heads">heads</option>
+                    <option value="loaves">loaves</option>
+                    <option value="sets">sets</option>
+                    <option value="tsp">tsp</option>
+                    <option value="tbsp">tbsp</option>
+                    <option value="cups">cups</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-ingredient" title="Remove ingredient">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            row.querySelector('.remove-ingredient').addEventListener('click', function(e) {
+                e.preventDefault();
+                row.remove();
+            });
+            container.appendChild(row);
+        });
+    });
+
+    // Remove Ingredient Row
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-ingredient')) {
+            e.preventDefault();
+            e.target.closest('.ingredient-row').remove();
+        }
+    });
+
+    // Add Tip Row
+    document.querySelectorAll('.add-tip-row').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const dishId = this.dataset.dishId;
+            const container = document.querySelector(`.estimate-tips-container[data-dish-id="${dishId}"]`);
+            const row = document.createElement('div');
+            row.className = 'tip-row input-group input-group-sm mb-2';
+            row.innerHTML = `
+                <input type="text" class="form-control tip-text" placeholder="Cooking tip">
+                <button type="button" class="btn btn-sm btn-outline-danger remove-tip" title="Remove tip">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            row.querySelector('.remove-tip').addEventListener('click', function(e) {
+                e.preventDefault();
+                row.remove();
+            });
+            container.appendChild(row);
+        });
+    });
+
+    // Remove Tip Row
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-tip')) {
+            e.preventDefault();
+            e.target.closest('.tip-row').remove();
+        }
+    });
+
+    // Serialize form data before submission
+    document.querySelectorAll('form[action*="update_dish_estimate"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const dishIdMatch = this.action.match(/\/(\d+)$/);
+            if (!dishIdMatch) return;
+            
+            const dishId = dishIdMatch[1];
+            const ingredientsContainer = document.querySelector(`.estimate-ingredients-container[data-dish-id="${dishId}"]`);
+            const tipsContainer = document.querySelector(`.estimate-tips-container[data-dish-id="${dishId}"]`);
+            
+            // Serialize ingredients
+            const ingredients = [];
+            if (ingredientsContainer) {
+                ingredientsContainer.querySelectorAll('.ingredient-row').forEach(row => {
+                    const name = row.querySelector('.ingredient-name').value.trim();
+                    const qty = row.querySelector('.ingredient-qty').value.trim();
+                    const unit = row.querySelector('.ingredient-unit').value.trim();
+                    
+                    if (name && qty) {
+                        ingredients.push({ name, qty: parseFloat(qty), unit: unit || '' });
+                    }
+                });
+            }
+            
+            // Serialize tips
+            const tips = [];
+            if (tipsContainer) {
+                tipsContainer.querySelectorAll('.tip-row').forEach(row => {
+                    const tip = row.querySelector('.tip-text').value.trim();
+                    if (tip) tips.push(tip);
+                });
+            }
+            
+            // Set hidden fields
+            this.querySelector('.ingredients-json').value = JSON.stringify(ingredients);
+            this.querySelector('.tips-json').value = JSON.stringify(tips);
+        });
+    });
+});
+</script>
 {% endblock %}

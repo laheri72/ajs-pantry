@@ -202,7 +202,15 @@ def dashboard():
 
 @super_admin_bp.route('/platform-admin/dishes')
 def global_dishes():
-    require_super_admin()
+    # Allow super_admins here; other roles should use the pantry menus flow.
+    user = _super_admin_user()
+    if not user:
+        abort(403)
+    if user.role != 'super_admin':
+        if user.role in {'admin', 'pantryHead'}:
+            flash('Use Menus to view and edit dish estimates.', 'success')
+            return redirect(url_for('pantry.menus'))
+        abort(403)
 
     q = (request.args.get('q') or '').strip()
     category = (request.args.get('category') or 'all').strip()
@@ -358,8 +366,20 @@ def archive_global_dish(dish_id):
 
 @super_admin_bp.route('/platform-admin/dishes/<int:dish_id>/estimate', methods=['POST'])
 def update_dish_estimate(dish_id):
-    require_super_admin()
+    """Allow both super_admin and pantryHead to update dish estimates."""
+    from app import db
+    import json
+    
+    user = _super_admin_user()
+    if not user:
+        abort(403)
+    
+    # Allow super_admin (tenant_id is None) OR pantryHead
+    if user.tenant_id is not None and user.role != 'pantryHead':
+        abort(403)
+    
     dish = Dish.query.get_or_404(dish_id)
+    
     try:
         serving_count = int(request.form.get('serving_count') or 30)
     except ValueError:
@@ -367,9 +387,28 @@ def update_dish_estimate(dish_id):
     serving_count = max(1, min(serving_count, 1000))
 
     summary = (request.form.get('summary') or '').strip()
-    ingredients = _parse_ingredient_lines(request.form.get('ingredients_text'))
-    tips = _parse_tip_lines(request.form.get('tips_text'))
-    user = _super_admin_user()
+    
+    # Parse ingredients from JSON or fallback to text format
+    ingredients = []
+    ingredients_json_str = request.form.get('ingredients_json', '[]')
+    try:
+        ingredients = json.loads(ingredients_json_str)
+        if not isinstance(ingredients, list):
+            ingredients = []
+    except (json.JSONDecodeError, ValueError):
+        # Fallback to old text format
+        ingredients = _parse_ingredient_lines(request.form.get('ingredients_text', ''))
+    
+    # Parse tips from JSON or fallback to text format
+    tips = []
+    tips_json_str = request.form.get('tips_json', '[]')
+    try:
+        tips = json.loads(tips_json_str)
+        if not isinstance(tips, list):
+            tips = []
+    except (json.JSONDecodeError, ValueError):
+        # Fallback to old text format
+        tips = _parse_tip_lines(request.form.get('tips_text', ''))
 
     estimate = dish.estimate
     if not estimate:
@@ -382,11 +421,17 @@ def update_dish_estimate(dish_id):
     estimate.tips_json = tips
     estimate.updated_by_id = user.id if user else None
     estimate.updated_by_tenant_id = user.tenant_id if user else None
+    
     _log_dish_audit(
         'estimate_update',
-        f'Updated estimate for "{dish.name}".',
+        f'Updated estimate for "{dish.name}".{"" if user.role == "super_admin" else " (Edited by Pantry Head)"}',
         dish=dish,
-        details={'serving_count': serving_count, 'ingredient_count': len(ingredients), 'tip_count': len(tips)},
+        details={
+            'serving_count': serving_count,
+            'ingredient_count': len(ingredients),
+            'tip_count': len(tips),
+            'edited_by_role': user.role,
+        },
     )
     db.session.commit()
     flash('Dish estimate updated.', 'success')

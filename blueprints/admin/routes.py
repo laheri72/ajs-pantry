@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, session, g
 from werkzeug.security import generate_password_hash
 from app import db
-from models import User, Team, TeamMember, Announcement, Garamat, Budget, ProcurementItem, Expense, Feedback, Menu, TeaTask, Request, Suggestion, Bill, FloorLendBorrow
+from models import User, Team, TeamMember, Announcement, Garamat, Budget, ProcurementItem, Expense, Feedback, Menu, TeaTask, Request, Suggestion, Bill, FloorLendBorrow, Dish
 from datetime import datetime, date
 from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError
