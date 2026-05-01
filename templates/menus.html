@@ -728,9 +728,13 @@ document.addEventListener('DOMContentLoaded', function () {
             'No ingredients added yet.',
             item => {
                 if (item && typeof item === 'object') {
-                    const name = item.item || item.name || '';
-                    const quantity = item.quantity || '';
-                    return quantity ? `${name}: ${quantity}` : name;
+                    const name = item.name || '';
+                    const qty = item.qty || item.quantity || '';
+                    const unit = item.unit || '';
+                    if (qty) {
+                        return unit ? `${name} - ${qty} ${unit}` : `${name} - ${qty}`;
+                    }
+                    return name;
                 }
                 return String(item || '');
             }
