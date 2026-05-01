@@ -332,7 +332,14 @@
                                         <div class="small fw-bold text-muted text-uppercase">Estimate for <span id="estimateServingCount">30</span> people</div>
                                         <div id="estimateSummary" class="small text-dark mt-1"></div>
                                     </div>
-                                    <span id="estimateStatus" class="badge bg-warning text-dark align-self-start">Not added yet</span>
+                                    <div class="d-flex align-items-start gap-2">
+                                        <span id="estimateStatus" class="badge bg-warning text-dark align-self-start">Not added yet</span>
+                                        {% if current_user.role in ['admin', 'pantryHead'] %}
+                                        <button type="button" id="btnEditEstimate" class="btn btn-sm btn-outline-primary" title="Edit estimate">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-md-6">
@@ -534,12 +541,285 @@
 </div>
 {% endif %}
 
+{% if current_user.role in ['admin', 'pantryHead'] %}
+<!-- Estimate Edit Modal (for menus) -->
+<div class="modal fade" id="menuEstimateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0">
+            <form method="POST" id="menuEstimateForm">
+                <div class="modal-header border-0 bg-light">
+                    <div>
+                        <h5 class="modal-title fw-bold" id="menuEstimateTitle">Estimate</h5>
+                        <small class="text-muted">Update ingredient quantities and cooking tips</small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted">SERVINGS</label>
+                            <input type="number" name="serving_count" id="menuEstimateServing" class="form-control estimate-serving" value="30" min="1" max="1000">
+                        </div>
+                        <div class="col-md-9">
+                            <label class="form-label small fw-bold text-muted">SUMMARY</label>
+                            <input type="text" name="summary" id="menuEstimateSummary" class="form-control estimate-summary" value="">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">INGREDIENTS</label>
+                            <div id="menuEstimateIngredients" class="estimate-ingredients-container" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.5rem;"></div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="menuAddIngredient">
+                                <i class="fas fa-plus me-1"></i> Add Ingredient
+                            </button>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">COOKING TIPS</label>
+                            <div id="menuEstimateTips" class="estimate-tips-container" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.5rem;"></div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="menuAddTip">
+                                <i class="fas fa-plus me-1"></i> Add Tip
+                            </button>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="menuIngredientsJson" name="ingredients_json">
+                    <input type="hidden" id="menuTipsJson" name="tips_json">
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-teal">Save Estimate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Keep the last fetched estimate for the selected dish
+    window.currentEstimate = null;
+    window.currentEstimateDishId = null;
+
+    // Called when the Edit button in the insights area is clicked
+    const editBtn = document.getElementById('btnEditEstimate');
+    if (editBtn) {
+        editBtn.addEventListener('click', function() {
+            // If we have currentEstimate and dishId, populate modal; otherwise fetch again
+            const dishId = window.currentEstimateDishId;
+            if (!dishId) return;
+
+            populateMenuEstimateModal(window.currentEstimate || {}, dishId);
+            const modalEl = document.getElementById('menuEstimateModal');
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        });
+    }
+
+    function makeIngredientRow(name, qty, unit) {
+        const row = document.createElement('div');
+        row.className = 'ingredient-row input-group input-group-sm mb-2';
+        row.style.gap = '0.5rem';
+        row.innerHTML = `
+            <input type="text" class="form-control ingredient-name" placeholder="Ingredient name" value="${name || ''}">
+            <input type="text" class="form-control ingredient-qty" placeholder="Qty" value="${qty || ''}" style="max-width: 110px;">
+            <select class="form-select ingredient-unit" style="max-width: 100px;">
+                <option value="">--Unit--</option>
+                <option value="pcs">pcs</option>
+                <option value="g">g</option>
+                <option value="kg">kg</option>
+                <option value="ml">ml</option>
+                <option value="ltr">ltr</option>
+                <option value="heads">heads</option>
+                <option value="loaves">loaves</option>
+                <option value="sets">sets</option>
+                <option value="tsp">tsp</option>
+                <option value="tbsp">tbsp</option>
+                <option value="cups">cups</option>
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-ingredient" title="Remove ingredient">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        // set selected unit if provided
+        if (unit) {
+            const sel = row.querySelector('.ingredient-unit');
+            sel.value = unit;
+        }
+        row.querySelector('.remove-ingredient').addEventListener('click', function(e) { e.preventDefault(); row.remove(); });
+        return row;
+    }
+
+    function makeTipRow(text) {
+        const row = document.createElement('div');
+        row.className = 'tip-row input-group input-group-sm mb-2';
+        row.innerHTML = `
+            <input type="text" class="form-control tip-text" placeholder="Cooking tip" value="${text || ''}">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-tip" title="Remove tip">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        row.querySelector('.remove-tip').addEventListener('click', function(e) { e.preventDefault(); row.remove(); });
+        return row;
+    }
+
+    // Add handlers for add buttons
+    const menuAddIngredient = document.getElementById('menuAddIngredient');
+    const menuAddTip = document.getElementById('menuAddTip');
+    if (menuAddIngredient) menuAddIngredient.addEventListener('click', () => document.getElementById('menuEstimateIngredients').appendChild(makeIngredientRow('', '', '')));
+    if (menuAddTip) menuAddTip.addEventListener('click', () => document.getElementById('menuEstimateTips').appendChild(makeTipRow('')));
+
+    // When form submits, serialize ingredients and tips
+    const menuForm = document.getElementById('menuEstimateForm');
+    if (menuForm) {
+        menuForm.addEventListener('submit', function(e) {
+            // set action to super_admin endpoint
+            const dishId = window.currentEstimateDishId;
+            if (!dishId) return;
+            this.action = `/platform-admin/dishes/${dishId}/estimate`;
+
+            const ingredients = [];
+            document.querySelectorAll('#menuEstimateIngredients .ingredient-row').forEach(row => {
+                const name = row.querySelector('.ingredient-name').value.trim();
+                const qty = row.querySelector('.ingredient-qty').value.trim();
+                const unit = row.querySelector('.ingredient-unit').value.trim();
+                if (name && qty) ingredients.push({ name, qty, unit: unit || '' });
+            });
+            const tips = [];
+            document.querySelectorAll('#menuEstimateTips .tip-row').forEach(row => {
+                const tip = row.querySelector('.tip-text').value.trim(); if (tip) tips.push(tip);
+            });
+
+            document.getElementById('menuIngredientsJson').value = JSON.stringify(ingredients);
+            document.getElementById('menuTipsJson').value = JSON.stringify(tips);
+        });
+    }
+
+    function parseMaybeJsonArray(value) {
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return [];
+            try {
+                const parsed = JSON.parse(trimmed);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (err) {
+                return [];
+            }
+        }
+        return [];
+    }
+
+    function getEstimateIngredients(estimate) {
+        return parseMaybeJsonArray(
+            estimate && (estimate.ingredients ?? estimate.ingredients_json ?? estimate.ingredientsJson)
+        );
+    }
+
+    function getEstimateTips(estimate) {
+        return parseMaybeJsonArray(
+            estimate && (estimate.tips ?? estimate.tips_json ?? estimate.tipsJson)
+        );
+    }
+
+    function splitQtyAndUnit(rawQty, fallbackUnit) {
+        const raw = rawQty == null ? '' : String(rawQty).trim();
+        let unit = (fallbackUnit || '').trim();
+        if (!raw) return { qty: '', unit };
+        if (unit) return { qty: raw, unit };
+
+        // Legacy payloads often store quantity as "2 kg"; split when possible.
+        const match = raw.match(/^([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z]+.*)?$/);
+        if (match) {
+            return {
+                qty: (match[1] || '').trim(),
+                unit: (match[2] || '').trim(),
+            };
+        }
+        return { qty: raw, unit };
+    }
+
+    // Helper to populate modal from estimate object
+    window.populateMenuEstimateModal = function(estimate, dishId) {
+        window.currentEstimate = estimate || {};
+        window.currentEstimateDishId = dishId || null;
+
+        document.getElementById('menuEstimateTitle').innerText = (window.currentEstimateDishName || 'Estimate');
+        document.getElementById('menuEstimateServing').value = estimate && estimate.serving_count ? estimate.serving_count : 30;
+        document.getElementById('menuEstimateSummary').value = estimate && estimate.summary ? estimate.summary : '';
+
+        const ingrWrap = document.getElementById('menuEstimateIngredients');
+        const tipsWrap = document.getElementById('menuEstimateTips');
+        ingrWrap.innerHTML = '';
+        tipsWrap.innerHTML = '';
+
+        const ingredients = getEstimateIngredients(estimate);
+        if (ingredients.length) {
+            ingredients.forEach(it => {
+                if (it && typeof it === 'object') {
+                    const name = it.name || it.item || it.ingredient || '';
+                    const rawQty = it.qty ?? it.quantity ?? it.qty_per ?? it.amount ?? '';
+                    const parsed = splitQtyAndUnit(rawQty, it.unit || it.uom || '');
+                    ingrWrap.appendChild(makeIngredientRow(name, parsed.qty, parsed.unit));
+                }
+            });
+        } else {
+            ingrWrap.appendChild(makeIngredientRow('', '', ''));
+        }
+
+        const tips = getEstimateTips(estimate);
+        if (tips.length) {
+            tips.forEach(t => {
+                if (typeof t === 'string') {
+                    tipsWrap.appendChild(makeTipRow(t));
+                } else if (t && typeof t === 'object') {
+                    tipsWrap.appendChild(makeTipRow(t.text || t.tip || ''));
+                }
+            });
+        } else {
+            tipsWrap.appendChild(makeTipRow(''));
+        }
+    };
+
+    // When dish insights are fetched elsewhere, store current estimate and dish id
+    const originalFetch = window.fetch;
+    // We will not override fetch globally; instead the existing handler sets window.currentEstimateDishId
+});
+</script>
+{% endif %}
+
 <style>
 .table-teal { background-color: var(--teal-primary) !important; }
 #bulkPlannerTable td { vertical-align: middle; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
+function parseMaybeJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return [];
+        try {
+            const parsed = JSON.parse(trimmed);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (err) {
+            return [];
+        }
+    }
+    return [];
+}
+
+function getEstimateIngredients(estimate) {
+    return parseMaybeJsonArray(
+        estimate && (estimate.ingredients ?? estimate.ingredients_json ?? estimate.ingredientsJson)
+    );
+}
+
+function getEstimateTips(estimate) {
+    return parseMaybeJsonArray(
+        estimate && (estimate.tips ?? estimate.tips_json ?? estimate.tipsJson)
+    );
+}
+
 function openAddMenuModal(dateStr) {
     const dateInput = document.getElementById('menuDateInput');
     if (dateInput) {
@@ -722,16 +1002,18 @@ document.addEventListener('DOMContentLoaded', function () {
             summaryEl.textContent = 'No estimate for this dish yet.';
         }
 
+        // Support multiple payload shapes for estimates.
+        const ingrList = getEstimateIngredients(estimate);
         renderTextList(
             ingredientsEl,
-            estimate.ingredients,
+            ingrList,
             'No ingredients added yet.',
             item => {
                 if (item && typeof item === 'object') {
-                    const name = item.name || '';
-                    const qty = item.qty || item.quantity || '';
+                    const name = item.name || item.item || '';
+                    const qty = item.qty ?? item.quantity ?? item.qty_per ?? '';
                     const unit = item.unit || '';
-                    if (qty) {
+                    if (qty !== '' && qty !== null && qty !== undefined) {
                         return unit ? `${name} - ${qty} ${unit}` : `${name} - ${qty}`;
                     }
                     return name;
@@ -739,11 +1021,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 return String(item || '');
             }
         );
+        const tipsList = getEstimateTips(estimate);
         renderTextList(
             tipsEl,
-            estimate.tips,
+            tipsList,
             'No cooking notes added yet.',
-            item => String(item || '')
+            item => {
+                if (typeof item === 'string') return item;
+                if (item && typeof item === 'object') return String(item.text || item.tip || '');
+                return String(item || '');
+            }
         );
     }
 
@@ -770,6 +1057,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     ratingEl.innerHTML = `${data.avg_rating || '0.0'} <i class="fas fa-star"></i>`;
                     championEl.innerText = `Champion: ${data.champion}`;
                     renderEstimateBox(data.estimate);
+                    // keep a reference for the edit modal
+                    window.currentEstimate = data.estimate || null;
+                    window.currentEstimateDishId = dishId;
+                    try {
+                        window.currentEstimateDishName = dishSelect.options[dishSelect.selectedIndex].text || '';
+                    } catch (e) {
+                        window.currentEstimateDishName = '';
+                    }
                     
                     if (data.suggestions && data.suggestions.length > 0) {
                         const sList = data.suggestions.map(s => `- ${s}`).join('\n');
