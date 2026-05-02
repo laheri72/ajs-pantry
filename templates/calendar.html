@@ -305,7 +305,7 @@ function showEventDetail(type, data) {
                 <div class="p-2 border rounded bg-white mb-3 d-flex align-items-center">
                     <div class="me-3 ps-2"><i class="fas fa-user-check text-teal fa-lg"></i></div>
                     <div>
-                        <label class="small text-muted d-block">Chef / Team Assigned</label>
+                        <label class="small text-muted d-block">Chef / Room Assigned</label>
                         <span class="fw-bold">${data.assigned_to_label || 'Unassigned'}</span>
                     </div>
                 </div>
@@ -336,7 +336,7 @@ function showEventDetail(type, data) {
                         <div class="p-2 border rounded bg-success-subtle border-success mb-3 d-flex align-items-center">
                             <div class="me-3 ps-2"><i class="fas fa-trophy text-success fa-lg"></i></div>
                             <div>
-                                <label class="small text-success d-block fw-bold">Champion Team</label>
+                                <label class="small text-success d-block fw-bold">Champion {{ TERM_TEAM }}</label>
                                 <span class="fw-bold text-dark">${insight.champion}</span>
                             </div>
                         </div>

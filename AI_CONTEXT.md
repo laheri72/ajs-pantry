@@ -349,3 +349,22 @@ Based on the codebase state and architecture audit, here's the suggested roadmap
 8. **PushSubscription normalization** — Add `device_id`, `last_active_at`, and periodic cleanup of dead tokens
 
 I'm now fully onboarded as your AI co-developer. In each future conversation within this project, reference specific files or features by name and I'll have the full context to assist effectively — whether that's generating new routes, debugging a migration, writing a new blueprint, or designing a new feature from scratch.
+
+---
+
+## 7. Terminology mapping
+
+The codebase uses "Team" internally (DB tables, model classes, Python variables, 
+JS IDs). Users see "Room" everywhere in the UI. This is intentional and managed 
+via `config/terms.py` + a Jinja2 context processor.
+
+| Internal (code)     | User-facing (UI)  |
+|---------------------|-------------------|
+| Team                | Room              |
+| TeamMember          | Member            |
+| team (DB table)     | room (UI label)   |
+| assignedTeamSelect  | "Assigned Room"   |
+| icon (DB column)    | Room No. / Label  |
+
+To change UI terminology: edit `config/terms.py` only.
+Do NOT rename model classes, DB tables, or JS identifiers.

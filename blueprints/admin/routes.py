@@ -1,3 +1,4 @@
+from config.terms import TERMS
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, session, g
 from werkzeug.security import generate_password_hash
 from app import db
@@ -633,18 +634,18 @@ def create_team():
     name = (request.form.get('name') or '').strip()
     icon = (request.form.get('icon') or '').strip() or None
     if not name:
-        flash('Team name is required', 'error')
+        flash(f"{TERMS['TEAM']} name is required", 'error')
         return redirect(url_for('pantry.people'))
 
     existing = tenant_filter(Team.query).filter_by(floor=floor, name=name).first()
     if existing:
-        flash('Team name already exists on this floor', 'error')
+        flash(f"{TERMS['TEAM']} name already exists on this floor", 'error')
         return redirect(url_for('pantry.people'))
 
     team = Team(name=name, icon=icon, floor=floor, created_by_id=user.id, tenant_id=getattr(g, 'tenant_id', None))
     db.session.add(team)
     db.session.commit()
-    flash('Team created', 'success')
+    flash(f"{TERMS['TEAM']} created", 'success')
     return redirect(url_for('pantry.people'))
 
 @admin_bp.route('/teams/<int:team_id>/update', methods=['POST'])
@@ -665,17 +666,17 @@ def update_team(team_id):
     name = (request.form.get('name') or '').strip()
     icon = (request.form.get('icon') or '').strip() or None
     if not name:
-        flash('Team name is required', 'error')
+        flash(f"{TERMS['TEAM']} name is required", 'error')
         return redirect(url_for('pantry.people'))
 
     if tenant_filter(Team.query).filter(Team.floor == team.floor, Team.name == name, Team.id != team.id).first():
-        flash('Team name already exists on this floor', 'error')
+        flash(f"{TERMS['TEAM']} name already exists on this floor", 'error')
         return redirect(url_for('pantry.people'))
 
     team.name = name
     team.icon = icon
     db.session.commit()
-    flash('Team updated', 'success')
+    flash(f"{TERMS['TEAM']} updated", 'success')
     return redirect(url_for('pantry.people'))
 
 @admin_bp.route('/teams/<int:team_id>/delete', methods=['POST'])
@@ -697,7 +698,7 @@ def delete_team(team_id):
     tenant_filter(Menu.query).filter_by(assigned_team_id=team.id).update({"assigned_team_id": None}, synchronize_session=False)
     db.session.delete(team)
     db.session.commit()
-    flash('Team deleted', 'success')
+    flash(f"{TERMS['TEAM']} deleted", 'success')
     return redirect(url_for('pantry.people'))
 
 @admin_bp.route('/teams/<int:team_id>/members/add', methods=['POST'])
@@ -727,12 +728,12 @@ def add_team_member(team_id):
         return redirect(url_for('pantry.people'))
 
     if tenant_filter(TeamMember.query).filter_by(team_id=team.id, user_id=member.id).first():
-        flash('User is already in this team', 'error')
+        flash(f"User is already in this {TERMS['TEAM'].lower()}", 'error')
         return redirect(url_for('pantry.people'))
 
     db.session.add(TeamMember(team_id=team.id, user_id=member.id, tenant_id=getattr(g, 'tenant_id', None)))
     db.session.commit()
-    flash('Member added to team', 'success')
+    flash(f"Member added to {TERMS['TEAM'].lower()}", 'success')
     return redirect(url_for('pantry.people'))
 
 @admin_bp.route('/teams/<int:team_id>/members/remove', methods=['POST'])

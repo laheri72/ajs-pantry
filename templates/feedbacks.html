@@ -266,7 +266,7 @@
                                 • {{ m.dish.name if m.dish else m.title }}
                                 • {{ m.meal_type.title() }}
                                 {% if m.assigned_team %}
-                                    • Team: {% if m.assigned_team.icon %}{{ m.assigned_team.icon }}{% endif %}{{ m.assigned_team.name }}
+                                    • {{ TERM_TEAM }}: {% if m.assigned_team.icon %}{{ m.assigned_team.icon }}{% endif %}{{ m.assigned_team.name }}
                                 {% elif m.assigned_to %}
                                     • {{ m.assigned_to.full_name or m.assigned_to.username or m.assigned_to.email }}
                                 {% endif %}
