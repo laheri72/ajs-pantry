@@ -12,7 +12,7 @@ Jinja2==3.1.6
 Mako==1.3.10
 MarkupSafe==3.0.3
 packaging==26.0
-psycopg2==2.9.10
+psycopg2-binary==2.9.10
 python-dotenv==1.2.1
 SQLAlchemy==2.0.46
 typing_extensions==4.15.0
@@ -26,3 +26,4 @@ redis
 rq
 Flask-Caching
 requests
+openpyxl

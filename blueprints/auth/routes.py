@@ -12,6 +12,12 @@ from ..utils import (
     FLOOR_MAX
 )
 
+def _user_is_active(user):
+    return bool(user and getattr(user, 'is_active', True))
+
+def _initial_profile_name(user):
+    return (getattr(user, 'full_name', None) or getattr(user, 'username', None) or '').strip()
+
 @auth_bp.route('/')
 def index():
     if 'user_id' in session:
@@ -35,7 +41,9 @@ def login():
         
         user = User.query.filter_by(email=email, role=role).first()
             
-        if user and user.password_hash and check_password_hash(user.password_hash, password):
+        if user and not _user_is_active(user):
+            flash('This account is inactive. Please contact Faculty.', 'error')
+        elif user and user.password_hash and check_password_hash(user.password_hash, password):
             if _ensure_username_from_full_name(user, db.session):
                 db.session.commit()
             if user.is_first_login:
@@ -87,6 +95,10 @@ def staff_login():
                 flash('Admin password is not set. Reset it and try again.', 'error')
             return render_template('staff_login.html')
 
+        if not _user_is_active(user):
+            flash('This account is inactive. Please contact Faculty.', 'error')
+            return render_template('staff_login.html')
+
         if check_password_hash(user.password_hash, password):
             if _ensure_username_from_full_name(user, db.session):
                 db.session.commit()
@@ -115,6 +127,10 @@ def change_password():
     user = User.query.get(session['temp_user_id'])
     if not user:
         return redirect(url_for('auth.login'))
+    if not _user_is_active(user):
+        session.clear()
+        flash('This account is inactive. Please contact Faculty.', 'error')
+        return redirect(url_for('auth.login'))
         
     if request.method == 'POST':
         full_name = request.form.get('full_name')
@@ -123,7 +139,11 @@ def change_password():
         
         if new_password != confirm_password:
             flash('Passwords do not match', 'error')
-            return render_template('change_password.html')
+            return render_template(
+                'change_password.html',
+                user=user,
+                prefilled_name=(full_name or _initial_profile_name(user)),
+            )
             
         user.full_name = full_name
         _ensure_username_from_full_name(user, db.session)
@@ -144,7 +164,11 @@ def change_password():
             return redirect(url_for('faculty.dashboard'))
         return redirect(url_for('pantry.dashboard'))
         
-    return render_template('change_password.html')
+    return render_template(
+        'change_password.html',
+        user=user,
+        prefilled_name=_initial_profile_name(user),
+    )
 
 @auth_bp.route('/profile', methods=['GET', 'POST'])
 def profile():

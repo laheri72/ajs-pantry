@@ -1,12 +1,14 @@
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from io import BytesIO
 
 from flask import (
     abort,
     current_app,
     flash,
     g,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -14,25 +16,25 @@ from flask import (
     session,
     url_for,
 )
-from sqlalchemy import func
+from openpyxl import Workbook, load_workbook
+from sqlalchemy import bindparam, func, text
+from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import db
+from app import cache, db
 from models import (
     Bill,
     Budget,
-    Expense,
     ExpensePrintReport,
-    ExpensePrintReportBill,
     FacultyBudgetCycle,
     FacultyMessage,
     FacultyMessageFloor,
     FacultyReportSubmission,
     Feedback,
-    FloorLendBorrow,
     Menu,
-    ProcurementItem,
+    Suggestion,
+    SuggestionVote,
     User,
 )
 from . import faculty_bp
@@ -43,6 +45,8 @@ from ..utils import (
     _get_tenant_floor_options,
     current_tenant_faculty_workflow_enabled,
     faculty_workflow_enabled_for_user,
+    faculty_visible_users_query,
+    log_tenant_audit,
     _require_faculty,
     _require_user,
     send_email_notification,
@@ -67,6 +71,11 @@ def _faculty_auth_guard():
     if not user:
         session.clear()
         flash('Your Faculty session expired. Please sign in again.', 'error')
+        return redirect(url_for('faculty.login'))
+
+    if not getattr(user, 'is_active', True):
+        session.clear()
+        flash('This Faculty account is inactive. Please contact support.', 'error')
         return redirect(url_for('faculty.login'))
 
     if not faculty_workflow_enabled_for_user(user):
@@ -373,6 +382,243 @@ def _sync_submission_links(submission, selected_bills, selected_expenses):
         expense.report_submission_id = submission.id
 
 
+FACULTY_IMPORT_HEADERS = ['TR', 'Name', 'Floor']
+FACULTY_IMPORT_LIMIT = 500
+FACULTY_MANAGED_ROLES = {'member', 'pantryHead', 'teaManager'}
+
+
+def _clear_faculty_dashboard_cache(tenant_id=None):
+    cache.delete_memoized(_get_faculty_dashboard_stats, tenant_id or getattr(g, 'tenant_id', None))
+
+
+def _display_user_label(user):
+    return user.full_name or user.username or user.email or f'User {user.id}'
+
+
+def _global_existing_user_keys(tr_numbers, emails):
+    tr_numbers = [str(tr) for tr in tr_numbers if tr]
+    emails = [str(email) for email in emails if email]
+    if not tr_numbers and not emails:
+        return set(), set()
+
+    stmt = text(
+        'SELECT tr_number, email FROM "user" '
+        'WHERE tr_number IN :tr_numbers OR email IN :emails'
+    ).bindparams(
+        bindparam('tr_numbers', expanding=True),
+        bindparam('emails', expanding=True),
+    )
+    rows = db.session.execute(
+        stmt,
+        {
+            'tr_numbers': tr_numbers or ['__none__'],
+            'emails': emails or ['__none__'],
+        },
+    ).mappings()
+    existing_trs = set()
+    existing_emails = set()
+    for row in rows:
+        if row.get('tr_number'):
+            existing_trs.add(str(row['tr_number']))
+        if row.get('email'):
+            existing_emails.add(str(row['email']).lower())
+    return existing_trs, existing_emails
+
+
+def _normalize_tr(value):
+    if value is None:
+        return ''
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return str(value).strip()
+
+
+def _normalize_floor(value):
+    if value is None:
+        return None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _rows_from_workbook_upload(upload):
+    if not upload or not upload.filename:
+        return None, 'Please upload an Excel file.'
+    if not upload.filename.lower().endswith('.xlsx'):
+        return None, 'Only .xlsx files are supported.'
+
+    try:
+        workbook = load_workbook(upload, read_only=True, data_only=True)
+        sheet = workbook.active
+    except Exception:
+        return None, 'Unable to read the Excel file.'
+
+    headers = [
+        str(cell.value).strip() if cell.value is not None else ''
+        for cell in next(sheet.iter_rows(min_row=1, max_row=1), [])
+    ]
+    headers = headers[:len(FACULTY_IMPORT_HEADERS)]
+    if headers != FACULTY_IMPORT_HEADERS:
+        return None, 'Invalid headers. Use exactly: TR, Name, Floor.'
+
+    rows = []
+    for row_number, cells in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+        values = list(cells[:3])
+        if not any(value is not None and str(value).strip() for value in values):
+            continue
+        rows.append({
+            'row_number': row_number,
+            'tr': _normalize_tr(values[0] if len(values) > 0 else None),
+            'name': (str(values[1]).strip() if len(values) > 1 and values[1] is not None else ''),
+            'floor': _normalize_floor(values[2] if len(values) > 2 else None),
+        })
+
+    if not rows:
+        return None, 'The Excel file has no member rows.'
+    if len(rows) > FACULTY_IMPORT_LIMIT:
+        return None, f'Import limit is {FACULTY_IMPORT_LIMIT} rows per file.'
+    return rows, None
+
+
+def _rows_from_import_payload(payload_rows):
+    rows = []
+    for index, row in enumerate(payload_rows or [], start=2):
+        rows.append({
+            'row_number': row.get('row_number') or index,
+            'tr': _normalize_tr(row.get('tr') or row.get('TR')),
+            'name': (row.get('name') or row.get('Name') or '').strip(),
+            'floor': _normalize_floor(row.get('floor') or row.get('Floor')),
+        })
+    return rows
+
+
+def _validate_import_rows(rows):
+    from models import Tenant
+
+    tenant = Tenant.query.get(getattr(g, 'tenant_id', None))
+    floor_limit = tenant.floor_count if tenant and tenant.floor_count else 11
+    seen_trs = set()
+    tr_candidates = []
+    email_candidates = []
+
+    for row in rows:
+        tr = row['tr']
+        if tr:
+            tr_candidates.append(tr)
+            email_candidates.append(f'{tr}@jameasaifiyah.edu'.lower())
+
+    existing_trs, existing_emails = _global_existing_user_keys(tr_candidates, email_candidates)
+    valid_rows = []
+    invalid_rows = []
+
+    for row in rows:
+        errors = []
+        tr = row['tr']
+        email = f'{tr}@jameasaifiyah.edu'.lower() if tr else ''
+
+        if not re.fullmatch(r'\d{5}', tr or ''):
+            errors.append('TR must be exactly 5 digits.')
+        if tr in seen_trs:
+            errors.append('Duplicate TR in this file.')
+        if tr in existing_trs:
+            errors.append('TR already exists.')
+        if email and email in existing_emails:
+            errors.append('Generated email already exists.')
+        if row['floor'] is None:
+            errors.append('Floor must be a number.')
+        elif row['floor'] < 1 or row['floor'] > floor_limit:
+            errors.append(f'Floor must be between 1 and {floor_limit}.')
+
+        seen_trs.add(tr)
+        prepared = {
+            'row_number': row['row_number'],
+            'tr': tr,
+            'name': row['name'],
+            'floor': row['floor'],
+            'email': email,
+        }
+        if errors:
+            prepared['errors'] = errors
+            invalid_rows.append(prepared)
+        else:
+            valid_rows.append(prepared)
+
+    return {
+        'valid_rows': valid_rows,
+        'invalid_rows': invalid_rows,
+        'valid_count': len(valid_rows),
+        'invalid_count': len(invalid_rows),
+        'total_count': len(rows),
+    }
+
+
+@cache.memoize(timeout=300)
+def _get_faculty_dashboard_stats(tenant_id):
+    today = date.today()
+    week_end = today + timedelta(days=6)
+    first_of_month = date(today.year, today.month, 1)
+    if today.month == 12:
+        first_of_next_month = date(today.year + 1, 1, 1)
+    else:
+        first_of_next_month = date(today.year, today.month + 1, 1)
+
+    population_roles = ['member', 'pantryHead', 'teaManager']
+    user_filters = [
+        User.tenant_id == tenant_id,
+        User.is_active.is_(True),
+        User.role.in_(population_roles),
+    ]
+
+    active_members = db.session.query(func.count(User.id)).filter(
+        User.tenant_id == tenant_id,
+        User.is_active.is_(True),
+        User.role == 'member',
+    ).scalar() or 0
+    pantry_heads = db.session.query(func.count(User.id)).filter(
+        User.tenant_id == tenant_id,
+        User.is_active.is_(True),
+        User.role == 'pantryHead',
+    ).scalar() or 0
+    tea_managers = db.session.query(func.count(User.id)).filter(
+        User.tenant_id == tenant_id,
+        User.is_active.is_(True),
+        User.role == 'teaManager',
+    ).scalar() or 0
+    floor_counts = {
+        int(floor): int(count)
+        for floor, count in db.session.query(User.floor, func.count(User.id))
+        .filter(*user_filters, User.floor.isnot(None))
+        .group_by(User.floor)
+        .order_by(User.floor.asc())
+        .all()
+    }
+    planned_today = Menu.query.filter(Menu.tenant_id == tenant_id, Menu.date == today).count()
+    planned_week = Menu.query.filter(Menu.tenant_id == tenant_id, Menu.date >= today, Menu.date <= week_end).count()
+    planned_month = Menu.query.filter(
+        Menu.tenant_id == tenant_id,
+        Menu.date >= first_of_month,
+        Menu.date < first_of_next_month,
+    ).count()
+    avg_rating = db.session.query(func.avg(Feedback.rating)).filter(
+        Feedback.tenant_id == tenant_id,
+        Feedback.menu_id.isnot(None),
+    ).scalar() or 0
+
+    return {
+        'active_members': int(active_members),
+        'pantry_heads': int(pantry_heads),
+        'tea_managers': int(tea_managers),
+        'floor_counts': floor_counts,
+        'planned_today': int(planned_today),
+        'planned_week': int(planned_week),
+        'planned_month': int(planned_month),
+        'avg_rating': round(float(avg_rating), 1),
+    }
+
+
 @faculty_bp.route('/faculty/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -383,7 +629,7 @@ def login():
             email = f"{email}@jameasaifiyah.edu"
 
         user = User.query.filter_by(email=email, role='faculty').first()
-        if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
+        if not user or not getattr(user, 'is_active', True) or not user.password_hash or not check_password_hash(user.password_hash, password):
             flash('Invalid Faculty credentials', 'error')
             return render_template('faculty/login.html')
         if not faculty_workflow_enabled_for_user(user):
@@ -410,10 +656,15 @@ def login():
 def dashboard():
     user = _require_faculty()
     today = date.today()
+    tenant_id = getattr(g, 'tenant_id', None)
+    stats = _get_faculty_dashboard_stats(tenant_id)
     active_cycle = _current_active_cycle()
-    cycle_allocations = []
-    submissions_by_floor = {}
-
+    cycle_summary = {
+        'pending_submission_count': 0,
+        'verified_submission_count': 0,
+        'overdue_floors': 0,
+        'cycle_total_allocated': 0,
+    }
     if active_cycle:
         cycle_allocations = (
             tenant_filter(Budget.query)
@@ -421,66 +672,22 @@ def dashboard():
             .order_by(Budget.floor.asc())
             .all()
         )
-        submissions = (
-            tenant_filter(FacultyReportSubmission.query)
-            .filter_by(cycle_id=active_cycle.id)
-            .all()
-        )
+        submissions = tenant_filter(FacultyReportSubmission.query).filter_by(cycle_id=active_cycle.id).all()
         submissions_by_floor = {s.floor: s for s in submissions}
-
-    cycle_total_allocated = float(sum(float(b.amount_allocated) for b in cycle_allocations)) if cycle_allocations else 0
-
-    cycle_total_spent = 0
-    if active_cycle:
-        proc_spent = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
-            ProcurementItem.status == 'completed',
-            ProcurementItem.bill_id.isnot(None),
-            ProcurementItem.expense_recorded_at >= datetime.combine(active_cycle.start_date, datetime.min.time()),
-            ProcurementItem.expense_recorded_at <= datetime.combine(active_cycle.end_date, datetime.max.time()),
-        ).scalar() or 0
-        legacy_spent = tenant_filter(db.session.query(func.sum(Expense.amount))).filter(
-            Expense.date >= active_cycle.start_date,
-            Expense.date <= active_cycle.end_date,
-        ).scalar() or 0
-        cycle_total_spent = float(proc_spent) + float(legacy_spent)
-
-    cumulative_proc_spent = tenant_filter(db.session.query(func.sum(ProcurementItem.actual_cost))).filter(
-        ProcurementItem.status == 'completed',
-        ProcurementItem.bill_id.isnot(None),
-    ).scalar() or 0
-    cumulative_legacy_spent = tenant_filter(db.session.query(func.sum(Expense.amount))).scalar() or 0
-    cumulative_spending = float(cumulative_proc_spent) + float(cumulative_legacy_spent)
-
-    avg_rating = tenant_filter(db.session.query(func.avg(Feedback.rating))).scalar() or 0
-    first_of_month = date(today.year, today.month, 1)
-    total_verified_bills = (
-        tenant_filter(Bill.query)
-        .join(FacultyReportSubmission, Bill.report_submission_id == FacultyReportSubmission.id)
-        .filter(FacultyReportSubmission.status == 'verified')
-        .count()
-    )
-    menus_this_month = tenant_filter(Menu.query).filter(Menu.created_at >= first_of_month).count()
-    procurement_this_month = tenant_filter(ProcurementItem.query).filter(ProcurementItem.created_at >= first_of_month).count()
-    pending_borrowings = tenant_filter(FloorLendBorrow.query).filter(FloorLendBorrow.status == 'pending').count()
-
-    pending_submission_count = 0
-    verified_submission_count = 0
-    overdue_floors = 0
-    floor_rows = []
-    if active_cycle:
+        cycle_summary['cycle_total_allocated'] = float(sum(float(b.amount_allocated) for b in cycle_allocations))
         for allocation in cycle_allocations:
             submission = submissions_by_floor.get(allocation.floor)
             if submission and submission.status == 'verified':
-                verified_submission_count += 1
+                cycle_summary['verified_submission_count'] += 1
             else:
-                pending_submission_count += 1
+                cycle_summary['pending_submission_count'] += 1
                 if active_cycle.submission_deadline < today:
-                    overdue_floors += 1
-            floor_rows.append({
-                'floor': allocation.floor,
-                'allocation': allocation,
-                'submission': submission,
-            })
+                    cycle_summary['overdue_floors'] += 1
+
+    floor_rows = [
+        {'floor': floor, 'count': stats['floor_counts'].get(floor, 0)}
+        for floor in _get_tenant_floor_options(user)
+    ]
 
     cycles = (
         tenant_filter(FacultyBudgetCycle.query)
@@ -492,20 +699,272 @@ def dashboard():
     return render_template(
         'faculty/dashboard.html',
         current_user=user,
+        stats=stats,
         active_cycle=active_cycle,
-        cycle_total_allocated=cycle_total_allocated,
-        cycle_total_spent=cycle_total_spent,
-        pending_submission_count=pending_submission_count,
-        verified_submission_count=verified_submission_count,
-        overdue_floors=overdue_floors,
-        cumulative_spending=cumulative_spending,
-        avg_rating=round(float(avg_rating), 1),
-        total_verified_bills=total_verified_bills,
-        menus_this_month=menus_this_month,
-        procurement_this_month=procurement_this_month,
-        pending_borrowings=pending_borrowings,
+        cycle_summary=cycle_summary,
         floor_rows=floor_rows,
         cycles=cycles,
+        today=today,
+    )
+
+
+@faculty_bp.route('/faculty/members')
+def members():
+    user = _require_faculty()
+    users = (
+        faculty_visible_users_query()
+        .order_by(User.floor.asc(), User.role.asc(), User.tr_number.asc(), User.full_name.asc())
+        .all()
+    )
+    role_counts = {
+        'all': len(users),
+        'pantryHead': len([u for u in users if u.role == 'pantryHead']),
+        'teaManager': len([u for u in users if u.role == 'teaManager']),
+    }
+    return render_template(
+        'faculty/members.html',
+        current_user=user,
+        users=users,
+        role_counts=role_counts,
+        floor_options=_get_tenant_floor_options(user),
+    )
+
+
+@faculty_bp.route('/faculty/members/<int:user_id>/role', methods=['POST'])
+def update_member_role(user_id):
+    user = _require_faculty()
+    target = faculty_visible_users_query().filter(User.id == user_id).first_or_404()
+    if target.role in {'admin', 'super_admin', 'faculty'}:
+        abort(403)
+
+    new_role = (request.form.get('role') or '').strip()
+    if new_role not in FACULTY_MANAGED_ROLES:
+        flash('Invalid role selected.', 'error')
+        return redirect(url_for('faculty.members'))
+    if target.role == new_role:
+        flash('No role change was needed.', 'success')
+        return redirect(url_for('faculty.members'))
+
+    old_role = target.role
+    target.role = new_role
+    log_tenant_audit(
+        'faculty_role_change',
+        target_type='user',
+        target_id=target.id,
+        description=f'Changed {_display_user_label(target)} from {old_role} to {new_role}.',
+        details={'old_role': old_role, 'new_role': new_role, 'floor': target.floor},
+        actor_user=user,
+    )
+    db.session.commit()
+    _clear_faculty_dashboard_cache()
+    flash('Role updated successfully.', 'success')
+    return redirect(url_for('faculty.members'))
+
+
+@faculty_bp.route('/faculty/members/<int:user_id>/deactivate', methods=['POST'])
+def deactivate_member(user_id):
+    user = _require_faculty()
+    target = faculty_visible_users_query().filter(User.id == user_id).first_or_404()
+    if target.role in {'admin', 'super_admin', 'faculty'}:
+        abort(403)
+    if target.id == user.id:
+        abort(403)
+
+    target.is_active = False
+    log_tenant_audit(
+        'faculty_deactivate_user',
+        target_type='user',
+        target_id=target.id,
+        description=f'Deactivated {_display_user_label(target)}.',
+        details={'role': target.role, 'floor': target.floor, 'tr_number': target.tr_number},
+        actor_user=user,
+    )
+    db.session.commit()
+    _clear_faculty_dashboard_cache()
+    flash('User deactivated successfully.', 'success')
+    return redirect(url_for('faculty.members'))
+
+
+@faculty_bp.route('/faculty/import/template')
+def import_template():
+    _require_faculty()
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = 'Members'
+    sheet.append(FACULTY_IMPORT_HEADERS)
+    sheet.append(['25687', 'Example Member', 1])
+    for column, width in {'A': 14, 'B': 28, 'C': 12}.items():
+        sheet.column_dimensions[column].width = width
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'{_tenant_slug()}_faculty_import_template.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
+
+@faculty_bp.route('/faculty/import/validate', methods=['POST'])
+def validate_import():
+    _require_faculty()
+    rows, error = _rows_from_workbook_upload(request.files.get('file'))
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify(_validate_import_rows(rows))
+
+
+@faculty_bp.route('/faculty/import/commit', methods=['POST'])
+def commit_import():
+    user = _require_faculty()
+    payload = request.get_json(silent=True) or {}
+    rows = _rows_from_import_payload(payload.get('rows') or [])
+    if not rows:
+        return jsonify({'error': 'No valid rows were submitted.'}), 400
+    if len(rows) > FACULTY_IMPORT_LIMIT:
+        return jsonify({'error': f'Import limit is {FACULTY_IMPORT_LIMIT} rows per commit.'}), 400
+
+    report = _validate_import_rows(rows)
+    users_to_create = []
+    for row in report['valid_rows']:
+        users_to_create.append(User(
+            role='member',
+            floor=row['floor'],
+            tr_number=row['tr'],
+            full_name=row['name'] or None,
+            email=row['email'],
+            password_hash=generate_password_hash('maskan1447'),
+            is_first_login=True,
+            is_verified=False,
+            is_active=True,
+            tenant_id=getattr(g, 'tenant_id', None),
+        ))
+
+    imported_count = 0
+    if users_to_create:
+        try:
+            db.session.bulk_save_objects(users_to_create)
+            imported_count = len(users_to_create)
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({'error': 'One or more rows now conflict with an existing TR or email. Re-validate and try again.'}), 409
+
+    log_tenant_audit(
+        'faculty_bulk_import_users',
+        target_type='user',
+        description=f'Imported {imported_count} members from Faculty Excel import.',
+        details={
+            'imported_count': imported_count,
+            'skipped_count': report['invalid_count'],
+            'invalid_rows': report['invalid_rows'],
+        },
+        actor_user=user,
+    )
+    db.session.commit()
+    _clear_faculty_dashboard_cache()
+    return jsonify({
+        'imported_count': imported_count,
+        'skipped_count': report['invalid_count'],
+        'invalid_rows': report['invalid_rows'],
+    })
+
+
+@faculty_bp.route('/faculty/meal-insights')
+def meal_insights():
+    user = _require_faculty()
+    today = date.today()
+    upcoming_menus = (
+        tenant_filter(Menu.query)
+        .filter(Menu.date >= today)
+        .order_by(Menu.date.asc(), Menu.floor.asc(), Menu.meal_type.asc())
+        .limit(60)
+        .all()
+    )
+    historical_menus = (
+        tenant_filter(Menu.query)
+        .filter(Menu.date < today)
+        .order_by(Menu.date.desc(), Menu.floor.asc(), Menu.meal_type.asc())
+        .limit(160)
+        .all()
+    )
+
+    historical_menu_ids = [menu.id for menu in historical_menus]
+    feedback_map = {}
+    if historical_menu_ids:
+        feedback_map = {
+            menu_id: {'avg_rating': round(float(avg_rating or 0), 1), 'feedback_count': int(count)}
+            for menu_id, avg_rating, count in (
+                tenant_filter(db.session.query(
+                    Feedback.menu_id,
+                    func.avg(Feedback.rating),
+                    func.count(Feedback.id),
+                ))
+                .filter(Feedback.menu_id.in_(historical_menu_ids))
+                .group_by(Feedback.menu_id)
+                .all()
+            )
+        }
+
+    dish_ids = set()
+    for menu in upcoming_menus + historical_menus:
+        if menu.dish_id:
+            dish_ids.add(menu.dish_id)
+        if menu.side_dish_id:
+            dish_ids.add(menu.side_dish_id)
+
+    suggestion_map = {}
+    if dish_ids:
+        suggestion_map = {
+            dish_id: {'suggestion_count': int(suggestion_count), 'vote_count': int(vote_count)}
+            for dish_id, suggestion_count, vote_count in (
+                tenant_filter(db.session.query(
+                    Suggestion.dish_id,
+                    func.count(func.distinct(Suggestion.id)),
+                    func.count(SuggestionVote.id),
+                ))
+                .outerjoin(SuggestionVote, SuggestionVote.suggestion_id == Suggestion.id)
+                .filter(Suggestion.dish_id.in_(dish_ids))
+                .group_by(Suggestion.dish_id)
+                .all()
+            )
+        }
+
+    def _suggestion_totals(menu):
+        ids = {menu.dish_id, menu.side_dish_id}
+        ids.discard(None)
+        return {
+            'suggestion_count': sum(suggestion_map.get(dish_id, {}).get('suggestion_count', 0) for dish_id in ids),
+            'vote_count': sum(suggestion_map.get(dish_id, {}).get('vote_count', 0) for dish_id in ids),
+        }
+
+    history_rows = []
+    for menu in historical_menus:
+        feedback = feedback_map.get(menu.id, {'avg_rating': 0, 'feedback_count': 0})
+        suggestions = _suggestion_totals(menu)
+        history_rows.append({
+            'menu': menu,
+            'avg_rating': feedback['avg_rating'],
+            'feedback_count': feedback['feedback_count'],
+            'suggestion_count': suggestions['suggestion_count'],
+            'vote_count': suggestions['vote_count'],
+        })
+
+    upcoming_rows = []
+    for menu in upcoming_menus:
+        suggestions = _suggestion_totals(menu)
+        upcoming_rows.append({
+            'menu': menu,
+            'suggestion_count': suggestions['suggestion_count'],
+            'vote_count': suggestions['vote_count'],
+        })
+
+    return render_template(
+        'faculty/meal_insights.html',
+        current_user=user,
+        upcoming_rows=upcoming_rows,
+        history_rows=history_rows,
         today=today,
     )
 
