@@ -87,6 +87,39 @@ def _estimate_payload_for(dish):
         'updated_at': estimate.updated_at.isoformat() if estimate.updated_at else None,
     }
 
+
+def _menu_notification_candidates(floor, assigned_to_id=None, assigned_team_id=None):
+    recipients = []
+
+    if assigned_to_id:
+        user = tenant_filter(User.query).filter_by(id=assigned_to_id, floor=floor).first()
+        if user:
+            recipients.append(user)
+    elif assigned_team_id:
+        team_member_rows = (
+            tenant_filter(TeamMember.query)
+            .filter_by(team_id=assigned_team_id)
+            .all()
+        )
+        team_member_ids = [row.user_id for row in team_member_rows if row.user_id]
+        if team_member_ids:
+            recipients = (
+                tenant_filter(User.query)
+                .filter(User.id.in_(team_member_ids), User.floor == floor)
+                .order_by(User.full_name.asc(), User.username.asc(), User.id.asc())
+                .all()
+            )
+
+    unique_recipients = []
+    seen_ids = set()
+    for recipient in recipients:
+        if recipient.id in seen_ids:
+            continue
+        seen_ids.add(recipient.id)
+        unique_recipients.append(recipient)
+
+    return unique_recipients
+
 @cache.memoize(timeout=300) # 5-minute cache
 def _get_dashboard_stats(tenant_id, floor):
     """Heavy aggregate queries moved to a memoized function."""
@@ -1180,7 +1213,23 @@ def menus():
     floor = _get_active_floor(user)
     tenant_id = getattr(g, 'tenant_id', None)
     floor_users = tenant_filter(User.query).filter_by(floor=floor).all()
+    floor_user_directory = {}
+    for floor_user in floor_users:
+        floor_user_directory[str(floor_user.id)] = {
+            'id': floor_user.id,
+            'label': (floor_user.full_name or floor_user.username or floor_user.email or f'User {floor_user.id}').strip(),
+            'email': floor_user.email or '',
+        }
     floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
+    team_members_by_team_id = {}
+    team_memberships = (
+        tenant_filter(TeamMember.query)
+        .join(Team, TeamMember.team_id == Team.id)
+        .filter(Team.floor == floor)
+        .all()
+    )
+    for membership in team_memberships:
+        team_members_by_team_id.setdefault(membership.team_id, []).append(membership.user_id)
     
     # Dishes are global platform catalog entries; floor data remains tenant scoped.
     main_dishes = _active_dish_query().filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
@@ -1188,16 +1237,22 @@ def menus():
     all_dishes = _active_dish_query().order_by(func.lower(Dish.name).asc()).all()
 
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
+        expects_json = 'application/json' in (request.headers.get('Accept') or '').lower()
+
         try:
             menu_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
             meal_type = request.form.get('meal_type', 'breakfast')
         except Exception:
+            if expects_json:
+                return jsonify({'error': 'Invalid menu date or type'}), 400
             flash('Invalid menu date or type', 'error')
             return redirect(url_for('pantry.menus'))
 
         # Prevention: Check if this meal time is already scheduled for this date
         existing_meal = tenant_filter(Menu.query).filter_by(floor=floor, date=menu_date, meal_type=meal_type).first()
         if existing_meal:
+            if expects_json:
+                return jsonify({'error': f'A {meal_type} is already scheduled for {menu_date}.'}), 409
             flash(f'A {meal_type} is already scheduled for {menu_date}. Please edit or delete the existing one.', 'warning')
             return redirect(url_for('pantry.menus'))
 
@@ -1211,10 +1266,14 @@ def menus():
             except Exception:
                 dish_id_val = None
             if not dish_id_val:
+                if expects_json:
+                    return jsonify({'error': 'Invalid dish selected'}), 400
                 flash('Invalid dish selected', 'error')
                 return redirect(url_for('pantry.menus'))
             dish = _active_dish_query().filter_by(id=dish_id_val).first()
             if not dish:
+                if expects_json:
+                    return jsonify({'error': 'Selected dish is no longer available'}), 400
                 flash('Selected dish is no longer available', 'error')
                 return redirect(url_for('pantry.menus'))
         elif new_dish_name:
@@ -1224,6 +1283,8 @@ def menus():
             else:
                 dish = _create_global_dish(new_dish_name, 'main', user)
         else:
+            if expects_json:
+                return jsonify({'error': 'Please select a main dish'}), 400
             flash('Please select a main dish', 'error')
             return redirect(url_for('pantry.menus'))
 
@@ -1263,6 +1324,8 @@ def menus():
                 assigned_to_id = None
 
         if assigned_team_id and not tenant_filter(Team.query).filter_by(id=assigned_team_id, floor=floor).first():
+            if expects_json:
+                return jsonify({'error': 'Assigned team must be on your floor'}), 400
             flash('Assigned team must be on your floor', 'error')
             assigned_team_id = None
 
@@ -1270,6 +1333,8 @@ def menus():
             assigned_to_id = None
 
         if assigned_to_id and not tenant_filter(User.query).filter_by(id=assigned_to_id, floor=floor).first():
+            if expects_json:
+                return jsonify({'error': 'Assigned user must be on your floor'}), 400
             flash('Assigned user must be on your floor', 'error')
             assigned_to_id = None
 
@@ -1287,6 +1352,10 @@ def menus():
             assigned_to_id=assigned_to_id,
             assigned_team_id=assigned_team_id,
             floor=floor,
+            # Single-menu notifications are handled by the explicit UI pipeline
+            # (create without informing OR selected recipients via notify_single).
+            # Keep DB-triggered Supabase edge mails disabled here to avoid duplicates.
+            skip_notifications=True,
             created_by_id=user.id,
             tenant_id=tenant_id
         )
@@ -1294,7 +1363,40 @@ def menus():
         db.session.commit()
         _clear_dashboard_cache(tenant_id, floor)
 
-        if assigned_to_id:
+        notify_mode = (request.form.get('notify_mode') or 'legacy').strip()
+        recipients = _menu_notification_candidates(
+            floor=floor,
+            assigned_to_id=assigned_to_id,
+            assigned_team_id=assigned_team_id,
+        )
+
+        selected_notify_ids = []
+        for raw_user_id in request.form.getlist('notify_user_ids'):
+            try:
+                selected_notify_ids.append(int(raw_user_id))
+            except (TypeError, ValueError):
+                continue
+        if selected_notify_ids:
+            selected_id_set = set(selected_notify_ids)
+            recipients = [r for r in recipients if r.id in selected_id_set]
+
+        if expects_json:
+            recipient_payload = [
+                {
+                    'id': r.id,
+                    'name': (r.full_name or r.username or r.email or f'User {r.id}').strip(),
+                    'has_email': bool(r.email),
+                }
+                for r in recipients
+            ]
+            return jsonify({
+                'menu_id': menu.id,
+                'menu_label': menu_title,
+                'notify_mode': notify_mode,
+                'recipients': recipient_payload,
+            })
+
+        if notify_mode != 'none' and assigned_to_id:
             send_push_notification(
                 user_id=assigned_to_id,
                 title="New Menu Assignment",
@@ -1303,7 +1405,10 @@ def menus():
                 url="/menus"
             )
 
-        flash('Menu added successfully', 'success')
+        if notify_mode == 'none':
+            flash('Menu scheduled without sending notifications.', 'success')
+        else:
+            flash('Menu added successfully', 'success')
         return redirect(url_for('pantry.menus'))
 
     # Prepare Weekly View Data
@@ -1360,6 +1465,8 @@ def menus():
         is_next_week_planned=is_next_week_planned,
         floor_users=floor_users, 
         floor_teams=floor_teams, 
+        floor_user_directory=floor_user_directory,
+        team_members_by_team_id=team_members_by_team_id,
         main_dishes=main_dishes,
         side_dishes=side_dishes,
         dishes=all_dishes, 
@@ -1368,6 +1475,71 @@ def menus():
         week_offset=week_offset,
         active_floor=floor
     )
+
+
+@pantry_bp.route('/menus/<int:menu_id>/notify_single', methods=['POST'])
+def send_single_menu_notification(menu_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
+    menu = tenant_filter(Menu.query).filter_by(id=menu_id).first_or_404()
+    if user.role == 'pantryHead' and menu.floor != _get_active_floor(user):
+        return jsonify({'status': 'error', 'message': 'Forbidden'}), 403
+
+    data = request.get_json(silent=True) or {}
+    recipient_id = data.get('user_id')
+    try:
+        recipient_id = int(recipient_id)
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'user_id is required'}), 400
+
+    eligible_recipients = _menu_notification_candidates(
+        floor=menu.floor,
+        assigned_to_id=menu.assigned_to_id,
+        assigned_team_id=menu.assigned_team_id,
+    )
+    eligible_ids = {r.id for r in eligible_recipients}
+    if recipient_id not in eligible_ids:
+        return jsonify({'status': 'error', 'message': 'User is not eligible for this menu notification'}), 400
+
+    recipient = tenant_filter(User.query).filter_by(id=recipient_id, floor=menu.floor).first()
+    if not recipient:
+        return jsonify({'status': 'error', 'message': 'Recipient not found'}), 404
+
+    try:
+        meal_label = menu.dish.name if menu.dish else menu.title
+        if menu.side_dish:
+            meal_label = f"{meal_label} + {menu.side_dish.name}"
+        menu_date = menu.date.strftime('%d %b %Y') if menu.date else 'upcoming day'
+
+        send_push_notification(
+            user_id=recipient.id,
+            title='New Meal Schedule',
+            body=f"{meal_label} assigned for {menu_date}.",
+            icon='/static/icons/icon-192.png',
+            url='/menus',
+        )
+
+        if recipient.email:
+            tenant_name = getattr(g, 'tenant_name', 'Maskan')
+            email_subject = f"[{tenant_name}] Meal Assignment: {meal_label}"
+            email_html = f"""
+            <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">
+                <h2 style=\"color: #2c3e50;\">Meal Assignment</h2>
+                <p style=\"font-size: 15px; color: #333; margin-bottom: 8px;\"><strong>Meal:</strong> {meal_label}</p>
+                <p style=\"font-size: 15px; color: #333; margin-bottom: 8px;\"><strong>Date:</strong> {menu_date}</p>
+                <p style=\"white-space: pre-wrap; font-size: 14px; color: #555;\">{menu.description or 'Please check your pantry dashboard for details.'}</p>
+                <hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\">
+                <p style=\"font-size: 12px; color: #888;\">This is an automated message from your pantry scheduling system.</p>
+            </div>
+            """
+            send_email_notification(recipient.email, email_subject, email_html)
+            return jsonify({'status': 'success'})
+
+        return jsonify({'status': 'warning', 'message': 'Recipient has no email address'})
+    except Exception:
+        return jsonify({'status': 'error', 'message': 'Failed to dispatch notification'}), 500
 
 @pantry_bp.route('/menus/<int:menu_id>/delete', methods=['POST'])
 def delete_menu(menu_id):
