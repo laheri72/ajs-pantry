@@ -1524,14 +1524,120 @@ def send_single_menu_notification(menu_id):
         if recipient.email:
             tenant_name = getattr(g, 'tenant_name', 'Maskan')
             email_subject = f"[{tenant_name}] Meal Assignment: {meal_label}"
+            
+            # Fetch dish estimation for premium display
+            estimate_main = _estimate_payload_for(menu.dish) if menu.dish else None
+            
+            # Check if created by pantry head or admin for conditional instructions
+            creator = menu.created_by
+            is_created_by_pantry_head = creator and creator.role in ['pantryHead', 'admin']
+            creator_name = (creator.full_name or creator.username) if creator else 'Chef'
+            
+            # Build estimation section HTML (ingredients table + tips)
+            estimation_html = ""
+            if estimate_main and estimate_main.get('available'):
+                summary = estimate_main.get('summary', '').strip()
+                ingredients = estimate_main.get('ingredients', []) or []
+                tips = estimate_main.get('tips', []) or []
+                serving_count = estimate_main.get('serving_count', 30)
+                
+                # Build ingredients table
+                ingredients_table_html = ""
+                if ingredients:
+                    ingredients_rows = "".join([
+                        f"<tr><td style=\"padding: 10px; border-bottom: 1px solid #e8e8e8; color: #333; font-size: 14px;\">{ing.get('name', '').strip()}</td>"
+                        f"<td style=\"padding: 10px; border-bottom: 1px solid #e8e8e8; color: #333; text-align: center; font-size: 14px;\">{ing.get('qty', '')}</td>"
+                        f"<td style=\"padding: 10px; border-bottom: 1px solid #e8e8e8; color: #333; font-size: 14px;\">{ing.get('unit', '').strip()}</td></tr>"
+                        for ing in ingredients
+                    ])
+                    ingredients_table_html = f"""
+                    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; background-color: #fafbfc; border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden;">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">Ingredient</th>
+                                <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px;">Qty</th>
+                                <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>{ingredients_rows}</tbody>
+                    </table>
+                    <p style="font-size: 12px; color: #666; font-style: italic; margin: 8px 0; text-align: center;">Serves approximately {serving_count} people</p>
+                    """
+                
+                # Build tips section
+                tips_html = ""
+                if tips:
+                    tips_list = "".join([
+                        f"<li style=\"margin: 8px 0; color: #333; font-size: 14px; line-height: 1.5;\">{tip.strip()}</li>"
+                        for tip in tips
+                    ])
+                    tips_html = f"""
+                    <div style="margin: 20px 0;">
+                        <h4 style="color: #2c3e50; margin: 12px 0 15px 0; font-size: 15px; font-weight: 600;">💡 Cooking Tips</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #333;">{tips_list}</ul>
+                    </div>
+                    """
+                
+                # Combine estimation section
+                estimation_html = f"""
+                <div style="background-color: #f0f8ff; border-left: 4px solid #667eea; padding: 20px; margin: 25px 0; border-radius: 4px; border: 1px solid #d4e9f7;">
+                    <h3 style="color: #2c3e50; font-size: 18px; margin-top: 0; margin-bottom: 15px; font-weight: 600;">🍳 Dish Preparation Guide</h3>
+                    {f'<p style="color: #666; font-style: italic; margin-bottom: 20px; line-height: 1.6; font-size: 14px;">{summary}</p>' if summary else ''}
+                    {ingredients_table_html}
+                    {tips_html}
+                </div>
+                """
+            
+            # Build pantry-head instructions section (conditional)
+            pantry_head_section = ""
+            if is_created_by_pantry_head:
+                pantry_head_section = f"""
+                <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; border: 1px solid #ffeaa7;">
+                    <h3 style="color: #856404; margin-top: 0; margin-bottom: 10px; font-size: 15px; font-weight: 600;">👨‍🍳 Chef's Special Instructions</h3>
+                    <p style="color: #856404; font-size: 14px; margin: 8px 0; line-height: 1.5;">
+                        This meal has been thoughtfully prepared by <strong>{creator_name}</strong> from your pantry team. 
+                        Please refer to the preparation guide below for detailed ingredients and cooking tips.
+                    </p>
+                </div>
+                """
+            
+            # Build complete premium email HTML
             email_html = f"""
-            <div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">
-                <h2 style=\"color: #2c3e50;\">Meal Assignment</h2>
-                <p style=\"font-size: 15px; color: #333; margin-bottom: 8px;\"><strong>Meal:</strong> {meal_label}</p>
-                <p style=\"font-size: 15px; color: #333; margin-bottom: 8px;\"><strong>Date:</strong> {menu_date}</p>
-                <p style=\"white-space: pre-wrap; font-size: 14px; color: #555;\">{menu.description or 'Please check your pantry dashboard for details.'}</p>
-                <hr style=\"border: none; border-top: 1px solid #eee; margin: 20px 0;\">
-                <p style=\"font-size: 12px; color: #888;\">This is an automated message from your pantry scheduling system.</p>
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 0;">
+                <!-- Header with Gradient -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center; color: white;">
+                    <h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: 0.5px;">Your Next Meal Assignment</h1>
+                </div>
+                
+                <!-- Main Content -->
+                <div style="background-color: white; padding: 30px 20px; margin: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                    <!-- Meal Highlight -->
+                    <div style="background: linear-gradient(to right, #f0f4f8, #ffffff); border-left: 5px solid #667eea; padding: 20px; border-radius: 4px; margin-bottom: 25px;">
+                        <h2 style="color: #2c3e50; margin-top: 0; margin-bottom: 12px; font-size: 22px; font-weight: 600;">{meal_label}</h2>
+                        <p style="margin: 8px 0; font-size: 15px; color: #666;"><strong>📅 Date:</strong> {menu_date}</p>
+                        {f'<p style="margin: 8px 0; font-size: 14px; color: #666; line-height: 1.5;"><strong>📝 Description:</strong> {menu.description}</p>' if menu.description else ''}
+                    </div>
+                    
+                    {pantry_head_section}
+                    {estimation_html}
+                    
+                    <!-- Login Button (Prominent CTA) -->
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="https://140-245-12-63.sslip.io/login" style="display: inline-block; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 16px 50px; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(40, 167, 69, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(40, 167, 69, 0.3)';">
+                            ✓ View Full Details on Dashboard
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div style="background-color: #f5f5f5; padding: 20px; text-align: center; color: #888; font-size: 12px; line-height: 1.6;">
+                    <p style="margin: 8px 0;">
+                        This is an automated message from <strong>{tenant_name}</strong> pantry scheduling system.
+                    </p>
+                    <p style="margin: 8px 0; color: #aaa;">
+                        © 2026 Pantry Management. All rights reserved.
+                    </p>
+                </div>
             </div>
             """
             send_email_notification(recipient.email, email_subject, email_html)
