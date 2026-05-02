@@ -19,12 +19,19 @@ This file serves as a master index for all routes within the modularized AJS Pan
 ---
 
 ## 1A. Faculty Blueprint (`blueprints/faculty/routes.py`)
-*Faculty finance office: tenant-wide budget cycles, report review, and floor submissions.*
+*Faculty tenant-wide office: budget cycles, report review, member management/imports, meal insights, and floor submissions.*
 
 | Route Path | Function Name | Methods | Description |
 |:---|:---|:---|:---|
 | `/faculty/login` | `login` | GET, POST | Faculty portal login |
-| `/faculty/dashboard` | `dashboard` | GET | Faculty analytics and active cycle overview |
+| `/faculty/dashboard` | `dashboard` | GET | Cached Faculty overview for active users, roles, planned menus, and active cycle status |
+| `/faculty/members` | `members` | GET | Faculty member directory with search, floor, role filters, role actions, and Excel import modal |
+| `/faculty/members/<id>/role` | `update_member_role` | POST | Assign/demote `member`, `pantryHead`, or `teaManager` for active Faculty-visible users |
+| `/faculty/members/<id>/deactivate` | `deactivate_member` | POST | Soft-deactivate a Faculty-visible user with tenant audit logging |
+| `/faculty/import/template` | `import_template` | GET | Download Excel import template (`TR`, `Name`, `Floor`) |
+| `/faculty/import/validate` | `validate_import` | POST | Validate uploaded Excel file and return valid/invalid rows as JSON |
+| `/faculty/import/commit` | `commit_import` | POST | Bulk-create valid imported members with default password `maskan1447` |
+| `/faculty/meal-insights` | `meal_insights` | GET | Planned meal history/upcoming view with feedback ratings and suggestion/vote signals |
 | `/faculty/profile` | `profile` | GET, POST | Faculty profile and password management |
 | `/faculty/cycles` | `cycles` | GET, POST | Create/list budget cycles with per-floor allocations |
 | `/faculty/cycles/<id>` | `cycle_detail` | GET | Floor-wise cycle allocation and submission matrix |
@@ -38,6 +45,8 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/faculty/reports/<id>/download` | `download_report` | GET | Download the stored PDF from server storage |
 | `/reports` | `reports_page` | GET, POST | Floor-side upload page for Admin/Pantry Head report submissions |
 | `/reports/<id>/download` | `download_floor_submission` | GET | Floor-side download of the submitted PDF |
+| `/reports/adhoc/<id>/download` | `download_adhoc_report` | GET | Floor-side download of saved ad-hoc expense report PDF |
+| `/reports/adhoc/<id>/delete` | `delete_adhoc_report` | POST | Delete floor-side saved ad-hoc expense report PDF |
 
 ---
 
@@ -156,3 +165,5 @@ This file serves as a master index for all routes within the modularized AJS Pan
 *   `_get_active_floor(user)`: Determines which floor data to display.
 *   `_require_staff_for_floor(user)`: RBAC check for privileged ops.
 *   `_display_name_for(user)`: Generates consistent UI label for users.
+*   `faculty_visible_users_query()`: Canonical Faculty-visible user scope; excludes admin/super_admin and inactive users.
+*   `log_tenant_audit()`: Adds `TenantAuditLog` rows for tenant-scoped administrative mutations.

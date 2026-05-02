@@ -9,7 +9,7 @@ AJS Pantry is a **production-hardened, multi-tenant SaaS platform** for managing
 - **Meal scheduling** — smart rotation, bulk planning, dish library with performance insights
 - **Procurement** — shopping lists, assignments, bulk completion, receipt OCR scanning
 - **Finance** — bills, budget cycles, expense ledger, PDF print reports, Faculty oversight
-- **Faculty workflow** — a finance office role that allocates per-floor budgets, collects report PDFs, and verifies them
+- **Faculty workflow** — a tenant-wide office role that allocates per-floor budgets, collects report PDFs, verifies them, manages active non-admin users, imports members from Excel, and reviews meal reception
 - **Tea duty scheduling** — rotation assignment, conflict-aware auto-assignment
 - **Community tools** — announcements, special events, suggestions with voting, meal evaluations
 - **Inter-floor lending** — item tracking with lender/borrower verification flow
@@ -25,7 +25,7 @@ AJS Pantry is a **production-hardened, multi-tenant SaaS platform** for managing
 | Backend | Flask 3.1.x, Python 3.11+ |
 | ORM | Flask-SQLAlchemy + SQLAlchemy 2.0 |
 | Migrations | Flask-Migrate (Alembic) |
-| Database | PostgreSQL via Supabase (`psycopg2`) |
+| Database | PostgreSQL via Supabase (`psycopg2-binary`) |
 | Frontend | Jinja2, Bootstrap 5, Vanilla JS/CSS |
 | Background Jobs | RQ (Redis Queue) with sync fallback |
 | Caching | Flask-Caching (Redis → SimpleCache fallback) |
@@ -53,7 +53,7 @@ Tenant isolation is enforced **at the ORM layer** through a `do_orm_execute` lis
 ### Role Hierarchy
 ```
 super_admin  → Platform-wide (no tenant)
-faculty      → Tenant-wide finance office
+faculty      → Tenant-wide office: budget cycles, reports, member management, imports, meal insights
 admin        → All floors in a tenant
 pantryHead   → Single floor management
 teaManager   → Tea scheduling only
@@ -81,7 +81,7 @@ member       → Personal feed & feedback
 - Graceful Redis fallback to SimpleCache and sync task execution
 
 **Feature completeness:**
-- Faculty workflow is a full finance cycle system (allocate → submit → verify → close)
+- Faculty workflow is a full office system (budget allocate → submit → verify → close, plus member import/role management and meal insights)
 - Receipt OCR supports D-Mart, Blinkit, and a robust generic parser
 - Smart menu rotation with absence conflict detection
 - Bulk tea assignment with preview and confirmation flow
@@ -105,15 +105,15 @@ member       → Personal feed & feedback
 | No staging environment | Every deploy goes directly to production | Infrastructure |
 | No rate limiting | OCR, auth, and finance endpoints are exposed to DoS | `blueprints/finance/routes.py`, `blueprints/auth/routes.py` |
 | `PushSubscription` not normalized | Table will bloat with stale device tokens | `models.py` |
-| No soft deletes | Data lost permanently on user/bill deletion | Multiple blueprints |
+| Partial soft deletes only | `User.is_active` supports Faculty deactivation, but bills and other records still need soft-delete strategy | Multiple blueprints |
 
 ### Medium
 | Issue | Risk | Location |
 |---|---|---|
-| `pyproject.toml` missing `redis`, `rq`, `Flask-Caching`, `requests`, `Flask-Migrate` | Lock file drift between environments | `pyproject.toml` |
+| Dependency drift risk | Keep `requirements.txt`, `pyproject.toml`, and `uv.lock` in sync after package changes | Dependency files |
 | Dual logout timer (server 15min + JS inactivity) | Inconsistent UX on shared PCs | `app.py`, `static/script.js` |
 | `tea` rotation not automated | Manual assignment burden grows with scale | `blueprints/ops/routes.py` |
-| No tenant-level audit trail | No accountability for floor-level financial changes | Missing feature |
+| Tenant audit coverage is partial | `TenantAuditLog` records Faculty member mutations/imports; extend it to budget, bill, and finance mutations | `models.py`, `blueprints/utils.py` |
 
 ---
 
@@ -174,6 +174,34 @@ FacultyBudgetCycle (tenant-wide)
 **Storage path risk:** `FacultyReportSubmission.storage_path` currently stores absolute paths. If uploaded from local dev pointing at production DB, you get Windows paths in the DB. **Rule: only upload Faculty PDFs through the deployed Oracle app.** Future fix: store relative paths only.
 
 **Cycle delete cascade** (`_delete_cycle_related_data`): deletes Budget rows, FacultyReportSubmission rows (+ disk PDFs), ExpensePrintReport rows (+ bill links), then the cycle itself.
+
+**Faculty member management (May 2026):**
+- `/faculty/members` lists only active Faculty-visible users: `role NOT IN ('admin', 'super_admin')` and `is_active = true`
+- The canonical helper is `faculty_visible_users_query()` in `blueprints/utils.py`
+- Faculty can assign/demote only `member`, `pantryHead`, and `teaManager`
+- Faculty soft-deactivates users by setting `User.is_active = false`; historical records are preserved
+- Faculty cannot manage `admin`, `super_admin`, or other `faculty` accounts from this page
+
+**Excel onboarding (May 2026):**
+- Template route: `/faculty/import/template`
+- Validation route: `/faculty/import/validate`
+- Commit route: `/faculty/import/commit`
+- Excel headers must be exactly `TR`, `Name`, `Floor`
+- Backend uses `openpyxl`; frontend uses SheetJS only as optional pre-validation
+- TR and generated email remain globally unique; duplicate TR/email anywhere in the platform is rejected
+- New imported members use `email = f"{TR}@jameasaifiyah.edu"`, default password `maskan1447`, `is_first_login = true`, `is_active = true`
+- Partial import is supported: valid rows are inserted, invalid rows are reported
+
+**Faculty meal insights (May 2026):**
+- `/faculty/meal-insights` uses existing models only
+- Upcoming and historical meals come from `Menu`
+- Reception is aggregated from `Feedback.menu_id`
+- Request/vote signal is aggregated through `Suggestion.dish_id` and `SuggestionVote`
+- There is no served-meal model yet; label these metrics as planned/scheduled meals or reception, not served meals
+
+**Faculty caching (May 2026):**
+- `_get_faculty_dashboard_stats(tenant_id)` is memoized for 300 seconds
+- Invalidate it after Faculty import, role change, and deactivation via `_clear_faculty_dashboard_cache()`
 
 ---
 
@@ -312,7 +340,7 @@ Entirely separate portal at `/platform-admin/`. Key operations:
 
 ---
 
-### 5L. Migration Chain (as of April 2026)
+### 5L. Migration Chain (as of May 2026)
 
 ```
 bdd4590fc68f  initial migration
@@ -326,6 +354,10 @@ bdd4590fc68f  initial migration
   → 8ee30d5a76d9  PDF storage columns on ExpensePrintReport
   → 9b7f2a6c4d11  tenant faculty_workflow_enabled toggle
   → a1b2c3d4e5f6  enable RLS on faculty tables (Supabase)
+  → d4e5f6a7b8c9  global dish estimates + dish audit log
+  → e5f6a7b8c9d0  seed dish estimates
+  → fix_estimates_v2  fix estimates v2
+  → c6d7e8f9a0b1  user soft delete + tenant audit log
 ```
 
 ---
@@ -341,11 +373,11 @@ Based on the codebase state and architecture audit, here's the suggested roadmap
 **Short-term (operational stability):**
 3. **Pre-deploy DB backup** — Add `pg_dump` step in `.github/workflows/deploy.yml` before migration
 4. **Rate limiting** — Add Flask-Limiter on auth routes, OCR upload, and expense endpoints
-5. **Sync `pyproject.toml`** — Add missing packages (`redis`, `rq`, `flask-caching`, `flask-migrate`, `requests`, `pdfplumber`, `pywebpush`, `cryptography`, `pytesseract`, `Pillow`)
+5. **Keep dependency files synchronized** — `requirements.txt`, `pyproject.toml`, and `uv.lock` are now aligned; keep them that way when adding packages
 
 **Medium-term (features):**
 6. **Tea Smart Rotation** — Mirror the Menu Smart Rotation system for tea duty
-7. **Tenant-level Audit Log** — Track budget modifications, bill deletions, role changes at the tenant level (separate from `PlatformAudit`)
+7. **Expand TenantAuditLog coverage** — Faculty member mutations/imports are logged; add budget modifications, bill deletions, and finance actions next
 8. **PushSubscription normalization** — Add `device_id`, `last_active_at`, and periodic cleanup of dead tokens
 
 I'm now fully onboarded as your AI co-developer. In each future conversation within this project, reference specific files or features by name and I'll have the full context to assist effectively — whether that's generating new routes, debugging a migration, writing a new blueprint, or designing a new feature from scratch.
