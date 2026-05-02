@@ -12,6 +12,31 @@ def tenant_filter(query):
         return query.filter_by(tenant_id=g.tenant_id)
     return query
 
+def faculty_visible_users_query():
+    """Tenant-scoped users Faculty can see and manage."""
+    return User.query.filter(
+        User.tenant_id == getattr(g, 'tenant_id', None),
+        User.role.notin_(['admin', 'super_admin']),
+        User.is_active.is_(True),
+    )
+
+def log_tenant_audit(action, target_type=None, target_id=None, description=None, details=None, actor_user=None):
+    from app import db
+    from models import TenantAuditLog
+
+    actor_user = actor_user or _get_current_user()
+    audit = TenantAuditLog(
+        tenant_id=getattr(g, 'tenant_id', None),
+        actor_user_id=actor_user.id if actor_user else None,
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id) if target_id is not None else None,
+        description=description,
+        details_json=details or {},
+    )
+    db.session.add(audit)
+    return audit
+
 def require_super_admin():
     user = _get_current_user()
     if not user or (user.role != 'super_admin' and user.tenant_id is not None):

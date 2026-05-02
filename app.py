@@ -125,7 +125,16 @@ with app.app_context():
     try:
         query_engine = db.engine
         from models import User
+        from sqlalchemy import inspect
         from sqlalchemy.orm import sessionmaker
+        inspector = inspect(query_engine)
+        if not inspector.has_table("user"):
+            logging.info("Default admin setup skipped because user table is missing.")
+            raise RuntimeError("user table missing")
+        user_columns = {column["name"] for column in inspector.get_columns("user")}
+        if "is_active" not in user_columns:
+            logging.info("Default admin setup skipped until user.is_active migration is applied.")
+            raise RuntimeError("user.is_active column missing")
         Session = sessionmaker(bind=query_engine)
         session_db = Session()
         admin = session_db.query(User).filter_by(username='Administrator').first()
@@ -138,13 +147,15 @@ with app.app_context():
             admin_user.role='admin'
             admin_user.floor=1
             admin_user.is_verified=True
+            admin_user.is_active=True
             admin_user.is_first_login=False
             session_db.add(admin_user)
             session_db.commit()
             logging.info("Default admin user created.")
         session_db.close()
     except Exception as e:
-        logging.warning(f"Admin management failed: {e}")
+        if str(e) not in {"user table missing", "user.is_active column missing"}:
+            logging.warning(f"Admin management failed: {e}")
 
 from blueprints.utils import (
     _get_active_floor,
@@ -173,7 +184,7 @@ def enforce_tenancy():
         from models import User, Tenant
         user = User.query.get(user_id)
         
-        if not user:
+        if not user or not getattr(user, 'is_active', True):
             was_faculty = session.get('role') == 'faculty' or is_faculty_route or request.path.startswith('/faculty')
             session.clear()
             if was_faculty:

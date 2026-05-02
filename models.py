@@ -42,6 +42,20 @@ class PlatformAudit(db.Model):
 class TenantMixin:
     tenant_id = db.Column(UUID(as_uuid=True), db.ForeignKey('tenants.id'), nullable=True, index=True)
 
+class TenantAuditLog(db.Model, TenantMixin):
+    __tablename__ = 'tenant_audit_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)
+    action = db.Column(db.String(100), nullable=False, index=True)
+    target_type = db.Column(db.String(80), nullable=True)
+    target_id = db.Column(db.String(80), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    details_json = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    actor_user = db.relationship('User', foreign_keys=[actor_user_id])
+
 class User(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), nullable=True)
@@ -50,6 +64,7 @@ class User(db.Model, TenantMixin):
     role = db.Column(db.String(20), nullable=False)
     floor = db.Column(db.Integer, nullable=True)
     is_verified = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_first_login = db.Column(db.Boolean, default=True)
     tr_number = db.Column(db.String(20), unique=True, nullable=True)
     full_name = db.Column(db.String(100), nullable=True)

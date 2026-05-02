@@ -1,0 +1,482 @@
+{% extends "faculty/base.html" %}
+
+{% block title %}Members - Faculty Portal{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.css">
+<style>
+    .user-row:hover {
+        background-color: rgba(25, 135, 84, 0.03);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4 faculty-stack-mobile">
+    <div>
+        <h2 class="fw-bold mb-1">Member Management</h2>
+        <div class="text-muted">{{ tenant_name }} active users, roles, and onboarding.</div>
+    </div>
+    <div class="d-flex gap-2 faculty-actions-mobile">
+        <a href="{{ url_for('faculty.import_template') }}" class="btn btn-outline-success rounded-pill px-4">
+            <i class="fas fa-file-arrow-down me-2"></i>Template
+        </a>
+        <button class="btn btn-success rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#importMembersModal">
+            <i class="fas fa-file-import me-2"></i>Import
+        </button>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="metric-card">
+            <div class="small text-uppercase text-muted fw-bold">Visible Users</div>
+            <div class="h3 fw-bold">{{ role_counts.all }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card">
+            <div class="small text-uppercase text-muted fw-bold">Pantry Heads</div>
+            <div class="h3 fw-bold">{{ role_counts.pantryHead }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="metric-card">
+            <div class="small text-uppercase text-muted fw-bold">Tea Managers</div>
+            <div class="h3 fw-bold">{{ role_counts.teaManager }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="faculty-card p-0 overflow-hidden">
+    <div class="p-4 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <h5 class="mb-0 fw-bold text-success"><i class="fas fa-users-cog me-2"></i>Member Directory</h5>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="width: 220px;">
+                <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="memberSearch" class="form-control border-start-0" placeholder="Search TR or Name...">
+            </div>
+            <select id="floorFilter" class="form-select form-select-sm" style="width: 120px;">
+                <option value="all">All Floors</option>
+                {% for i in floor_options %}<option value="{{ i }}">Floor {{ i }}</option>{% endfor %}
+            </select>
+            <select id="roleFilter" class="form-select form-select-sm" style="width: 140px;">
+                <option value="all">All Roles</option>
+                <option value="pantryHead">Pantry Head</option>
+                <option value="teaManager">Tea Manager</option>
+                <option value="member">Member</option>
+            </select>
+        </div>
+    </div>
+    <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+        <div class="small text-muted ps-2" id="filterSummary">Showing all {{ users|length }} members</div>
+        <button type="button" class="btn btn-sm btn-link text-success text-decoration-none py-0 d-none" id="resetFilters">Reset Filters</button>
+    </div>
+    <div class="p-4">
+    <ul class="nav nav-pills mb-3" id="memberTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#allMembersPane" type="button" role="tab">All Members</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pantryHeadsPane" type="button" role="tab">Pantry Heads</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#teaManagersPane" type="button" role="tab">Tea Managers</button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        {% set table_sets = [
+            ('allMembersPane', 'facultyMembersTable', users),
+            ('pantryHeadsPane', 'facultyPantryHeadsTable', users|selectattr('role', 'equalto', 'pantryHead')|list),
+            ('teaManagersPane', 'facultyTeaManagersTable', users|selectattr('role', 'equalto', 'teaManager')|list)
+        ] %}
+        {% for pane_id, table_id, table_users in table_sets %}
+        <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ pane_id }}" role="tabpanel">
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table table-hover align-middle w-100 faculty-data-table mb-0" id="{{ table_id }}">
+                    <thead class="small text-uppercase text-muted bg-light sticky-top" style="z-index: 10;">
+                        <tr>
+                            <th>TR</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Floor</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in table_users %}
+                        <tr class="user-row"
+                            data-search="{{ member.tr_number }} {{ member.full_name }} {{ member.username }} {{ member.email }}"
+                            data-floor="{{ member.floor }}"
+                            data-role="{{ member.role }}">
+                            <td class="fw-bold">{{ member.tr_number or '-' }}</td>
+                            <td>{{ member.full_name or member.username or 'New Member' }}</td>
+                            <td class="small text-muted">{{ member.email }}</td>
+                            <td>
+                                <span class="badge {% if member.role == 'pantryHead' %}bg-primary{% elif member.role == 'teaManager' %}bg-info{% elif member.role == 'faculty' %}bg-dark{% else %}bg-secondary{% endif %}">
+                                    {{ member.role }}
+                                </span>
+                            </td>
+                            <td>{% if member.floor %}Floor {{ member.floor }}{% else %}-{% endif %}</td>
+                            <td><span class="badge bg-success">Active</span></td>
+                            <td class="text-end">
+                                {% if member.role != 'faculty' %}
+                                <form method="POST" action="{{ url_for('faculty.update_member_role', user_id=member.id) }}" class="d-inline-flex gap-1 align-items-center">
+                                    <select name="role" class="form-select form-select-sm" style="width: 140px;">
+                                        <option value="member" {% if member.role == 'member' %}selected{% endif %}>Member</option>
+                                        <option value="pantryHead" {% if member.role == 'pantryHead' %}selected{% endif %}>Pantry Head</option>
+                                        <option value="teaManager" {% if member.role == 'teaManager' %}selected{% endif %}>Tea Manager</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-success" title="Update role"><i class="fas fa-check"></i></button>
+                                </form>
+                                <form method="POST" action="{{ url_for('faculty.deactivate_member', user_id=member.id) }}" class="d-inline" onsubmit="return confirm('Deactivate this user?')">
+                                    <button class="btn btn-sm btn-outline-danger" title="Deactivate"><i class="fas fa-user-slash"></i></button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted small">Protected</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    </div>
+</div>
+
+<div class="modal fade" id="importMembersModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Excel Import</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <label class="form-label fw-bold">Workbook</label>
+                        <input type="file" class="form-control" id="facultyImportFile" accept=".xlsx">
+                        <div class="d-grid gap-2 mt-3">
+                            <button type="button" class="btn btn-success" id="btnValidateImport">
+                                <i class="fas fa-shield-halved me-2"></i>Validate
+                            </button>
+                            <button type="button" class="btn btn-outline-success" id="btnCommitImport" disabled>
+                                <i class="fas fa-upload me-2"></i>Import Valid Rows
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btnDownloadErrors" disabled>
+                                <i class="fas fa-file-arrow-down me-2"></i>Error Report
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="border rounded-4 p-3 bg-light mb-3" id="importStatusPanel">
+                            <div class="fw-bold" id="importStatusTitle">Ready</div>
+                            <div class="small text-muted" id="importStatusBody">Choose a workbook with TR, Name, and Floor columns.</div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-sm-4">
+                                <div class="border rounded-4 p-3">
+                                    <div class="small text-uppercase text-muted fw-bold">Valid</div>
+                                    <div class="h4 fw-bold text-success mb-0" id="validImportCount">0</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="border rounded-4 p-3">
+                                    <div class="small text-uppercase text-muted fw-bold">Errors</div>
+                                    <div class="h4 fw-bold text-danger mb-0" id="invalidImportCount">0</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <div class="border rounded-4 p-3">
+                                    <div class="small text-uppercase text-muted fw-bold">Total</div>
+                                    <div class="h4 fw-bold mb-0" id="totalImportCount">0</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="table-responsive" style="max-height: 320px;">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="small text-uppercase text-muted">
+                                    <tr>
+                                        <th>Row</th>
+                                        <th>TR</th>
+                                        <th>Name</th>
+                                        <th>Floor</th>
+                                        <th>Issue</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="importErrorRows">
+                                    <tr><td colspan="5" class="text-muted">No validation report yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+    (function () {
+        const searchInput = document.getElementById('memberSearch');
+        const floorFilter = document.getElementById('floorFilter');
+        const roleFilter = document.getElementById('roleFilter');
+        const resetBtn = document.getElementById('resetFilters');
+        const summary = document.getElementById('filterSummary');
+        const userRows = Array.from(document.querySelectorAll('.user-row'));
+        const dataTables = [];
+
+        function activePane() {
+            return document.querySelector('.tab-pane.active.show') || document.querySelector('.tab-pane.active');
+        }
+
+        function rowMatchesFilters(row) {
+            const searchTerm = (searchInput ? searchInput.value : '').toLowerCase();
+            const floorTerm = floorFilter ? floorFilter.value : 'all';
+            const roleTerm = roleFilter ? roleFilter.value : 'all';
+            const searchContent = (row.getAttribute('data-search') || '').toLowerCase();
+            const floor = row.getAttribute('data-floor') || '';
+            const role = row.getAttribute('data-role') || '';
+
+            const matchesSearch = !searchTerm || searchContent.includes(searchTerm);
+            const matchesFloor = floorTerm === 'all' || floor === floorTerm;
+            const matchesRole = roleTerm === 'all' || role === roleTerm;
+            return matchesSearch && matchesFloor && matchesRole;
+        }
+
+        function activeRows() {
+            const pane = activePane();
+            if (!pane) return userRows;
+            return Array.from(pane.querySelectorAll('.user-row'));
+        }
+
+        function syncFilterSummary() {
+            const rows = activeRows();
+            const totalCount = rows.length;
+            const visibleCount = rows.filter(rowMatchesFilters).length;
+            if (summary) {
+                summary.innerText = `Showing ${visibleCount} of ${totalCount} members`;
+            }
+
+            const isFiltered = Boolean(searchInput && searchInput.value) ||
+                Boolean(floorFilter && floorFilter.value !== 'all') ||
+                Boolean(roleFilter && roleFilter.value !== 'all');
+            if (resetBtn) {
+                resetBtn.classList.toggle('d-none', !isFiltered);
+            }
+        }
+
+        function applyFallbackFilters() {
+            userRows.forEach((row) => {
+                row.style.display = rowMatchesFilters(row) ? '' : 'none';
+            });
+            syncFilterSummary();
+        }
+
+        function drawFilteredTables() {
+            if (dataTables.length) {
+                dataTables.forEach((table) => table.draw());
+                syncFilterSummary();
+            } else {
+                applyFallbackFilters();
+            }
+        }
+
+        if (window.DataTable) {
+            DataTable.ext.search.push((settings, _data, dataIndex) => {
+                const row = settings.aoData[dataIndex] && settings.aoData[dataIndex].nTr;
+                return row ? rowMatchesFilters(row) : true;
+            });
+
+            document.querySelectorAll('.faculty-data-table').forEach((table) => {
+                dataTables.push(new DataTable(table, {
+                    pageLength: 25,
+                    order: [[4, 'asc'], [0, 'asc']],
+                    searching: false,
+                    lengthChange: true
+                }));
+            });
+        }
+
+        if (searchInput) searchInput.addEventListener('input', drawFilteredTables);
+        if (floorFilter) floorFilter.addEventListener('change', drawFilteredTables);
+        if (roleFilter) roleFilter.addEventListener('change', drawFilteredTables);
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                if (searchInput) searchInput.value = '';
+                if (floorFilter) floorFilter.value = 'all';
+                if (roleFilter) roleFilter.value = 'all';
+                drawFilteredTables();
+            });
+        }
+        document.querySelectorAll('#memberTabs [data-bs-toggle="pill"]').forEach((tab) => {
+            tab.addEventListener('shown.bs.tab', () => {
+                dataTables.forEach((table) => table.columns.adjust());
+                drawFilteredTables();
+            });
+        });
+        drawFilteredTables();
+
+        const fileInput = document.getElementById('facultyImportFile');
+        const btnValidate = document.getElementById('btnValidateImport');
+        const btnCommit = document.getElementById('btnCommitImport');
+        const btnDownloadErrors = document.getElementById('btnDownloadErrors');
+        const statusTitle = document.getElementById('importStatusTitle');
+        const statusBody = document.getElementById('importStatusBody');
+        const validCount = document.getElementById('validImportCount');
+        const invalidCount = document.getElementById('invalidImportCount');
+        const totalCount = document.getElementById('totalImportCount');
+        const errorRows = document.getElementById('importErrorRows');
+        let validRows = [];
+        let invalidRows = [];
+
+        function setStatus(title, body) {
+            statusTitle.textContent = title;
+            statusBody.textContent = body;
+        }
+
+        function resetReport() {
+            validRows = [];
+            invalidRows = [];
+            validCount.textContent = '0';
+            invalidCount.textContent = '0';
+            totalCount.textContent = '0';
+            btnCommit.disabled = true;
+            btnDownloadErrors.disabled = true;
+            errorRows.innerHTML = '<tr><td colspan="5" class="text-muted">No validation report yet.</td></tr>';
+        }
+
+        async function clientPrecheck(file) {
+            if (!window.XLSX) {
+                return;
+            }
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer);
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, blankrows: false });
+            const headers = (rows[0] || []).slice(0, 3).map((value) => String(value || '').trim());
+            if (headers.join('|') !== 'TR|Name|Floor') {
+                throw new Error('Invalid headers. Use TR, Name, Floor.');
+            }
+            if (rows.length <= 1) {
+                throw new Error('The workbook has no member rows.');
+            }
+            if (rows.length - 1 > 500) {
+                throw new Error('Import limit is 500 rows.');
+            }
+        }
+
+        function renderReport(report) {
+            validRows = report.valid_rows || [];
+            invalidRows = report.invalid_rows || [];
+            validCount.textContent = String(report.valid_count || 0);
+            invalidCount.textContent = String(report.invalid_count || 0);
+            totalCount.textContent = String(report.total_count || 0);
+            btnCommit.disabled = validRows.length === 0;
+            btnDownloadErrors.disabled = invalidRows.length === 0;
+            if (!invalidRows.length) {
+                errorRows.innerHTML = '<tr><td colspan="5" class="text-success">No errors found.</td></tr>';
+                return;
+            }
+            errorRows.innerHTML = invalidRows.map((row) => `
+                <tr>
+                    <td>${row.row_number}</td>
+                    <td>${row.tr || '-'}</td>
+                    <td>${row.name || '-'}</td>
+                    <td>${row.floor || '-'}</td>
+                    <td class="text-danger">${(row.errors || []).join('; ')}</td>
+                </tr>
+            `).join('');
+        }
+
+        btnValidate.addEventListener('click', async () => {
+            resetReport();
+            const file = fileInput.files[0];
+            if (!file) {
+                setStatus('Missing file', 'Choose an .xlsx workbook first.');
+                return;
+            }
+            if (!file.name.toLowerCase().endsWith('.xlsx')) {
+                setStatus('Invalid file', 'Only .xlsx files are supported.');
+                return;
+            }
+            try {
+                setStatus('Validating', 'Checking workbook structure and rows.');
+                await clientPrecheck(file);
+                const formData = new FormData();
+                formData.append('file', file);
+                const response = await fetch('{{ url_for("faculty.validate_import") }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Validation failed.');
+                }
+                renderReport(data);
+                setStatus('Validation complete', `${data.valid_count} valid rows and ${data.invalid_count} rows with errors.`);
+            } catch (error) {
+                setStatus('Validation failed', error.message);
+            }
+        });
+
+        btnCommit.addEventListener('click', async () => {
+            if (!validRows.length) return;
+            btnCommit.disabled = true;
+            setStatus('Importing', 'Creating active member accounts.');
+            const response = await fetch('{{ url_for("faculty.commit_import") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ rows: validRows })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                setStatus('Import failed', data.error || 'Unable to import rows.');
+                btnCommit.disabled = false;
+                return;
+            }
+            invalidRows = data.invalid_rows || [];
+            renderReport({
+                valid_rows: [],
+                invalid_rows: invalidRows,
+                valid_count: data.imported_count || 0,
+                invalid_count: data.skipped_count || 0,
+                total_count: (data.imported_count || 0) + (data.skipped_count || 0)
+            });
+            setStatus('Import complete', `${data.imported_count} users created. ${data.skipped_count} rows skipped.`);
+            setTimeout(() => window.location.reload(), 1200);
+        });
+
+        btnDownloadErrors.addEventListener('click', () => {
+            if (!invalidRows.length) return;
+            const lines = [['Row', 'TR', 'Name', 'Floor', 'Errors']];
+            invalidRows.forEach((row) => {
+                lines.push([row.row_number, row.tr || '', row.name || '', row.floor || '', (row.errors || []).join('; ')]);
+            });
+            const csv = lines.map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'faculty_import_errors.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+        });
+    })();
+</script>
+{% endblock %}

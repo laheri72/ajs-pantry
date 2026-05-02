@@ -1,153 +1,151 @@
 {% extends "faculty/base.html" %}
 
-{% block title %}Faculty Dashboard - AJS Pantry{% endblock %}
+{% block title %}{{ tenant_name }} Overview - Faculty Portal{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4 faculty-stack-mobile">
     <div>
-        <h2 class="fw-bold mb-1">Faculty Dashboard</h2>
-        <div class="text-muted">Cross-floor funding, reporting, and verification overview for this tenant.</div>
+        <h2 class="fw-bold mb-1">{{ tenant_name }} Overview</h2>
+        <div class="text-muted">Cross-floor members, roles, planned meals, and Faculty cycle status.</div>
     </div>
-    <a href="{{ url_for('faculty.cycles') }}" class="btn btn-success rounded-pill px-4">
-        <i class="fas fa-plus me-2"></i>New Budget Cycle
-    </a>
-</div>
-
-<div class="row g-3 mb-4">
-    <div class="col-sm-6 col-xl-3">
-        <div class="metric-card">
-            <div class="metric-icon bg-success bg-opacity-10 text-success"><i class="fas fa-wallet"></i></div>
-            <div class="small text-uppercase text-muted fw-bold">Total Allocated This Cycle</div>
-            <div class="h3 fw-bold mb-0">&#8377;{{ "%.2f"|format(cycle_total_allocated) }}</div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="metric-card">
-            <div class="metric-icon bg-danger bg-opacity-10 text-danger"><i class="fas fa-chart-pie"></i></div>
-            <div class="small text-uppercase text-muted fw-bold">Total Spent This Cycle</div>
-            <div class="h3 fw-bold mb-0">&#8377;{{ "%.2f"|format(cycle_total_spent) }}</div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="metric-card">
-            <div class="metric-icon bg-warning bg-opacity-10 text-warning"><i class="fas fa-hourglass-half"></i></div>
-            <div class="small text-uppercase text-muted fw-bold">Pending Report Submissions</div>
-            <div class="h3 fw-bold mb-0">{{ pending_submission_count }}</div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="metric-card">
-            <div class="metric-icon bg-primary bg-opacity-10 text-primary"><i class="fas fa-badge-check"></i></div>
-            <div class="small text-uppercase text-muted fw-bold">Verified Submissions</div>
-            <div class="h3 fw-bold mb-0">{{ verified_submission_count }}</div>
-        </div>
+    <div class="d-flex gap-2 faculty-actions-mobile">
+        <a href="{{ url_for('faculty.members') }}" class="btn btn-success rounded-pill px-4">
+            <i class="fas fa-users-gear me-2"></i>Manage Members
+        </a>
+        <a href="{{ url_for('faculty.meal_insights') }}" class="btn btn-outline-success rounded-pill px-4">
+            <i class="fas fa-utensils me-2"></i>Meal Insights
+        </a>
     </div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-xl-4">
+    <div class="col-sm-6 col-xl-3">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Overdue Floors</div>
-            <div class="h3 fw-bold text-danger">{{ overdue_floors }}</div>
+            <div class="metric-icon bg-success bg-opacity-10 text-success"><i class="fas fa-users"></i></div>
+            <div class="small text-uppercase text-muted fw-bold">Active Members</div>
+            <div class="h3 fw-bold mb-0">{{ stats.active_members }}</div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-4">
+    <div class="col-sm-6 col-xl-3">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Cumulative Spendings</div>
-            <div class="h3 fw-bold">&#8377;{{ "%.2f"|format(cumulative_spending) }}</div>
+            <div class="metric-icon bg-primary bg-opacity-10 text-primary"><i class="fas fa-user-tie"></i></div>
+            <div class="small text-uppercase text-muted fw-bold">Pantry Heads</div>
+            <div class="h3 fw-bold mb-0">{{ stats.pantry_heads }}</div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-4">
+    <div class="col-sm-6 col-xl-3">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Avg System Satisfaction</div>
-            <div class="h3 fw-bold">{{ avg_rating }}/5</div>
+            <div class="metric-icon bg-info bg-opacity-10 text-info"><i class="fas fa-mug-hot"></i></div>
+            <div class="small text-uppercase text-muted fw-bold">Tea Managers</div>
+            <div class="h3 fw-bold mb-0">{{ stats.tea_managers }}</div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-4">
+    <div class="col-sm-6 col-xl-3">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Total Verified Bills</div>
-            <div class="h3 fw-bold">{{ total_verified_bills }}</div>
+            <div class="metric-icon bg-warning bg-opacity-10 text-warning"><i class="fas fa-star"></i></div>
+            <div class="small text-uppercase text-muted fw-bold">Meal Reception</div>
+            <div class="h3 fw-bold mb-0">{{ stats.avg_rating }}/5</div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-4">
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Menus This Month</div>
-            <div class="h3 fw-bold">{{ menus_this_month }}</div>
+            <div class="small text-uppercase text-muted fw-bold">Planned Today</div>
+            <div class="h3 fw-bold">{{ stats.planned_today }}</div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-4">
+    <div class="col-md-4">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Procurement This Month</div>
-            <div class="h3 fw-bold">{{ procurement_this_month }}</div>
+            <div class="small text-uppercase text-muted fw-bold">Planned This Week</div>
+            <div class="h3 fw-bold">{{ stats.planned_week }}</div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-4">
+    <div class="col-md-4">
         <div class="metric-card">
-            <div class="small text-uppercase text-muted fw-bold">Pending Borrowings</div>
-            <div class="h3 fw-bold">{{ pending_borrowings }}</div>
+            <div class="small text-uppercase text-muted fw-bold">Planned This Month</div>
+            <div class="h3 fw-bold">{{ stats.planned_month }}</div>
         </div>
     </div>
 </div>
 
 <div class="row g-4">
-    <div class="col-xl-8">
+    <div class="col-xl-7">
         <div class="faculty-card p-4">
             <div class="d-flex justify-content-between align-items-center gap-3 mb-3 faculty-stack-mobile">
                 <div>
-                    <h5 class="fw-bold mb-1">Active Cycle Floor Status</h5>
-                    {% if active_cycle %}
-                    <div class="text-muted small">{{ active_cycle.title }} &bull; {{ active_cycle.start_date.strftime('%d %b %Y') }} to {{ active_cycle.end_date.strftime('%d %b %Y') }}</div>
-                    {% else %}
-                    <div class="text-muted small">No active cycle right now.</div>
-                    {% endif %}
+                    <h5 class="fw-bold mb-1">Floor Distribution</h5>
+                    <div class="text-muted small">Active members, Pantry Heads, and Tea Managers by floor.</div>
                 </div>
-                {% if active_cycle %}
-                <a href="{{ url_for('faculty.cycle_detail', cycle_id=active_cycle.id) }}" class="btn btn-outline-success rounded-pill">Open Cycle</a>
-                {% endif %}
+                <span class="badge bg-success">{{ floor_rows|sum(attribute='count') }} active users</span>
             </div>
-            {% if active_cycle %}
             <div class="table-responsive faculty-table-mobile">
                 <table class="table align-middle mb-0">
                     <thead class="small text-uppercase text-muted">
                         <tr>
                             <th>Floor</th>
-                            <th>Allocation</th>
-                            <th>Faculty Note</th>
-                            <th>Status</th>
+                            <th>Active Users</th>
+                            <th>Distribution</th>
                         </tr>
                     </thead>
                     <tbody>
+                        {% set total_floor_users = floor_rows|sum(attribute='count') %}
                         {% for row in floor_rows %}
+                        {% set pct = (row.count / total_floor_users * 100) if total_floor_users else 0 %}
                         <tr>
                             <td class="fw-bold" data-label="Floor">Floor {{ row.floor }}</td>
-                            <td data-label="Allocation">
-                                {% if row.allocation %}
-                                &#8377;{{ "%.2f"|format(row.allocation.amount_allocated) }}
-                                {% else %}
-                                <span class="text-muted">Not set</span>
-                                {% endif %}
-                            </td>
-                            <td class="small text-muted" data-label="Faculty Note">{{ row.allocation.faculty_note if row.allocation and row.allocation.faculty_note else 'No note added.' }}</td>
-                            <td data-label="Status">
-                                {% if row.submission %}
-                                <span class="badge {% if row.submission.status == 'verified' %}bg-success{% elif row.submission.status == 'rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
-                                    {{ row.submission.status|title }}
-                                </span>
-                                {% else %}
-                                <span class="badge bg-secondary">Awaiting Upload</span>
-                                {% endif %}
+                            <td data-label="Active Users">{{ row.count }}</td>
+                            <td data-label="Distribution">
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-success faculty-distribution-bar" data-width="{{ '%.2f'|format(pct) }}"></div>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            {% else %}
-            <div class="alert alert-light border rounded-4 mb-0">Create and activate a cycle to begin floor funding and report collection.</div>
-            {% endif %}
         </div>
     </div>
-    <div class="col-xl-4">
+    <div class="col-xl-5">
+        <div class="faculty-card p-4 mb-4">
+            <h5 class="fw-bold mb-3">Active Faculty Cycle</h5>
+            {% if active_cycle %}
+            <div class="fw-bold">{{ active_cycle.title }}</div>
+            <div class="small text-muted mb-3">{{ active_cycle.start_date.strftime('%d %b %Y') }} to {{ active_cycle.end_date.strftime('%d %b %Y') }}</div>
+            <div class="row g-2">
+                <div class="col-6">
+                    <div class="border rounded-4 p-3 bg-light">
+                        <div class="small text-muted fw-bold text-uppercase">Allocated</div>
+                        <div class="fw-bold">&#8377;{{ "%.0f"|format(cycle_summary.cycle_total_allocated) }}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="border rounded-4 p-3 bg-light">
+                        <div class="small text-muted fw-bold text-uppercase">Verified</div>
+                        <div class="fw-bold">{{ cycle_summary.verified_submission_count }}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="border rounded-4 p-3 bg-light">
+                        <div class="small text-muted fw-bold text-uppercase">Pending</div>
+                        <div class="fw-bold">{{ cycle_summary.pending_submission_count }}</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="border rounded-4 p-3 bg-light">
+                        <div class="small text-muted fw-bold text-uppercase">Overdue</div>
+                        <div class="fw-bold text-danger">{{ cycle_summary.overdue_floors }}</div>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('faculty.cycle_detail', cycle_id=active_cycle.id) }}" class="btn btn-outline-success rounded-pill w-100 mt-3">Open Cycle</a>
+            {% else %}
+            <div class="alert alert-light border rounded-4 mb-0">No active cycle right now.</div>
+            <a href="{{ url_for('faculty.cycles') }}" class="btn btn-success rounded-pill w-100 mt-3">Create Cycle</a>
+            {% endif %}
+        </div>
         <div class="faculty-card p-4">
             <h5 class="fw-bold mb-3">Recent Cycles</h5>
             <div class="list-group list-group-flush">
@@ -170,4 +168,12 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.querySelectorAll('.faculty-distribution-bar').forEach((bar) => {
+        bar.style.width = `${bar.dataset.width || 0}%`;
+    });
+</script>
 {% endblock %}
