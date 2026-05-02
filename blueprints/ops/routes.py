@@ -178,25 +178,39 @@ def bulk_assign_tea():
     tasks_created = 0
     from datetime import timedelta
 
+    # Optimization: Pre-fetch existing tasks and approved absences to avoid N+1 queries
+    existing_tasks = tenant_filter(TeaTask.query).filter(
+        TeaTask.floor == floor,
+        TeaTask.date >= start_date,
+        TeaTask.date <= end_date
+    ).all()
+    existing_dates = {t.date for t in existing_tasks}
+
+    int_user_ids = [int(uid) for uid in user_ids]
+    absences = tenant_filter(Request.query).filter(
+        Request.user_id.in_(int_user_ids),
+        Request.status == 'approved',
+        Request.request_type == 'absence',
+        Request.end_date >= start_date,
+        Request.start_date <= end_date
+    ).all()
+
+    user_absences = {}
+    for a in absences:
+        user_absences.setdefault(a.user_id, []).append((a.start_date, a.end_date))
+
     while current_date <= end_date:
         # Check if task already exists for this floor and date
-        existing = tenant_filter(TeaTask.query).filter_by(floor=floor, date=current_date).first()
-        if not existing:
+        if current_date not in existing_dates:
             # Try to find the next available user in the rotation
             found_user = False
             for _ in range(len(user_ids)):
                 target_user_id = int(user_ids[user_index % len(user_ids)])
                 
-                # Check for approved absence request
-                absence = tenant_filter(Request.query).filter(
-                    Request.user_id == target_user_id,
-                    Request.status == 'approved',
-                    Request.request_type == 'absence',
-                    Request.start_date <= current_date,
-                    Request.end_date >= current_date
-                ).first()
+                # Check for approved absence request in pre-fetched data
+                is_absent = any(s <= current_date <= e for s, e in user_absences.get(target_user_id, []))
 
-                if not absence:
+                if not is_absent:
                     # Found an available user
                     new_task = TeaTask(
                         date=current_date,
@@ -249,21 +263,36 @@ def bulk_assign_preview():
     # Get floor user names for labeling
     users_map = {u.id: (u.full_name or u.username or u.email) for u in tenant_filter(User.query).filter_by(floor=floor).all()}
 
+    # Optimization: Pre-fetch existing tasks and approved absences to avoid N+1 queries
+    existing_tasks = tenant_filter(TeaTask.query).filter(
+        TeaTask.floor == floor,
+        TeaTask.date >= start_date,
+        TeaTask.date <= end_date
+    ).all()
+    existing_dates = {t.date for t in existing_tasks}
+
+    absences = tenant_filter(Request.query).filter(
+        Request.user_id.in_(user_ids),
+        Request.status == 'approved',
+        Request.request_type == 'absence',
+        Request.end_date >= start_date,
+        Request.start_date <= end_date
+    ).all()
+
+    user_absences = {}
+    for a in absences:
+        user_absences.setdefault(a.user_id, []).append((a.start_date, a.end_date))
+
     while current_date <= end_date:
-        existing = tenant_filter(TeaTask.query).filter_by(floor=floor, date=current_date).first()
-        if not existing:
+        if current_date not in existing_dates:
             found_user = False
             for _ in range(len(user_ids)):
                 target_user_id = user_ids[user_index % len(user_ids)]
-                absence = tenant_filter(Request.query).filter(
-                    Request.user_id == target_user_id,
-                    Request.status == 'approved',
-                    Request.request_type == 'absence',
-                    Request.start_date <= current_date,
-                    Request.end_date >= current_date
-                ).first()
 
-                if not absence:
+                # Check for approved absence request in pre-fetched data
+                is_absent = any(s <= current_date <= e for s, e in user_absences.get(target_user_id, []))
+
+                if not is_absent:
                     preview_tasks.append({
                         "date": current_date.strftime('%Y-%m-%d'),
                         "day": current_date.strftime('%A'),
