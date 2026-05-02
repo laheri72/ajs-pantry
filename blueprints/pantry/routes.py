@@ -796,6 +796,7 @@ def people():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
     users = tenant_filter(User.query).filter_by(floor=floor).all()
     users.sort(key=lambda u: (u.full_name or u.username or u.email or "").lower())
     teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
@@ -814,15 +815,18 @@ def people():
     leaderboard_since = datetime.utcnow() - timedelta(days=30)
 
     team_leaderboard = []
-    team_rows = (
-        tenant_filter(db.session.query(
+    team_query = db.session.query(
             Team.id.label('team_id'),
             Team.name.label('team_name'),
             Team.icon.label('team_icon'),
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
             func.count(Feedback.id).label('ratings_count'),
             func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
-        ))
+        )
+    if tenant_id:
+        team_query = team_query.filter(Menu.tenant_id == tenant_id)
+    team_rows = (
+        team_query
         .join(Menu, Menu.assigned_team_id == Team.id)
         .join(Feedback, Feedback.menu_id == Menu.id)
         .filter(Team.floor == floor, Feedback.created_at >= leaderboard_since)
@@ -844,8 +848,7 @@ def people():
         )
 
     individual_leaderboard = []
-    individual_rows = (
-        tenant_filter(db.session.query(
+    individual_query = db.session.query(
             User.id.label('user_id'),
             User.full_name.label('full_name'),
             User.username.label('username'),
@@ -853,7 +856,11 @@ def people():
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
             func.count(Feedback.id).label('ratings_count'),
             func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
-        ))
+        )
+    if tenant_id:
+        individual_query = individual_query.filter(Menu.tenant_id == tenant_id)
+    individual_rows = (
+        individual_query
         .join(Menu, Menu.assigned_to_id == User.id)
         .join(Feedback, Feedback.menu_id == Menu.id)
         .filter(User.floor == floor, Feedback.created_at >= leaderboard_since)
@@ -876,13 +883,16 @@ def people():
 
     dish_name_expr = func.coalesce(Dish.name, Menu.title)
     dish_leaderboard = []
-    dish_rows = (
-        tenant_filter(db.session.query(
+    dish_query = db.session.query(
             dish_name_expr.label('dish_name'),
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
             func.count(Feedback.id).label('ratings_count'),
             func.coalesce(func.avg(Feedback.rating), 0).label('avg_rating'),
-        ))
+        )
+    if tenant_id:
+        dish_query = dish_query.filter(Menu.tenant_id == tenant_id)
+    dish_rows = (
+        dish_query
         .join(Menu, Feedback.menu_id == Menu.id)
         .outerjoin(Dish, Menu.dish_id == Dish.id)
         .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
@@ -904,14 +914,17 @@ def people():
             }
         )
 
-    dish_champion_rows = (
-        tenant_filter(db.session.query(
+    dish_champion_query = db.session.query(
             dish_name_expr.label('dish_name'),
             Team.id.label('team_id'),
             Team.name.label('team_name'),
             Team.icon.label('team_icon'),
             func.coalesce(func.sum(Feedback.rating), 0).label('stars'),
-        ))
+        )
+    if tenant_id:
+        dish_champion_query = dish_champion_query.filter(Menu.tenant_id == tenant_id)
+    dish_champion_rows = (
+        dish_champion_query
         .join(Menu, Feedback.menu_id == Menu.id)
         .outerjoin(Dish, Menu.dish_id == Dish.id)
         .join(Team, Menu.assigned_team_id == Team.id)
