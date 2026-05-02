@@ -1,6 +1,6 @@
 # Faculty Revamp Memory Context
 
-Last updated: 2026-04-06
+Last updated: 2026-05-02
 
 This file is the high-signal memory guide for the Faculty rollout and the follow-up UX/auth/storage changes that landed with it. Use this before searching the repo.
 
@@ -23,6 +23,7 @@ Main outcome:
 Related UX cleanup:
 - `Suggestions` and `Feedbacks` were merged into one `Feedbacks` page at the UI level.
 - Faculty portal now has a mobile-responsive layout with an off-canvas menu.
+- Faculty portal now includes tenant-wide member management, Excel onboarding, cached overview analytics, and meal insights.
 
 ---
 
@@ -34,6 +35,15 @@ Primary model updates live in `models.py`.
 - `User.role` now includes `faculty`.
 - Faculty users are tenant-bound but not floor-bound.
 - Faculty accounts should use `floor = NULL`.
+- `User.is_active` is the soft-delete/login flag. Inactive users cannot log in.
+- TR and email remain globally unique. Excel-imported members use `TR@jameasaifiyah.edu`.
+
+### Tenant audit log model
+- `TenantAuditLog`
+  - Tenant-scoped audit table for operational/admin mutations inside a tenant
+  - Current Faculty coverage: role changes, user deactivation, and bulk import summaries
+  - Fields: `tenant_id`, `actor_user_id`, `action`, `target_type`, `target_id`, `description`, `details_json`, `created_at`
+  - Platform-wide tenant provisioning still uses `PlatformAudit`
 
 ### Budget cycle model
 - `FacultyBudgetCycle`
@@ -151,6 +161,45 @@ Main code:
 - `templates/faculty/cycle_detail.html`
 - `templates/faculty/report_detail.html`
 
+### G. Member management and onboarding
+- Faculty opens `/faculty/members`
+- Page lists active non-admin users only
+- Filters mirror the Admin page UX:
+  - search by TR/name/email
+  - floor filter
+  - role filter
+  - summary and reset
+- Faculty can assign or remove `pantryHead` and `teaManager` by changing role back to/from `member`
+- Multiple Pantry Heads per floor are allowed
+- Faculty can soft-deactivate users; this sets `User.is_active = false`
+- Deactivated users disappear from Faculty lists and cannot log in
+
+Main code:
+- `blueprints/faculty/routes.py`
+- `templates/faculty/members.html`
+- `blueprints/utils.py` (`faculty_visible_users_query`, `log_tenant_audit`)
+
+### H. Excel import
+- Template: `/faculty/import/template`
+- Validate: `/faculty/import/validate`
+- Commit: `/faculty/import/commit`
+- Workbook headers must be exactly `TR`, `Name`, `Floor`
+- Backend validation is authoritative and uses `openpyxl`
+- Frontend SheetJS validation is best-effort only; backend still validates if CDN fails
+- TR must be exactly 5 digits
+- TR and generated email must not exist anywhere in the `User` table
+- Floor must be within `1..tenant.floor_count`
+- Valid rows can be imported even if some rows fail validation
+- Imported members get default password `maskan1447`, `is_first_login = true`, `is_active = true`
+
+### I. Meal insights
+- Faculty opens `/faculty/meal-insights`
+- Uses existing models only:
+  - `Menu` for upcoming/historical planned meals
+  - `Feedback.menu_id` for average rating and count
+  - `Suggestion.dish_id` and `SuggestionVote` for request/vote signal
+- There is no served-meal model; UI should say planned/scheduled meals or reception, not served meals
+
 ---
 
 ## 4. Important Route Memory
@@ -158,6 +207,11 @@ Main code:
 ### Faculty portal routes
 - `/faculty/login`
 - `/faculty/dashboard`
+- `/faculty/members`
+- `/faculty/import/template`
+- `/faculty/import/validate`
+- `/faculty/import/commit`
+- `/faculty/meal-insights`
 - `/faculty/profile`
 - `/faculty/cycles`
 - `/faculty/cycles/<id>`
@@ -193,6 +247,7 @@ Implemented behavior:
 - Faculty timeout redirects to Faculty login with a flash banner.
 - Faculty logout redirects to Faculty login.
 - Faculty-only pages are protected by Faculty guards.
+- Inactive users (`User.is_active = false`) are rejected by member login, staff login, Faculty login, first-login password setup, and the global tenancy middleware.
 
 Main code:
 - `app.py`
@@ -356,6 +411,8 @@ If debugging Faculty:
 - `templates/expenses.html`
 - `templates/faculty/base.html`
 - `templates/faculty/dashboard.html`
+- `templates/faculty/members.html`
+- `templates/faculty/meal_insights.html`
 - `templates/faculty/cycles.html`
 - `templates/faculty/cycle_detail.html`
 - `templates/faculty/report_detail.html`
@@ -377,6 +434,10 @@ After deploying Faculty-related changes:
 - run `flask db upgrade` if models/migrations changed
 - restart Gunicorn / systemd service
 - verify Faculty login
+- verify inactive users cannot log in
+- verify Excel-imported members can first-login with `maskan1447`
+- verify `/faculty/members` filters and role actions
+- verify `/faculty/meal-insights` loads and aggregates feedback
 - verify Faculty logout returns to Faculty login
 - verify Faculty timeout redirects cleanly
 - verify Pantry Head/Admin can open `/reports`
@@ -393,6 +454,8 @@ After deploying Faculty-related changes:
 ## 13. Future Cleanup Worth Doing
 
 - Move `FacultyReportSubmission.storage_path` to relative-path storage
+- Add reset-password action to Faculty member management if Faculty should own member password resets
+- Extend `TenantAuditLog` to budgets, bill deletes, and finance actions
 - Add explicit UI badges for "Legacy budget" vs "Faculty cycle budget" in Expenses
 - Consider moving floor-side `/reports` into its own non-Faculty blueprint to reduce auth confusion
 - Remove or archive the old standalone `templates/suggestions.html` if it is no longer needed

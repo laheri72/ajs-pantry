@@ -6,7 +6,7 @@ AJS Pantry is a production-hardened, multi-tenant Flask web application designed
 
 The system provides **role-based access control (RBAC)** with six primary roles:
 *   **Super Admin:** Platform-level management and tenant provisioning.
-*   **Faculty:** Tenant-wide finance office role for budget cycles and report verification.
+*   **Faculty:** Tenant-wide office role for budget cycles, report verification, member management, Excel onboarding, and meal analytics.
 *   **Admin:** System-wide management for a specific tenant.
 *   **Pantry Head:** Floor-level management (Menus, Procurement, Penalties).
 *   **Tea Manager:** Specialized floor role for tea duty scheduling.
@@ -35,7 +35,7 @@ User → Firebase Hosting Domain → HTTPS (Let’s Encrypt)
 *   **Backend:** Flask 3.1.x (Python 3.11+)
 *   **ORM:** Flask-SQLAlchemy + SQLAlchemy 2.0 (with global event listeners).
 *   **Migrations:** Flask-Migrate (Alembic) for safe, versioned schema updates.
-*   **Database:** PostgreSQL (Supabase) using the production-ready `psycopg2` driver.
+*   **Database:** PostgreSQL (Supabase) using `psycopg2-binary` for local/Windows-compatible installs.
 *   **Frontend:** Jinja2 Templates + Vanilla CSS/JS + Bootstrap 5.
 *   **PWA:** Service Worker support with Web Push Notifications (`pywebpush`).
 *   **OCR:** Tesseract OCR for receipt scanning and automated expense entry.
@@ -52,7 +52,7 @@ User → Firebase Hosting Domain → HTTPS (Let’s Encrypt)
     *   `finance/` → Expenses, Bills, Budgets, and Receipt OCR.
 *   `ops/` → Tea Tasks, Procurement, and User Requests.
 *   `admin/` → PH/Admin controls, Teams, and Penalties.
-*   `faculty/` → Faculty portal, cycle management, report review, and floor submissions.
+*   `faculty/` → Faculty portal, cycle management, report review, member import/roles, and meal insights.
 *   `super_admin/` → SaaS Platform management.
 *   `migrations/` → DB version history (managed via `flask db`).
 *   `static/` → PWA assets, dark theme overrides, and core `script.js`.
@@ -69,6 +69,12 @@ Isolation is enforced at the **SQLAlchemy ORM level**. A `do_orm_execute` listen
 *   **Strict Boot:** The app will fail to start if `SESSION_SECRET` or `INTERNAL_API_SECRET` are missing.
 *   **Credential Protection:** `.env` is ignored by Git; secrets are managed via server-side environment variables.
 *   **RBAC Middleware:** `enforce_tenancy` and `_require_user` helpers validate every request context.
+
+### 5.3 Faculty Visibility And Soft Deletes
+*   `User.is_active` is the canonical soft-delete flag. Inactive users cannot log in and are hidden from Faculty member management.
+*   Faculty-visible user queries must go through `faculty_visible_users_query()` in `blueprints/utils.py`.
+*   Faculty never sees or manages `admin` or `super_admin` users. Faculty accounts remain managed by Super Admin.
+*   Tenant-scoped administrative actions are recorded in `TenantAuditLog`; platform-wide actions remain in `PlatformAudit`.
 
 ---
 
@@ -94,6 +100,7 @@ Integrated PWA Push system using VAPID keys. Notifications are triggered server-
 
 *   **N+1 Prevention:** Core routes (`Dashboard`, `People`, `Calendar`) must use `joinedload` for related entities (Users, Teams, Dishes).
 *   **DB Indexing:** `tenant_id` and `floor` are indexed on all primary tables to ensure sub-100ms response times.
+*   **Faculty Caching:** Faculty overview aggregates use `@cache.memoize(timeout=300)` and must be invalidated after member imports, role changes, and deactivation.
 *   **Logging:** Level set to `INFO` in production to prevent disk bloat while maintaining auditability.
 
 ---
@@ -114,4 +121,4 @@ For the full Faculty rollout, storage notes, auth edge cases, print-report submi
     3.  Commit the new migration file.
     4.  Push to deploy (Auto-upgrades Supabase).
 *   **New Routes:** Always place routes in the relevant Blueprint and verify the `ROUTE_MAP.md` is updated.
-*   **Dependencies:** Keep `pyproject.toml` and `requirements.txt` in sync. Use `psycopg2` (not -binary) for production stability.
+*   **Dependencies:** Keep `pyproject.toml`, `requirements.txt`, and `uv.lock` in sync. This repo currently uses `psycopg2-binary==2.9.10` so local Windows development and Flask-Migrate imports work consistently.

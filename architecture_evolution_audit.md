@@ -28,11 +28,17 @@ The `.github/workflows/deploy.yml` runs `flask db upgrade` directly on the live 
 ### 2. Tenant-Level Audit Trails
 **Why:** As operations grow, disputes will occur over who modified a budget, deleted an expense, or assigned a `Garamat` (penalty). A tenant-level audit log is legally and operationally required for finance and admin accountability.
 
+**May 2026 status:** Partially addressed. `TenantAuditLog` now exists and Faculty member mutations are logged for role changes, deactivation, and bulk Excel import summaries. Coverage should still be extended to budgets, bill deletion, finance actions, and admin operational changes.
+
 ### 3. Application-Level Caching (Redis)
 **Why:** To survive thousands of daily dashboard loads, the heavy `SUM` and `COUNT` queries must be cached and invalidated only when new expenses or requests are approved. 
 
+**May 2026 status:** Partially addressed. Redis/Flask-Caching is active for the main dashboard and Faculty overview aggregates. Faculty cache invalidation is wired after member import, role changes, and deactivation.
+
 ### 4. Soft Deletes & Data Retention
 **Why:** The database will bloat with stale `PushSubscription` tokens and completed `ProcurementItem` rows. Scheduled cron jobs to archive old data or remove dead push tokens are missing.
+
+**May 2026 status:** Partially addressed for users. `User.is_active` is now the canonical soft-delete/login flag; inactive users cannot log in and are hidden from Faculty member management. Historical operational tables still need their own retention/archive strategy.
 
 ### 5. Rate Limiting
 **Why:** Expensive endpoints like `/finance/expenses` (OCR upload) and authentication routes are completely exposed, risking DoS attacks or accidental resource exhaustion.
@@ -139,8 +145,8 @@ Super Admins will need a macro-level dashboard showing DAU/MAU and feature adopt
 *   **Security:** Implement comprehensive CSRF protection.
 
 ### HIGH (3-6 Months)
-*   **Caching Layer:** Implement Redis caching for the `/dashboard` aggregate queries.
-*   **Audit Logging:** Create a tenant-level Audit Log table.
+*   **Caching Layer Expansion:** Redis caching exists for the main dashboard and Faculty overview; expand invalidation coverage to remaining aggregate-heavy views.
+*   **Audit Logging Expansion:** `TenantAuditLog` exists for Faculty member mutations; extend coverage to budget, bill, finance, and admin changes.
 *   **Tea Rotation:** Implement "Smart Rotation" logic for `TeaTask` to match the Menu system.
 
 ### MEDIUM (6-12 Months)
@@ -157,3 +163,11 @@ Super Admins will need a macro-level dashboard showing DAU/MAU and feature adopt
 *   [x] **Menu Automation:** Implemented "Smart Rotation" (with absence conflict checks) and "Weekly Batch Planner."
 *   [x] **Bulk Actions:** Added "Bulk Completion" for procurement items.
 *   [x] **Contextual Feedback:** Linked suggestions directly to the Dish Library.
+
+### ACHIEVED MILESTONES (Completed May 2026)
+*   [x] **Faculty Member Management:** Added `/faculty/members` with admin/super-admin isolation, active-user filtering, role assignment/demotion, soft deactivation, and DataTables-style filters/search.
+*   [x] **Excel Member Onboarding:** Added Faculty Excel template, validation, and commit routes using `openpyxl`, global TR/email uniqueness checks, partial import support, and default first-login password `maskan1447`.
+*   [x] **Tenant Audit Foundation:** Added `TenantAuditLog` and logging helpers for Faculty role changes, deactivations, and bulk import summaries.
+*   [x] **User Soft Delete:** Added `User.is_active` and inactive-user rejection across member, staff, Faculty, and first-login password flows.
+*   [x] **Faculty Overview Cache:** Added cached Faculty overview metrics and invalidation hooks after member mutations.
+*   [x] **Faculty Meal Insights:** Added `/faculty/meal-insights` using existing `Menu`, `Feedback`, `Suggestion`, and `SuggestionVote` data for planned meal reception analytics.
