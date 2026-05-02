@@ -171,9 +171,9 @@
                                 </select>
                             </div>
                             <div class="col-md-5 d-none" id="garamatTeamSelect">
-                                <label class="form-label">Team</label>
+                                <label class="form-label">{{ TERM_TEAM }}</label>
                                 <select class="form-select" name="team_id">
-                                    <option value="">Select team...</option>
+                                    <option value="">Select {{ TERM_TEAM | lower }}...</option>
                                     {% for t in floor_teams %}
                                     <option value="{{ t.id }}">{{ t.name }}</option>
                                     {% endfor %}

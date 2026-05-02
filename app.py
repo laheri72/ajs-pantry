@@ -212,6 +212,11 @@ def enforce_tenancy():
         return redirect(url_for('faculty.login'))
 
 @app.context_processor
+def inject_terms():
+    from config.terms import TERMS
+    return {f"TERM_{k}": v for k, v in TERMS.items()}
+
+@app.context_processor
 def inject_current_user():
     current_user = _get_current_user()
     active_floor = _get_active_floor(current_user)

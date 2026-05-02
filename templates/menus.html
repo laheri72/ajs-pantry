@@ -260,7 +260,7 @@
                         <label class="form-check-label fw-bold text-primary" for="isBufferToggle">
                             <i class="fas fa-star me-1 text-warning"></i> Special Buffer Day (Individual Assignment)
                         </label>
-                        <div class="small text-muted ms-4">Switch this on to assign individuals without affecting team rotation.</div>
+                        <div class="small text-muted ms-4">Switch this on to assign individuals without affecting Room rotation.</div>
                     </div>
 
                     <div class="row g-3">
@@ -367,15 +367,15 @@
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <label class="form-label fw-bold mb-0">Assignment</label>
                                 <button type="button" class="btn btn-sm btn-outline-teal" id="btnSuggestTeam">
-                                    <i class="fas fa-magic me-1"></i> Suggest Next Team
+                                    <i class="fas fa-magic me-1"></i> Suggest Next Room
                                 </button>
                             </div>
                         </div>
 
                         <div class="col-md-6" id="teamAssignmentWrap">
-                            <label class="form-label small fw-bold text-teal">Team (Room)</label>
+                            <label class="form-label small fw-bold text-teal">{{ TERM_TEAM }}</label>
                             <select class="form-select border-teal shadow-none" id="assignedTeamSelect" name="assigned_team_id">
-                                <option value="">Select Team</option>
+                                <option value="">Select {{ TERM_TEAM }}</option>
                                 {% for t in floor_teams %}
                                 <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
                                 {% endfor %}
@@ -416,7 +416,7 @@
                     <span class="badge bg-soft-teal text-teal border border-teal small px-3">Email Notification</span>
                 </div>
                 <p class="text-muted small mb-4">
-                    The assigned team/user will receive an <strong>automatic email</strong> about this schedule. Are you sure?
+                    The assigned {{ TERM_TEAM | lower }}/user will receive an <strong>automatic email</strong> about this schedule. Are you sure?
                 </p>
                 <div class="d-grid gap-2">
                     <button type="button" id="confirmScheduleBtn" class="btn btn-teal py-2">Yes, Confirm & Send</button>
@@ -521,7 +521,7 @@
                                     <th style="width: 15%;">Day / Date</th>
                                     <th style="width: 35%;">Main Dish & Insights</th>
                                     <th style="width: 25%;">Side Dish</th>
-                                    <th style="width: 25%;">Assigned Team</th>
+                                    <th style="width: 25%;">Assigned {{ TERM_TEAM }}</th>
                                 </tr>
                             </thead>
                             <tbody id="planner-body">
@@ -947,7 +947,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Conflict Alert
                         if (data.conflicts && data.conflicts.length > 0) {
                             const names = data.conflicts.join(', ');
-                            alert(`Warning: The following team members are marked absent on this date: ${names}. You may want to assign a buffer day instead.`);
+                            alert(`Warning: The following {{ TERM_TEAM_MEMBERS | lower }} are marked absent on this date: ${names}. You may want to assign a buffer day instead.`);
                         }
 
                         // Flash success
@@ -958,7 +958,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 })
                 .finally(() => {
-                    btnSuggestTeam.innerHTML = '<i class="fas fa-magic me-1"></i> Suggest Next Team';
+                    btnSuggestTeam.innerHTML = '<i class="fas fa-magic me-1"></i> Suggest Next Room';
                 });
         });
     }
@@ -1278,7 +1278,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </td>
                 <td>
                     <select class="form-select form-select-sm row-team">
-                        <option value="">Select Team...</option>
+                        <option value="">Select {{ TERM_TEAM }}...</option>
                         ${teamOptions}
                     </select>
                 </td>
