@@ -40,7 +40,7 @@ class DMartParser(BaseParser):
                 fmt = '%d/%m/%y' if len(raw_date.split('/')[-1]) == 2 else '%d/%m/%Y'
                 dt_obj = datetime.strptime(raw_date, fmt)
                 data.bill_date = dt_obj.strftime('%Y-%m-%d')
-            except:
+            except ValueError:
                 pass
 
         # 3. Extract Items
@@ -89,7 +89,7 @@ class DMartParser(BaseParser):
                         'quantity': str(m[4]),
                         'cost': float(m[6].replace(',', ''))
                     })
-                except:
+                except ValueError:
                     continue
 
         # 4. Extract Total
@@ -128,7 +128,7 @@ class BlinkitParser(BaseParser):
             try:
                 dt_obj = datetime.strptime(date_match.group(1), '%d-%b-%Y')
                 data.bill_date = dt_obj.strftime('%Y-%m-%d')
-            except:
+            except ValueError:
                 pass
 
         # 3. Extract Items
@@ -148,7 +148,7 @@ class BlinkitParser(BaseParser):
                     'quantity': m[5],
                     'cost': float(m[7])
                 })
-            except:
+            except ValueError:
                 continue
 
         # 4. Extract Delivery/Handling Fees (Explicitly)
@@ -160,7 +160,7 @@ class BlinkitParser(BaseParser):
                     'quantity': '1',
                     'cost': float(delivery_match.group(1))
                 })
-            except:
+            except ValueError:
                 pass
 
         # 5. Extract Total
@@ -220,7 +220,8 @@ class GenericParser(BaseParser):
                     else:
                         val = float(clean_p)
                     floats.append(val)
-                except: continue
+                except ValueError:
+                    continue
             
             if not floats: continue
             all_prices.extend(floats)
