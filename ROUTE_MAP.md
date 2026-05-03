@@ -90,6 +90,14 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/expenses/print-reports/save` | `save_print_report` | POST | Persist a saved print-report definition from the Expenses wizard |
 | `/bills/<id>/items` | `get_bill_items` | GET | API: Fetch all items for a specific bill (JSON) |
 
+
+## expense_print_report_bill — write gate (2025-05)
+Bill-link rows are only written when faculty_workflow_enabled is True.
+Reason: these rows are only consumed by the Faculty submission picker.
+For Faculty-off tenants they were dead weight — 1,652 rows were cleaned up
+before the gate was added. Do not remove the gate without re-evaluating
+the Faculty submission flow in blueprints/faculty/routes.py.
+
 ---
 
 ## 4. Ops Blueprint (`blueprints/ops/routes.py`)
