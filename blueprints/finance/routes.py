@@ -328,16 +328,24 @@ def save_print_report():
     db.session.add(print_report)
     db.session.flush()
 
-    summary_set = set(summary_bill_ids)
-    voucher_set = set(voucher_bill_ids)
-    for bill in bills:
-        db.session.add(ExpensePrintReportBill(
-            print_report_id=print_report.id,
-            bill_id=bill.id,
-            include_in_summary=bill.id in summary_set,
-            include_as_voucher=bill.id in voucher_set,
-            tenant_id=getattr(g, 'tenant_id', None)
-        ))
+# Bill links are only consumed by the Faculty submission flow.
+    # For Faculty-off tenants, skip the write entirely — the rows are never read
+    # and accumulate as dead weight (1,652 orphaned rows were cleaned up 2025-05).
+    if faculty_workflow_enabled:
+        summary_set = set(summary_bill_ids)
+        voucher_set = set(voucher_bill_ids)
+        seen = set()
+        for bill in bills:
+            if bill.id in seen:
+                continue
+            seen.add(bill.id)
+            db.session.add(ExpensePrintReportBill(
+                print_report_id=print_report.id,
+                bill_id=bill.id,
+                include_in_summary=bill.id in summary_set,
+                include_as_voucher=bill.id in voucher_set,
+                tenant_id=getattr(g, 'tenant_id', None)
+            ))
 
     db.session.commit()
     return jsonify({
