@@ -14,7 +14,7 @@ from ..utils import (
     _display_name_for,
     tenant_filter,
     send_push_notification,
-    send_email_notification,
+    send_email_worker,
     FLOOR_MIN,
     FLOOR_MAX,
 )
@@ -1640,7 +1640,10 @@ def send_single_menu_notification(menu_id):
                 </div>
             </div>
             """
-            send_email_notification(recipient.email, email_subject, email_html)
+            email_sent = send_email_worker(recipient.email, email_subject, email_html)
+            if not email_sent:
+                return jsonify({'status': 'error', 'message': 'Email delivery failed'}), 500
+
             return jsonify({'status': 'success'})
 
         return jsonify({'status': 'warning', 'message': 'Recipient has no email address'})

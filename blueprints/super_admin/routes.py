@@ -366,7 +366,7 @@ def archive_global_dish(dish_id):
 
 @super_admin_bp.route('/platform-admin/dishes/<int:dish_id>/estimate', methods=['POST'])
 def update_dish_estimate(dish_id):
-    """Allow both super_admin and pantryHead to update dish estimates."""
+    """Allow super_admin, admin, and pantryHead users to update dish estimates."""
     from app import db
     import json
     
@@ -374,8 +374,8 @@ def update_dish_estimate(dish_id):
     if not user:
         abort(403)
     
-    # Allow super_admin (tenant_id is None) OR pantryHead
-    if user.tenant_id is not None and user.role != 'pantryHead':
+    # Allow super_admin globally, and tenant admin/pantryHead users within their tenant.
+    if user.role not in {'super_admin', 'admin', 'pantryHead'}:
         abort(403)
     
     dish = Dish.query.get_or_404(dish_id)
