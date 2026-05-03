@@ -696,6 +696,8 @@ def manage_faculty(tenant_id):
     flash('Invalid Faculty action.', 'error')
     return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 
+from sqlalchemy.orm import joinedload
+
 @super_admin_bp.route('/platform-admin/logs')
 def tenant_audit_logs():
     require_super_admin()
@@ -704,7 +706,7 @@ def tenant_audit_logs():
     action_filter = request.args.get('action')
     page = request.args.get('page', 1, type=int)
     
-    query = TenantAuditLog.query.outerjoin(Tenant, TenantAuditLog.tenant_id == Tenant.id).outerjoin(User, TenantAuditLog.actor_user_id == User.id)
+    query = TenantAuditLog.query.options(joinedload(TenantAuditLog.tenant), joinedload(TenantAuditLog.actor_user))
     
     if tenant_id_filter:
         query = query.filter(TenantAuditLog.tenant_id == tenant_id_filter)

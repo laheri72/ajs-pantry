@@ -20,6 +20,14 @@ def faculty_visible_users_query():
         User.is_active.is_(True),
     )
 
+def faculty_deactivated_users_query():
+    """Tenant-scoped users Faculty can see that are deactivated."""
+    return User.query.filter(
+        User.tenant_id == getattr(g, 'tenant_id', None),
+        User.role.notin_(['admin', 'super_admin']),
+        User.is_active.is_(False),
+    )
+
 def log_tenant_audit(action, target_type=None, target_id=None, description=None, details=None, actor_user=None):
     from app import db
     from models import TenantAuditLog

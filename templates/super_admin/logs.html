@@ -79,7 +79,19 @@
                         <div class="text-muted small" style="font-size: 0.75rem;">{{ log.created_at.strftime('%I:%M %p') }}</div>
                     </td>
                     <td>
-                        <div class="fw-bold">{{ log.tenant.name if log.tenant else 'Unknown' }}</div>
+                        {% if log.tenant %}
+                        {% set color_map = {
+                            '0': 'bg-primary', '1': 'bg-success', '2': 'bg-danger', '3': 'bg-warning text-dark',
+                            '4': 'bg-info text-dark', '5': 'bg-dark', '6': 'bg-primary', '7': 'bg-success',
+                            '8': 'bg-danger', '9': 'bg-warning text-dark', 'a': 'bg-info text-dark', 'b': 'bg-dark',
+                            'c': 'bg-primary', 'd': 'bg-success', 'e': 'bg-danger', 'f': 'bg-warning text-dark'
+                        } %}
+                        {% set last_char = (log.tenant.id | string)[-1] %}
+                        {% set color_class = color_map.get(last_char, 'bg-primary') %}
+                        <span class="badge {{ color_class }} text-white fw-bold">{{ log.tenant.name }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Platform/Unknown</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if log.actor_user %}

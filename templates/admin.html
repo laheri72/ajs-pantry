@@ -232,7 +232,9 @@
                                     </td>
                                     <td><span class="badge bg-teal-light text-teal">Floor {{ admin_user.floor }}</span></td>
                                     <td>
-                                        {% if admin_user.is_first_login %}
+                                        {% if not admin_user.is_active %}
+                                        <span class="badge bg-danger-light text-danger">Deactivated</span>
+                                        {% elif admin_user.is_first_login %}
                                         <span class="badge bg-warning-light text-warning">Pending Login</span>
                                         {% else %}
                                         <span class="badge bg-success-light text-success">Active</span>
@@ -240,16 +242,24 @@
                                     </td>
                                     <td class="text-end">
                                         {% if admin_user.id != current_user.id %}
-                                        <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Reset password to maskan1447 for this user?')">
-                                            <input type="hidden" name="action" value="reset_password">
-                                            <input type="hidden" name="user_id" value="{{ admin_user.id }}">
-                                            <button type="submit" class="btn btn-sm btn-link text-warning" title="Reset Password"><i class="fas fa-key"></i></button>
-                                        </form>
-                                        <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Permanently delete this user?')">
-                                            <input type="hidden" name="action" value="delete_user">
-                                            <input type="hidden" name="user_id" value="{{ admin_user.id }}">
-                                            <button type="submit" class="btn btn-sm btn-link text-danger" title="Delete User"><i class="fas fa-user-minus"></i></button>
-                                        </form>
+                                            {% if admin_user.is_active %}
+                                            <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Reset password to maskan1447 for this user?')">
+                                                <input type="hidden" name="action" value="reset_password">
+                                                <input type="hidden" name="user_id" value="{{ admin_user.id }}">
+                                                <button type="submit" class="btn btn-sm btn-link text-warning" title="Reset Password"><i class="fas fa-key"></i></button>
+                                            </form>
+                                            <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Deactivate this user?')">
+                                                <input type="hidden" name="action" value="delete_user">
+                                                <input type="hidden" name="user_id" value="{{ admin_user.id }}">
+                                                <button type="submit" class="btn btn-sm btn-link text-danger" title="Deactivate User"><i class="fas fa-user-minus"></i></button>
+                                            </form>
+                                            {% else %}
+                                            <form action="{{ url_for('admin_panel.admin') }}" method="POST" class="d-inline" onsubmit="return confirm('Reactivate this user?')">
+                                                <input type="hidden" name="action" value="reactivate_user">
+                                                <input type="hidden" name="user_id" value="{{ admin_user.id }}">
+                                                <button type="submit" class="btn btn-sm btn-link text-success" title="Reactivate User"><i class="fas fa-user-check"></i></button>
+                                            </form>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>

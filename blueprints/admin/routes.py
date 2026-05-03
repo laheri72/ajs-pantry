@@ -255,35 +255,22 @@ def admin():
                 flash('Admin users cannot be deleted from this panel.', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            tenant_filter(TeamMember.query).filter_by(user_id=target.id).delete(synchronize_session=False)
+            # Soft delete: deactivate the user but preserve their history
+            target.is_active = False
+            
+            # Optionally log the action using the audit log if desired
+            from ..utils import log_tenant_audit
+            log_tenant_audit(
+                'admin_deactivate_user',
+                target_type='user',
+                target_id=target.id,
+                description=f'Deactivated user {target.full_name or target.username or target.email}.',
+                details={'role': target.role, 'floor': target.floor, 'tr_number': target.tr_number},
+                actor_user=user,
+            )
 
-            tenant_filter(Menu.query).filter_by(assigned_to_id=target.id).update({Menu.assigned_to_id: None}, synchronize_session=False)
-            tenant_filter(Menu.query).filter_by(created_by_id=target.id).update({Menu.created_by_id: None}, synchronize_session=False)
-
-            tenant_filter(TeaTask.query).filter_by(assigned_to_id=target.id).update({TeaTask.assigned_to_id: None}, synchronize_session=False)
-            tenant_filter(TeaTask.query).filter_by(created_by_id=target.id).update({TeaTask.created_by_id: None}, synchronize_session=False)
-
-            tenant_filter(ProcurementItem.query).filter_by(assigned_to_id=target.id).update({ProcurementItem.assigned_to_id: None}, synchronize_session=False)
-            tenant_filter(ProcurementItem.query).filter_by(created_by_id=target.id).update({ProcurementItem.created_by_id: None}, synchronize_session=False)
-
-            tenant_filter(Request.query).filter_by(user_id=target.id).update({Request.user_id: None}, synchronize_session=False)
-            tenant_filter(Request.query).filter_by(approved_by_id=target.id).update({Request.approved_by_id: None}, synchronize_session=False)
-
-            tenant_filter(Expense.query).filter_by(user_id=target.id).update({Expense.user_id: None}, synchronize_session=False)
-            tenant_filter(Suggestion.query).filter_by(user_id=target.id).update({Suggestion.user_id: None}, synchronize_session=False)
-            tenant_filter(Feedback.query).filter_by(user_id=target.id).update({Feedback.user_id: None}, synchronize_session=False)
-
-            tenant_filter(Team.query).filter_by(created_by_id=target.id).update({Team.created_by_id: None}, synchronize_session=False)
-
-            try:
-                db.session.delete(target)
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                flash('Cannot delete this user because they are referenced elsewhere.', 'error')
-                return redirect(url_for('admin_panel.admin'))
-
-            flash('User deleted successfully', 'success')
+            db.session.commit()
+            flash('User deactivated successfully', 'success')
             return redirect(url_for('admin_panel.admin'))
 
         if action == 'reset_password':
@@ -310,7 +297,43 @@ def admin():
             flash(f"Password for {target.full_name or target.email} has been reset to 'maskan1447'.", 'success')
             return redirect(url_for('admin_panel.admin'))
             
-    all_users = tenant_filter(User.query).filter(User.role != 'faculty').all()
+        if action == 'reactivate_user':
+            try:
+                target_user_id = int(request.form.get('user_id') or '')
+            except Exception:
+                flash('Invalid user selected', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
+            target = tenant_filter(User.query).filter_by(id=target_user_id).first()
+            if not target:
+                flash('User not found', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
+            if target.role == 'faculty':
+                flash('Faculty accounts are managed only by Super Admin.', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
+            if target.role == 'admin':
+                flash('Admin users cannot be modified from this panel.', 'error')
+                return redirect(url_for('admin_panel.admin'))
+
+            target.is_active = True
+            
+            from ..utils import log_tenant_audit
+            log_tenant_audit(
+                'admin_reactivate_user',
+                target_type='user',
+                target_id=target.id,
+                description=f'Reactivated user {target.full_name or target.username or target.email}.',
+                details={'role': target.role, 'floor': target.floor, 'tr_number': target.tr_number},
+                actor_user=user,
+            )
+
+            db.session.commit()
+            flash('User reactivated successfully', 'success')
+            return redirect(url_for('admin_panel.admin'))
+
+    all_users = tenant_filter(User.query).filter(User.role != 'faculty').order_by(User.is_active.desc(), User.floor.asc(), User.role.asc(), User.tr_number.asc()).all()
     
     total_users = tenant_filter(User.query).filter(User.role != 'faculty').count()
     total_budget_all = float(

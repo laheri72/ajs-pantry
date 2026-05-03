@@ -46,6 +46,7 @@ from ..utils import (
     current_tenant_faculty_workflow_enabled,
     faculty_workflow_enabled_for_user,
     faculty_visible_users_query,
+    faculty_deactivated_users_query,
     log_tenant_audit,
     _require_faculty,
     _require_user,
@@ -716,6 +717,11 @@ def members():
         .order_by(User.floor.asc(), User.role.asc(), User.tr_number.asc(), User.full_name.asc())
         .all()
     )
+    deactivated_users = (
+        faculty_deactivated_users_query()
+        .order_by(User.floor.asc(), User.role.asc(), User.tr_number.asc(), User.full_name.asc())
+        .all()
+    )
     role_counts = {
         'all': len(users),
         'pantryHead': len([u for u in users if u.role == 'pantryHead']),
@@ -725,9 +731,32 @@ def members():
         'faculty/members.html',
         current_user=user,
         users=users,
+        deactivated_users=deactivated_users,
         role_counts=role_counts,
         floor_options=_get_tenant_floor_options(user),
     )
+
+
+@faculty_bp.route('/faculty/members/<int:user_id>/reactivate', methods=['POST'])
+def reactivate_member(user_id):
+    user = _require_faculty()
+    target = faculty_deactivated_users_query().filter(User.id == user_id).first_or_404()
+    if target.role in {'admin', 'super_admin', 'faculty'}:
+        abort(403)
+
+    target.is_active = True
+    log_tenant_audit(
+        'faculty_reactivate_user',
+        target_type='user',
+        target_id=target.id,
+        description=f'Reactivated {_display_user_label(target)}.',
+        details={'role': target.role, 'floor': target.floor, 'tr_number': target.tr_number},
+        actor_user=user,
+    )
+    db.session.commit()
+    _clear_faculty_dashboard_cache()
+    flash('User reactivated successfully.', 'success')
+    return redirect(url_for('faculty.members'))
 
 
 @faculty_bp.route('/faculty/members/<int:user_id>/role', methods=['POST'])

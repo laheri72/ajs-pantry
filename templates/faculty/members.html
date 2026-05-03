@@ -83,13 +83,17 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="pill" data-bs-target="#teaManagersPane" type="button" role="tab">Tea Managers</button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-danger" data-bs-toggle="pill" data-bs-target="#deactivatedPane" type="button" role="tab">Deactivated</button>
+        </li>
     </ul>
 
     <div class="tab-content">
         {% set table_sets = [
             ('allMembersPane', 'facultyMembersTable', users),
             ('pantryHeadsPane', 'facultyPantryHeadsTable', users|selectattr('role', 'equalto', 'pantryHead')|list),
-            ('teaManagersPane', 'facultyTeaManagersTable', users|selectattr('role', 'equalto', 'teaManager')|list)
+            ('teaManagersPane', 'facultyTeaManagersTable', users|selectattr('role', 'equalto', 'teaManager')|list),
+            ('deactivatedPane', 'facultyDeactivatedTable', deactivated_users)
         ] %}
         {% for pane_id, table_id, table_users in table_sets %}
         <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ pane_id }}" role="tabpanel">
@@ -121,20 +125,32 @@
                                 </span>
                             </td>
                             <td>{% if member.floor %}Floor {{ member.floor }}{% else %}-{% endif %}</td>
-                            <td><span class="badge bg-success">Active</span></td>
+                            <td>
+                                {% if member.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-danger">Deactivated</span>
+                                {% endif %}
+                            </td>
                             <td class="text-end">
                                 {% if member.role != 'faculty' %}
-                                <form method="POST" action="{{ url_for('faculty.update_member_role', user_id=member.id) }}" class="d-inline-flex gap-1 align-items-center">
-                                    <select name="role" class="form-select form-select-sm" style="width: 140px;">
-                                        <option value="member" {% if member.role == 'member' %}selected{% endif %}>Member</option>
-                                        <option value="pantryHead" {% if member.role == 'pantryHead' %}selected{% endif %}>Pantry Head</option>
-                                        <option value="teaManager" {% if member.role == 'teaManager' %}selected{% endif %}>Tea Manager</option>
-                                    </select>
-                                    <button class="btn btn-sm btn-outline-success" title="Update role"><i class="fas fa-check"></i></button>
-                                </form>
-                                <form method="POST" action="{{ url_for('faculty.deactivate_member', user_id=member.id) }}" class="d-inline" onsubmit="return confirm('Deactivate this user?')">
-                                    <button class="btn btn-sm btn-outline-danger" title="Deactivate"><i class="fas fa-user-slash"></i></button>
-                                </form>
+                                    {% if member.is_active %}
+                                    <form method="POST" action="{{ url_for('faculty.update_member_role', user_id=member.id) }}" class="d-inline-flex gap-1 align-items-center">
+                                        <select name="role" class="form-select form-select-sm" style="width: 140px;">
+                                            <option value="member" {% if member.role == 'member' %}selected{% endif %}>Member</option>
+                                            <option value="pantryHead" {% if member.role == 'pantryHead' %}selected{% endif %}>Pantry Head</option>
+                                            <option value="teaManager" {% if member.role == 'teaManager' %}selected{% endif %}>Tea Manager</option>
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-success" title="Update role"><i class="fas fa-check"></i></button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('faculty.deactivate_member', user_id=member.id) }}" class="d-inline" onsubmit="return confirm('Deactivate this user?')">
+                                        <button class="btn btn-sm btn-outline-danger" title="Deactivate"><i class="fas fa-user-slash"></i></button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('faculty.reactivate_member', user_id=member.id) }}" class="d-inline" onsubmit="return confirm('Reactivate this user?')">
+                                        <button class="btn btn-sm btn-outline-success" title="Reactivate"><i class="fas fa-user-check"></i> Reactivate</button>
+                                    </form>
+                                    {% endif %}
                                 {% else %}
                                 <span class="text-muted small">Protected</span>
                                 {% endif %}
