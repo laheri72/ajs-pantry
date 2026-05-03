@@ -55,6 +55,7 @@ class TenantAuditLog(db.Model, TenantMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
     actor_user = db.relationship('User', foreign_keys=[actor_user_id])
+    tenant = db.relationship('Tenant', foreign_keys='TenantAuditLog.tenant_id')
 
 class User(db.Model, TenantMixin):
     id = db.Column(db.Integer, primary_key=True)
