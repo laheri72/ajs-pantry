@@ -1,0 +1,200 @@
+{% extends "super_admin/base.html" %}
+
+{% block title %}Tenant Audit Logs - CEO Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold mb-0">Tenant Audit Logs</h3>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card card-expert p-4">
+            <h5 class="fw-bold mb-3">Analytics & Trends</h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="bg-light p-3 rounded text-center h-100 d-flex flex-column justify-content-center">
+                        <div class="h2 fw-bold text-primary mb-1">{{ stats.total_logs }}</div>
+                        <div class="text-muted small">Total Logs Recorded</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <canvas id="actionPieChart" height="150"></canvas>
+                </div>
+                <div class="col-md-5">
+                    <canvas id="trendLineChart" height="150"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-expert p-0 overflow-hidden">
+    <div class="bg-light border-bottom p-3">
+        <form method="GET" action="{{ url_for('super_admin.tenant_audit_logs') }}" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Filter by Tenant</label>
+                <select name="tenant_id" class="form-select form-select-sm">
+                    <option value="">All Tenants</option>
+                    {% for t in tenants %}
+                    <option value="{{ t.id }}" {% if filters.tenant_id == t.id|string %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Filter by Action</label>
+                <select name="action" class="form-select form-select-sm">
+                    <option value="">All Actions</option>
+                    {% for a in actions %}
+                    <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('super_admin.tenant_audit_logs') }}" class="btn btn-light btn-sm w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Date</th>
+                    <th>Tenant</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Description</th>
+                    <th>Target Type/ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in pagination.items %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="fw-bold">{{ log.created_at.strftime('%b %d, %Y') }}</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">{{ log.created_at.strftime('%I:%M %p') }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-bold">{{ log.tenant.name if log.tenant else 'Unknown' }}</div>
+                    </td>
+                    <td>
+                        {% if log.actor_user %}
+                        <div class="fw-bold text-dark">{{ log.actor_user.full_name or log.actor_user.username }}</div>
+                        <div class="small text-muted">{{ log.actor_user.role }}</div>
+                        {% else %}
+                        <span class="text-muted">System</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="badge bg-secondary">{{ log.action }}</span></td>
+                    <td>
+                        <div class="text-dark small">{{ log.description }}</div>
+                    </td>
+                    <td>
+                        {% if log.target_type %}
+                        <span class="small text-muted border px-1 rounded">{{ log.target_type }}:{{ log.target_id }}</span>
+                        {% else %}
+                        <span class="text-muted small">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        <i class="fas fa-history fa-2x mb-2 text-light"></i><br>
+                        No audit logs found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    {% if pagination.pages > 1 %}
+    <div class="p-3 border-top d-flex justify-content-end">
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('super_admin.tenant_audit_logs', page=pagination.prev_num, tenant_id=filters.tenant_id, action=filters.action) }}">Previous</a>
+                </li>
+                {% for p in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+                    {% if p %}
+                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('super_admin.tenant_audit_logs', page=p, tenant_id=filters.tenant_id, action=filters.action) }}">{{ p }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('super_admin.tenant_audit_logs', page=pagination.next_num, tenant_id=filters.tenant_id, action=filters.action) }}">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const actionLabels = {{ stats.action_labels | tojson }};
+    const actionValues = {{ stats.action_values | tojson }};
+    
+    if (actionLabels.length > 0) {
+        new Chart(document.getElementById('actionPieChart'), {
+            type: 'doughnut',
+            data: {
+                labels: actionLabels,
+                datasets: [{
+                    data: actionValues,
+                    backgroundColor: [
+                        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    const trendLabels = {{ stats.trend_labels | tojson }};
+    const trendValues = {{ stats.trend_values | tojson }};
+    
+    if (trendLabels.length > 0) {
+        new Chart(document.getElementById('trendLineChart'), {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    label: 'Audit Events',
+                    data: trendValues,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } },
+                    x: { ticks: { font: { size: 10 } } }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
