@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, g
 from werkzeug.security import check_password_hash, generate_password_hash
 from app import db
-from models import User, Tenant, Dish, DishEstimate, DishAuditLog, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow, Suggestion, normalize_dish_name
+from models import User, Tenant, Dish, DishEstimate, DishAuditLog, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow, Suggestion, normalize_dish_name, TenantAuditLog
 from . import super_admin_bp
 from ..utils import require_super_admin, visible_budget_condition
 from sqlalchemy import func, or_
@@ -695,3 +695,69 @@ def manage_faculty(tenant_id):
 
     flash('Invalid Faculty action.', 'error')
     return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+@super_admin_bp.route('/platform-admin/logs')
+def tenant_audit_logs():
+    require_super_admin()
+    
+    tenant_id_filter = request.args.get('tenant_id')
+    action_filter = request.args.get('action')
+    page = request.args.get('page', 1, type=int)
+    
+    query = TenantAuditLog.query.outerjoin(Tenant, TenantAuditLog.tenant_id == Tenant.id).outerjoin(User, TenantAuditLog.actor_user_id == User.id)
+    
+    if tenant_id_filter:
+        query = query.filter(TenantAuditLog.tenant_id == tenant_id_filter)
+    if action_filter:
+        query = query.filter(TenantAuditLog.action == action_filter)
+        
+    logs_pagination = query.order_by(TenantAuditLog.created_at.desc()).paginate(
+        page=page, per_page=50, error_out=False
+    )
+    
+    # Analytics / Trends
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    
+    # Total logs
+    total_logs = TenantAuditLog.query.count()
+    
+    # Action distribution
+    action_counts = db.session.query(
+        TenantAuditLog.action, func.count(TenantAuditLog.id)
+    ).group_by(TenantAuditLog.action).all()
+    action_labels = [a[0] for a in action_counts]
+    action_values = [a[1] for a in action_counts]
+    
+    # Daily trend over last 30 days
+    daily_counts = db.session.query(
+        func.date(TenantAuditLog.created_at), func.count(TenantAuditLog.id)
+    ).filter(TenantAuditLog.created_at >= thirty_days_ago)\
+     .group_by(func.date(TenantAuditLog.created_at)).all()
+     
+    trend_dict = {}
+    for date_obj, count in daily_counts:
+        trend_dict[str(date_obj)] = count
+        
+    sorted_dates = sorted(trend_dict.keys())
+    trend_labels = [datetime.strptime(d, '%Y-%m-%d').strftime('%b %d') for d in sorted_dates]
+    trend_values = [trend_dict[d] for d in sorted_dates]
+    
+    tenants = Tenant.query.order_by(Tenant.name.asc()).all()
+    actions = [a[0] for a in db.session.query(TenantAuditLog.action).distinct().all()]
+    
+    stats = {
+        'total_logs': total_logs,
+        'action_labels': action_labels,
+        'action_values': action_values,
+        'trend_labels': trend_labels,
+        'trend_values': trend_values
+    }
+    
+    return render_template(
+        'super_admin/logs.html',
+        pagination=logs_pagination,
+        stats=stats,
+        tenants=tenants,
+        actions=actions,
+        filters={'tenant_id': tenant_id_filter, 'action': action_filter}
+    )
