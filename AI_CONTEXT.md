@@ -323,10 +323,11 @@ Entirely separate portal at `/platform-admin/`. Key operations:
 
 ### 5K. Deployment Configuration
 
-**Systemd service:** `/etc/systemd/system/ajs-pantry.service`  
-**Environment:** `/home/ubuntu/ajs-pantry/.env`  
-**Report storage:** `REPORT_STORAGE_ROOT` env var, defaults to `~/ajs-pantry-data/reports`  
-**Production target:** `/home/ubuntu/ajs-pantry-data/reports/<tenant-slug>/`
+- **Systemd web service:** `/etc/systemd/system/ajs-pantry.service`
+- **Systemd worker service:** `/etc/systemd/system/rq-worker.service` runs `/home/ubuntu/ajs-pantry/venv/bin/rq worker ajs_pantry_tasks`; keep the repo template in `deploy/ajs-pantry-worker.service` in sync. The critical production fix is `Restart=always` because the old worker stayed dead after transient Redis/Upstash errors.
+- **Environment:** `/home/ubuntu/ajs-pantry/.env`
+- **Report storage:** `REPORT_STORAGE_ROOT` env var, defaults to `~/ajs-pantry-data/reports`
+- **Production target:** `/home/ubuntu/ajs-pantry-data/reports/<tenant-slug>/`
 
 **Required env vars:**
 - `SESSION_SECRET` — Flask session key (required, app won't start without it)
@@ -335,6 +336,8 @@ Entirely separate portal at `/platform-admin/`. Key operations:
 - `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY` — Push notifications
 - `GMAIL_USER`, `GMAIL_PASS` — Email
 - `REDIS_URL` — Background jobs (optional, falls back gracefully)
+- `RECEIPT_IMPORT_ASYNC_ENABLED` — Receipt OCR queue toggle; defaults to off on Windows/dev and on for Linux production
+- `RECEIPT_TEMP_FILE_TTL_SECONDS` — Cleanup age for `tmp/receipts` files, default `300`
 - `REPORT_STORAGE_ROOT` — Faculty PDF storage path
 - `SUPABASE_SERVICE_ROLE_KEY` — Bulk menu email edge function
 

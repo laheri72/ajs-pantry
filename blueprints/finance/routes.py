@@ -1,13 +1,17 @@
-from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g
+from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g, current_app
 from app import db
 from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, ExpensePrintReport, ExpensePrintReportBill
 from .services.parser_factory import ParserFactory
 from datetime import datetime, date
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
+from werkzeug.utils import secure_filename
 import logging
+import uuid
+import time
 from . import finance_bp
 from ..budgeting import build_floor_budget_ledger
+from ..queue_health import active_worker_count, job_age_seconds, job_started_age_seconds
 from ..utils import (
     _require_user,
     _get_active_floor,
@@ -256,7 +260,6 @@ def expenses():
     )
 
 import os
-from werkzeug.utils import secure_filename
 import re
 
 def _tenant_slug_gen():
@@ -904,8 +907,93 @@ def verify_return(record_id):
     db.session.commit()
     return redirect(url_for('finance.lend_borrow'))
 
-import uuid
-from flask import current_app
+def _receipt_import_stall_seconds():
+    try:
+        return int(current_app.config.get("RECEIPT_IMPORT_STALL_SECONDS") or 90)
+    except Exception:
+        return 90
+
+
+def _receipt_temp_file_ttl_seconds():
+    try:
+        return int(current_app.config.get("RECEIPT_TEMP_FILE_TTL_SECONDS") or 300)
+    except Exception:
+        return 300
+
+
+def _receipt_import_async_enabled():
+    value = current_app.config.get("RECEIPT_IMPORT_ASYNC_ENABLED", "1")
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _receipt_temp_dir():
+    return os.path.join(current_app.root_path, 'tmp', 'receipts')
+
+
+def _cleanup_old_receipt_files(temp_dir=None):
+    temp_dir = temp_dir or _receipt_temp_dir()
+    ttl_seconds = _receipt_temp_file_ttl_seconds()
+    now = time.time()
+
+    if ttl_seconds <= 0 or not os.path.isdir(temp_dir):
+        return
+
+    for entry in os.scandir(temp_dir):
+        try:
+            if entry.is_file() and now - entry.stat().st_mtime > ttl_seconds:
+                os.remove(entry.path)
+                logging.info("Deleted stale receipt temp file: %s", entry.path)
+        except Exception as exc:
+            logging.warning("Unable to delete stale receipt temp file %s: %s", getattr(entry, "path", "unknown"), exc)
+
+
+def _job_failure_message(job):
+    result = getattr(job, "result", None)
+    if isinstance(result, dict) and result.get("error"):
+        return result["error"]
+
+    exc_info = getattr(job, "exc_info", None)
+    if exc_info:
+        lines = [line.strip() for line in exc_info.splitlines() if line.strip()]
+        if lines:
+            return lines[-1]
+    return "Receipt import failed in the background worker."
+
+
+def _job_status_value(job):
+    status = job.get_status(refresh=True)
+    return getattr(status, "value", str(status))
+
+
+def _job_payload(job, status):
+    return {
+        "status": status,
+        "job_status": _job_status_value(job),
+        "queue_age_seconds": job_age_seconds(job),
+        "started_age_seconds": job_started_age_seconds(job),
+        "worker_name": getattr(job, "worker_name", None),
+        "timeout": getattr(job, "timeout", None),
+    }
+
+
+def _process_receipt_inline(file, mime_type):
+    text = ParserFactory.get_text(file.stream, mime_type)
+    if text == "ERROR_TESSERACT_NOT_FOUND":
+        return jsonify({'error': 'OCR Engine (Tesseract) is not installed on the server.'}), 500
+
+    if not text:
+        return jsonify({'error': 'Failed to extract text from receipt.'}), 500
+
+    parser = ParserFactory.get_parser(text)
+    receipt_data = parser.parse(text)
+
+    if not receipt_data:
+        return jsonify({'error': 'Failed to parse extracted text.'}), 500
+
+    data = receipt_data.to_dict()
+    data['filename'] = file.filename
+    return jsonify(data)
+
 
 @finance_bp.route('/expenses/import-receipt', methods=['POST'])
 def import_receipt():
@@ -934,45 +1022,43 @@ def import_receipt():
         return jsonify({'error': f"Unsupported file type: {mime_type}"}), 400
 
     try:
+        temp_dir = _receipt_temp_dir()
+        _cleanup_old_receipt_files(temp_dir)
+
         # Check if RQ is available
-        if hasattr(current_app, 'task_queue') and current_app.task_queue:
+        if _receipt_import_async_enabled() and hasattr(current_app, 'task_queue') and current_app.task_queue:
             # Async Path: Save to temp and enqueue
-            temp_dir = os.path.join(current_app.root_path, 'tmp', 'receipts')
             os.makedirs(temp_dir, exist_ok=True)
             
             # Generate a unique task ID
             task_id = str(uuid.uuid4())
-            temp_path = os.path.join(temp_dir, f"{task_id}_{file.filename}")
+            safe_filename = secure_filename(file.filename) or 'receipt'
+            temp_path = os.path.join(temp_dir, f"{task_id}_{safe_filename}")
             file.save(temp_path)
             
             # Enqueue the job
-            current_app.task_queue.enqueue(
-                'blueprints.finance.workers._process_receipt_worker',
-                temp_path,
-                mime_type,
-                file.filename,
-                job_id=task_id
-            )
+            try:
+                current_app.task_queue.enqueue(
+                    'blueprints.finance.workers._process_receipt_worker',
+                    temp_path,
+                    mime_type,
+                    file.filename,
+                    job_id=task_id,
+                    job_timeout=180,
+                    result_ttl=3600,
+                    failure_ttl=86400,
+                )
+            except Exception:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise
+
+            logging.info("Receipt import enqueued: task_id=%s filename=%s", task_id, file.filename)
             
             return jsonify({'status': 'processing', 'task_id': task_id})
         
         # Sync Fallback
-        text = ParserFactory.get_text(file.stream, mime_type)
-        if text == "ERROR_TESSERACT_NOT_FOUND":
-            return jsonify({'error': 'OCR Engine (Tesseract) is not installed on the server.'}), 500
-            
-        if not text:
-            return jsonify({'error': 'Failed to extract text from receipt.'}), 500
-        
-        parser = ParserFactory.get_parser(text)
-        receipt_data = parser.parse(text)
-        
-        if not receipt_data:
-            return jsonify({'error': 'Failed to parse extracted text.'}), 500
-            
-        data = receipt_data.to_dict()
-        data['filename'] = file.filename
-        return jsonify(data)
+        return _process_receipt_inline(file, mime_type)
     except Exception as e:
         logging.error(f"Receipt Import Error: {str(e)}")
         return jsonify({'error': f"Failed to parse receipt: {str(e)}"}), 500
@@ -987,15 +1073,47 @@ def check_import_status(task_id):
     if not job:
         return jsonify({'status': 'not_found'}), 404
         
+    job_status = _job_status_value(job)
+    payload = _job_payload(job, 'processing')
+
     if job.is_finished:
         result = job.result
         if isinstance(result, dict) and 'error' in result:
-            return jsonify({'status': 'failed', 'error': result['error']})
-        return jsonify({'status': 'completed', 'data': result})
-    elif job.is_failed:
-        return jsonify({'status': 'failed'})
-    else:
-        return jsonify({'status': 'processing'})
+            failed_payload = _job_payload(job, 'failed')
+            failed_payload['error'] = result['error']
+            return jsonify(failed_payload)
+
+        completed_payload = _job_payload(job, 'completed')
+        completed_payload['data'] = result
+        return jsonify(completed_payload)
+
+    if job.is_failed:
+        failed_payload = _job_payload(job, 'failed')
+        failed_payload['error'] = _job_failure_message(job)
+        return jsonify(failed_payload)
+
+    worker_count = active_worker_count()
+    if worker_count == 0:
+        payload.update({
+            'status': 'worker_unavailable',
+            'error': 'WORKER_UNAVAILABLE',
+            'message': 'Background worker is unavailable. Please contact admin or retry after service restart.',
+        })
+        return jsonify(payload), 503
+
+    stall_seconds = _receipt_import_stall_seconds()
+    queued_too_long = job_status == 'queued' and (payload['queue_age_seconds'] or 0) >= stall_seconds
+    started_too_long = job_status == 'started' and (payload['started_age_seconds'] or 0) >= stall_seconds
+    if queued_too_long or started_too_long:
+        payload.update({
+            'status': 'job_stalled',
+            'error': 'JOB_STALLED',
+            'message': 'Receipt processing is taking too long. The worker may be stuck; please contact admin.',
+        })
+        return jsonify(payload), 503
+
+    payload['worker_count'] = worker_count
+    return jsonify(payload)
 
 @finance_bp.route('/expenses/save-imported-bill', methods=['POST'])
 def save_imported_bill():
