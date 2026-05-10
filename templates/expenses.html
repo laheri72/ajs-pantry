@@ -3043,11 +3043,14 @@
         if (!rawError) return 'Receipt import failed. Please try again.';
         if (rawError === 'OCR_FAILED') return 'The OCR service could not read this receipt. Try a clearer image or another file.';
         if (rawError === 'PARSE_FAILED') return 'The receipt text was read, but the bill details could not be parsed reliably.';
+        if (rawError === 'WORKER_UNAVAILABLE') return 'Background worker is unavailable. Please contact admin or retry after service restart.';
+        if (rawError === 'JOB_STALLED') return 'Receipt processing is taking too long. The worker may be stuck; please contact admin.';
+        if (rawError === 'TEMP_FILE_MISSING') return 'The uploaded receipt expired before processing. Please upload it again.';
         return rawError;
     }
 
     async function pollReceiptImportStatus(taskId, runId) {
-        for (let attempt = 0; attempt < 60; attempt += 1) {
+        for (let attempt = 0; attempt < 80; attempt += 1) {
             if (runId !== currentReceiptImportRun) {
                 return null;
             }
@@ -3066,6 +3069,9 @@
             }
             if (data.status === 'failed') {
                 throw new Error(humanizeReceiptImportError(data.error));
+            }
+            if (data.status === 'worker_unavailable' || data.status === 'job_stalled') {
+                throw new Error(humanizeReceiptImportError(data.error || data.message));
             }
             if (data.status === 'not_found') {
                 throw new Error('The import job was not found. Please upload the receipt again.');

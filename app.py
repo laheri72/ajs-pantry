@@ -57,6 +57,12 @@ app.config["REPORT_STORAGE_ROOT"] = os.environ.get(
     "REPORT_STORAGE_ROOT",
     os.path.join(os.path.expanduser("~"), "ajs-pantry-data", "reports")
 )
+app.config["RECEIPT_IMPORT_STALL_SECONDS"] = os.environ.get("RECEIPT_IMPORT_STALL_SECONDS", "90")
+app.config["RECEIPT_IMPORT_ASYNC_ENABLED"] = os.environ.get(
+    "RECEIPT_IMPORT_ASYNC_ENABLED",
+    "0" if os.name == "nt" else "1",
+)
+app.config["RECEIPT_TEMP_FILE_TTL_SECONDS"] = os.environ.get("RECEIPT_TEMP_FILE_TTL_SECONDS", "300")
 
 def get_db_url():
     # Read both possible env names

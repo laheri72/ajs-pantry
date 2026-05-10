@@ -174,9 +174,15 @@
                 <div class="bg-dark bg-opacity-25 rounded-4 p-3 small">
                     <div class="text-white mb-1">Infrastructure Status</div>
                     <div class="progress" style="height: 4px;">
-                        <div class="progress-bar bg-success" style="width: 100%"></div>
+                        <div class="progress-bar {% if queue_health is defined and not queue_health.healthy %}bg-danger{% else %}bg-success{% endif %}" style="width: 100%"></div>
                     </div>
-                    <div class="mt-2 text-muted small">All systems operational</div>
+                    <div class="mt-2 text-muted small">
+                        {% if queue_health is defined and not queue_health.healthy %}
+                            Worker needs attention
+                        {% else %}
+                            All systems operational
+                        {% endif %}
+                    </div>
                 </div>
                 <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm w-100 mt-3 rounded-3">
                     <i class="fas fa-power-off me-1"></i> Exit Portal

@@ -7,6 +7,124 @@
     <h3 class="fw-bold mb-0">Tenant Audit Logs</h3>
 </div>
 
+<div class="card card-expert p-4 mb-4" id="infrastructure-health">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h5 class="fw-bold mb-1">Infrastructure Health</h5>
+            <div class="text-muted small">Global RQ worker status for receipt OCR, email, and push jobs.</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge {% if queue_health.healthy %}bg-success{% else %}bg-danger{% endif %}">
+                {% if queue_health.healthy %}Healthy{% else %}Attention Required{% endif %}
+            </span>
+            <a href="{{ url_for('super_admin.queue_health') }}" class="btn btn-light btn-sm">JSON</a>
+        </div>
+    </div>
+    <div class="row g-3">
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Redis</div>
+                <div class="fw-bold {% if queue_health.redis_connected %}text-success{% else %}text-danger{% endif %}">
+                    {% if queue_health.redis_connected %}Connected{% else %}Down{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Workers</div>
+                <div class="h4 fw-bold mb-0">{{ queue_health.worker_count }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Queue Length</div>
+                <div class="h4 fw-bold mb-0">{{ queue_health.queue_length if queue_health.queue_length is not none else '-' }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Oldest Job</div>
+                <div class="h4 fw-bold mb-0">
+                    {% if queue_health.oldest_queued_job_age_seconds is not none %}
+                        {{ queue_health.oldest_queued_job_age_seconds }}s
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% if queue_health.error %}
+    <div class="alert alert-danger small mt-3 mb-0">{{ queue_health.error }}</div>
+    {% endif %}
+    <div class="table-responsive mt-3">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="small text-muted">
+                <tr>
+                    <th>Worker</th>
+                    <th>State</th>
+                    <th>Queues</th>
+                    <th>Heartbeat</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for worker in queue_health.workers %}
+                <tr class="small">
+                    <td class="fw-bold">{{ worker.name }}</td>
+                    <td><span class="badge bg-light text-dark">{{ worker.state or 'unknown' }}</span></td>
+                    <td>{{ worker.queues | join(', ') }}</td>
+                    <td>
+                        {% if worker.last_heartbeat_age_seconds is not none %}
+                            {{ worker.last_heartbeat_age_seconds }}s ago
+                        {% else %}
+                            <span class="text-muted">Unknown</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center py-3 text-muted">No active RQ worker is registered for this queue.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if queue_health.recent_failed_jobs %}
+    <div class="border-top mt-3 pt-3">
+        <div class="fw-bold small mb-2">Recent Worker Failures</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="small text-muted">
+                    <tr>
+                        <th>Job</th>
+                        <th>Error</th>
+                        <th>Ended</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in queue_health.recent_failed_jobs %}
+                    <tr class="small">
+                        <td>
+                            <div class="fw-bold">{{ job.id }}</div>
+                            <div class="text-muted text-truncate" style="max-width: 460px;">{{ job.description or '-' }}</div>
+                        </td>
+                        <td class="text-danger">{{ job.error or 'No error captured' }}</td>
+                        <td>
+                            {% if job.ended_age_seconds is not none %}
+                                {{ job.ended_age_seconds }}s ago
+                            {% else %}
+                                <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card card-expert p-4">

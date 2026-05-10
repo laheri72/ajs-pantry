@@ -1,8 +1,9 @@
-from flask import render_template, request, redirect, url_for, session, flash, abort, g
+from flask import render_template, request, redirect, url_for, session, flash, abort, g, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from app import db
 from models import User, Tenant, Dish, DishEstimate, DishAuditLog, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow, Suggestion, normalize_dish_name, TenantAuditLog
 from . import super_admin_bp
+from ..queue_health import get_queue_health
 from ..utils import require_super_admin, visible_budget_condition
 from sqlalchemy import func, or_
 from datetime import datetime, timedelta
@@ -18,6 +19,14 @@ def log_platform_action(action, description):
 
 def _super_admin_user():
     return User.query.get(session.get('user_id'))
+
+
+@super_admin_bp.route('/platform-admin/queue-health')
+def queue_health():
+    require_super_admin()
+    health = get_queue_health()
+    status_code = 200 if health.get("healthy") else 503
+    return jsonify(health), status_code
 
 def _log_dish_audit(action, description, dish=None, details=None, target_dish=None):
     user = _super_admin_user()
@@ -83,6 +92,7 @@ def login():
 @super_admin_bp.route('/platform-admin/dashboard')
 def dashboard():
     require_super_admin()
+    queue_health = get_queue_health()
     
     # 1. Platform-Wide KPIs
     total_tenants = Tenant.query.count()
@@ -198,7 +208,8 @@ def dashboard():
                            tenants=recent_tenants, 
                            stats=stats, 
                            audits=recent_audits,
-                           at_risk=at_risk_tenants)
+                           at_risk=at_risk_tenants,
+                           queue_health=queue_health)
 
 @super_admin_bp.route('/platform-admin/dishes')
 def global_dishes():
@@ -701,6 +712,7 @@ from sqlalchemy.orm import joinedload
 @super_admin_bp.route('/platform-admin/logs')
 def tenant_audit_logs():
     require_super_admin()
+    queue_health = get_queue_health()
     
     tenant_id_filter = request.args.get('tenant_id')
     action_filter = request.args.get('action')
@@ -761,5 +773,6 @@ def tenant_audit_logs():
         stats=stats,
         tenants=tenants,
         actions=actions,
+        queue_health=queue_health,
         filters={'tenant_id': tenant_id_filter, 'action': action_filter}
     )

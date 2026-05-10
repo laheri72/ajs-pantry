@@ -1,0 +1,21 @@
+[Unit]
+Description=RQ Worker for AJS Pantry
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/ajs-pantry
+EnvironmentFile=/home/ubuntu/ajs-pantry/.env
+ExecStart=/home/ubuntu/ajs-pantry/venv/bin/rq worker ajs_pantry_tasks
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+SyslogIdentifier=rq-worker
+
+[Install]
+WantedBy=multi-user.target
