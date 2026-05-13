@@ -60,15 +60,52 @@ body {
     background-color: var(--teal-primary) !important;
 }
 
+.app-navbar {
+    min-height: 64px;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+}
+
+.app-navbar .container-fluid {
+    gap: 0.75rem;
+}
+
+.app-navbar .navbar-collapse,
+.app-navbar .app-primary-nav {
+    min-width: 0;
+}
+
 .navbar-brand {
     font-weight: bold;
     font-size: 1.25rem;
+    min-width: 0;
+    max-width: min(260px, 34vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .nav-link {
     transition: var(--transition);
     border-radius: var(--border-radius);
     margin: 0 2px;
+}
+
+.app-navbar .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.38rem;
+    white-space: nowrap;
+}
+
+.app-navbar .nav-link i {
+    width: 1.15rem;
+    flex: 0 0 1.15rem;
+    text-align: center;
+}
+
+.app-navbar .app-floor-switcher,
+.app-navbar .app-user-nav {
+    flex-shrink: 0;
 }
 
 .nav-link:hover {
@@ -114,7 +151,7 @@ body {
 
 /* Main Content */
 .main-content {
-    margin-top: 76px;
+    margin-top: 72px;
     padding: 20px;
 }
 
@@ -809,6 +846,143 @@ body {
 }
 
 /* Responsive Design */
+@media (min-width: 992px) {
+    .app-navbar--dense {
+        min-height: 56px;
+    }
+
+    .app-navbar--dense .container-fluid {
+        gap: 0.45rem;
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+    }
+
+    .app-navbar--dense .navbar-brand {
+        max-width: 128px;
+        font-size: 1rem;
+    }
+
+    .app-navbar--dense .nav-link {
+        gap: 0.22rem;
+        margin: 0;
+        padding: 0.35rem 0.34rem;
+        font-size: 0.82rem;
+        line-height: 1.15;
+    }
+
+    .app-navbar--dense .nav-link i {
+        width: 0.92rem;
+        flex-basis: 0.92rem;
+        font-size: 0.82rem;
+    }
+
+    .app-navbar--dense .app-floor-switcher {
+        margin-right: 0.45rem !important;
+    }
+
+    .app-navbar--dense .app-floor-switcher label {
+        font-size: 0.76rem;
+        margin-right: 0.35rem !important;
+    }
+
+    .app-navbar--dense .app-floor-switcher .form-select {
+        width: 96px;
+        min-height: 32px;
+        padding: 0.25rem 1.55rem 0.25rem 0.5rem;
+        font-size: 0.82rem;
+    }
+
+    .app-navbar--dense .app-user-nav .dropdown-toggle {
+        max-width: 106px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1240px) {
+    .app-navbar--dense .container-fluid {
+        gap: 0.3rem;
+        padding-left: 0.45rem;
+        padding-right: 0.45rem;
+    }
+
+    .app-navbar--dense .navbar-brand {
+        max-width: 104px;
+        font-size: 0.95rem;
+    }
+
+    .app-navbar--dense .nav-link {
+        gap: 0.16rem;
+        padding-left: 0.23rem;
+        padding-right: 0.23rem;
+        font-size: 0.75rem;
+    }
+
+    .app-navbar--dense .nav-link i {
+        width: 0.78rem;
+        flex-basis: 0.78rem;
+        font-size: 0.76rem;
+    }
+
+    .app-navbar--dense .app-floor-switcher label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .app-navbar--dense .app-floor-switcher {
+        margin-right: 0.2rem !important;
+    }
+
+    .app-navbar--dense .app-floor-switcher .form-select {
+        width: 86px;
+        font-size: 0.76rem;
+    }
+
+    .app-navbar--dense .app-user-nav .dropdown-toggle {
+        max-width: 84px;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .app-navbar .navbar-collapse {
+        max-height: calc(100vh - 64px);
+        overflow-y: auto;
+        padding: 0.75rem 0 1rem;
+    }
+
+    .app-navbar .navbar-nav {
+        gap: 0.15rem;
+    }
+
+    .app-navbar .nav-link {
+        padding: 0.65rem 0.75rem;
+    }
+
+    .app-navbar .app-floor-switcher {
+        align-items: flex-start !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.18);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+        margin: 0.45rem 0 !important;
+        padding: 0.75rem;
+        width: 100%;
+    }
+
+    .app-navbar .app-floor-switcher .form-select {
+        max-width: 180px;
+    }
+
+    .main-content {
+        margin-top: 72px;
+    }
+}
+
 @media (max-width: 768px) {
     .main-content {
         padding: 10px;
