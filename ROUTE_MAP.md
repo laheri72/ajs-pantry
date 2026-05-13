@@ -10,8 +10,8 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | Route Path | Function Name | Methods | Description |
 |:---|:---|:---|:---|
 | `/` | `index` | GET | Root redirect (to Login or Dashboard) |
-| `/login` | `login` | GET, POST | Member TR number login |
-| `/staff-login` | `staff_login` | GET, POST | Admin/Staff specialized login |
+| `/login` | `login` | GET, POST | Member TR number login; POST is rate-limited by IP and submitted identifier |
+| `/staff-login` | `staff_login` | GET, POST | Admin/Staff specialized login; POST is rate-limited by IP and submitted identifier/role |
 | `/change-password` | `change_password` | GET, POST | First-time login password setup |
 | `/profile` | `profile` | GET, POST | User profile management |
 | `/logout` | `logout` | GET | Session termination |
@@ -23,7 +23,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 
 | Route Path | Function Name | Methods | Description |
 |:---|:---|:---|:---|
-| `/faculty/login` | `login` | GET, POST | Faculty portal login |
+| `/faculty/login` | `login` | GET, POST | Faculty portal login; POST is rate-limited by IP and submitted identifier |
 | `/faculty/dashboard` | `dashboard` | GET | Cached Faculty overview for active users, roles, planned menus, and active cycle status |
 | `/faculty/members` | `members` | GET | Faculty member directory with search, floor, role filters, role actions, and Excel import modal |
 | `/faculty/members/<id>/role` | `update_member_role` | POST | Assign/demote `member`, `pantryHead`, or `teaManager` for active Faculty-visible users |
@@ -85,7 +85,7 @@ This file serves as a master index for all routes within the modularized AJS Pan
 | `/lend-borrow/create` | `create_lend_borrow` | POST | Log a new lending transaction |
 | `/lend-borrow/<id>/mark-returned` | `mark_returned` | POST | Borrower signals item return |
 | `/lend-borrow/<id>/verify`| `verify_return` | POST | Lender confirms or rejects return |
-| `/expenses/import-receipt` | `import_receipt` | POST | Scan PDF/Image receipts |
+| `/expenses/import-receipt` | `import_receipt` | POST | Scan PDF/Image receipts; rate-limited by tenant/user to protect the OCR worker |
 | `/expenses/save-imported-bill` | `save_imported_bill`| POST | Persist parsed PDF data to DB |
 | `/expenses/print-reports/save` | `save_print_report` | POST | Persist a saved print-report definition from the Expenses wizard |
 | `/bills/<id>/items` | `get_bill_items` | GET | API: Fetch all items for a specific bill (JSON) |
@@ -152,7 +152,7 @@ the Faculty submission flow in blueprints/faculty/routes.py.
 
 | Route Path | Function Name | Methods | Description |
 |:---|:---|:---|:---|
-| `/platform-admin/login` | `login` | GET, POST | Super Admin login |
+| `/platform-admin/login` | `login` | GET, POST | Super Admin login; POST is rate-limited by IP and submitted username |
 | `/platform-admin/dashboard` | `dashboard` | GET | Platform analytics dashboard |
 | `/platform-admin/tenants` | `tenants_list` | GET | Tenant list and infrastructure status |
 | `/platform-admin/tenants/<tenant_id>` | `tenant_detail` | GET | Tenant configuration and Faculty account management |

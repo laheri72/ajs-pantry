@@ -1,5 +1,5 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g, current_app
-from app import db
+from app import db, limiter
 from models import User, Expense, ProcurementItem, Budget, FloorLendBorrow, Bill, ExpensePrintReport, ExpensePrintReportBill
 from .services.parser_factory import ParserFactory
 from datetime import datetime, date
@@ -12,6 +12,7 @@ import time
 from . import finance_bp
 from ..budgeting import build_floor_budget_ledger
 from ..queue_health import active_worker_count, job_age_seconds, job_started_age_seconds
+from ..rate_limit_keys import current_user_or_ip_key
 from ..utils import (
     _require_user,
     _get_active_floor,
@@ -996,6 +997,9 @@ def _process_receipt_inline(file, mime_type):
 
 
 @finance_bp.route('/expenses/import-receipt', methods=['POST'])
+@limiter.limit("3 per minute", key_func=current_user_or_ip_key, methods=["POST"])
+@limiter.limit("15 per hour", key_func=current_user_or_ip_key, methods=["POST"])
+@limiter.limit("40 per day", key_func=current_user_or_ip_key, methods=["POST"])
 def import_receipt():
     user = _require_user()
     if not user or user.role not in ['admin', 'pantryHead']:

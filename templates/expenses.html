@@ -3046,6 +3046,7 @@
         if (rawError === 'WORKER_UNAVAILABLE') return 'Background worker is unavailable. Please contact admin or retry after service restart.';
         if (rawError === 'JOB_STALLED') return 'Receipt processing is taking too long. The worker may be stuck; please contact admin.';
         if (rawError === 'TEMP_FILE_MISSING') return 'The uploaded receipt expired before processing. Please upload it again.';
+        if (rawError === 'rate_limited') return 'Too many receipt uploads. Please wait a minute before scanning another bill.';
         return rawError;
     }
 
@@ -3120,6 +3121,10 @@
 
             if (runId !== currentReceiptImportRun) {
                 return;
+            }
+
+            if (ocrRes.status === 429) {
+                throw new Error('rate_limited');
             }
 
             var ocrData = await ocrRes.json();

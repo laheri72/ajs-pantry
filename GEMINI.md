@@ -69,6 +69,7 @@ Isolation is enforced at the **SQLAlchemy ORM level**. A `do_orm_execute` listen
 *   **Strict Boot:** The app will fail to start if `SESSION_SECRET` or `INTERNAL_API_SECRET` are missing.
 *   **Credential Protection:** `.env` is ignored by Git; secrets are managed via server-side environment variables.
 *   **RBAC Middleware:** `enforce_tenancy` and `_require_user` helpers validate every request context.
+*   **Rate Limiting V1:** `Flask-Limiter` protects login endpoints and OCR bill upload. Counters use `RATE_LIMIT_STORAGE_URL`, then `REDIS_URL`, then local in-memory fallback.
 
 ### 5.3 Faculty Visibility And Soft Deletes
 *   `User.is_active` is the canonical soft-delete flag. Inactive users cannot log in and are hidden from Faculty member management.
@@ -122,3 +123,4 @@ For the full Faculty rollout, storage notes, auth edge cases, print-report submi
     4.  Push to deploy (Auto-upgrades Supabase).
 *   **New Routes:** Always place routes in the relevant Blueprint and verify the `ROUTE_MAP.md` is updated.
 *   **Dependencies:** Keep `pyproject.toml`, `requirements.txt`, and `uv.lock` in sync. This repo currently uses `psycopg2-binary==2.9.10` so local Windows development and Flask-Migrate imports work consistently.
+*   **Rate Limits:** Keep V1 focused on auth and OCR bill import. Add future limits intentionally for email, notification dispatch, imports, push subscription, and other high-cost write endpoints.

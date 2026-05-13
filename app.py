@@ -4,12 +4,15 @@ from flask import Flask, session, g, redirect, url_for, request, abort, jsonify
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from flask_migrate import Migrate
 from datetime import datetime, timedelta
 from flask_caching import Cache
 from redis import Redis
+from werkzeug.middleware.proxy_fix import ProxyFix
 try:
     from rq import Queue
 except Exception:
@@ -26,6 +29,15 @@ migrate = Migrate()
 
 # Initialize Cache
 cache = Cache()
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    headers_enabled=True,
+    in_memory_fallback_enabled=True,
+    key_prefix="ajs-pantry",
+    strategy="fixed-window",
+    swallow_errors=True,
+)
 
 # Create the app
 app = Flask(__name__)
@@ -33,8 +45,18 @@ app.secret_key = os.environ.get("SESSION_SECRET")
 if not app.secret_key:
     raise RuntimeError("CRITICAL: SESSION_SECRET environment variable is missing.")
 
+if os.environ.get("TRUST_PROXY_HEADERS", "1").lower() not in {"0", "false", "no", "off"}:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
 # Redis and RQ Setup
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+rate_limit_storage_url = os.environ.get("RATE_LIMIT_STORAGE_URL") or os.environ.get("REDIS_URL")
+if rate_limit_storage_url:
+    app.config["RATELIMIT_STORAGE_URI"] = rate_limit_storage_url
+else:
+    app.config["RATELIMIT_STORAGE_URI"] = "memory://"
+    logging.warning("RATE_LIMIT_STORAGE_URL/REDIS_URL not configured. Login rate limits use in-memory storage.")
+
 try:
     redis_conn = Redis.from_url(redis_url)
     # Test connection
@@ -49,6 +71,7 @@ except Exception as e:
     app.config["CACHE_TYPE"] = "SimpleCache"
 
 cache.init_app(app)
+limiter.init_app(app)
 
 # Session Security for Shared PCs
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
@@ -227,6 +250,39 @@ def enforce_tenancy():
         session.clear()
         flash('Your Faculty session expired. Please sign in again.', 'error')
         return redirect(url_for('faculty.login'))
+
+@app.errorhandler(429)
+def handle_rate_limit(error):
+    retry_after = getattr(error, "retry_after", None) or 60
+    message = "Too many login attempts. Please wait a minute and try again."
+    headers = {"Retry-After": str(retry_after)}
+
+    wants_json = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.accept_mimetypes.best == "application/json"
+        or request.path.startswith("/expenses/import-")
+        or request.path.startswith("/expenses/save-imported-bill")
+        or request.path.startswith("/api/")
+        or request.path.startswith("/internal/")
+    )
+    if wants_json:
+        return jsonify({"error": "rate_limited", "retry_after": retry_after}), 429, headers
+
+    from flask import flash, render_template
+
+    login_templates = {
+        "auth.login": "login.html",
+        "auth.staff_login": "staff_login.html",
+        "faculty.login": "faculty/login.html",
+        "super_admin.login": "super_admin/login.html",
+    }
+    template = login_templates.get(request.endpoint)
+    if template:
+        flash(message, "error")
+        return render_template(template), 429, headers
+
+    return message, 429, headers
 
 @app.context_processor
 def inject_terms():

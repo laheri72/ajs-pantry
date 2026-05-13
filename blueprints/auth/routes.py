@@ -1,8 +1,9 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort
 from werkzeug.security import generate_password_hash, check_password_hash
-from app import db
+from app import db, limiter
 from models import User
 from . import auth_bp
+from ..rate_limit_keys import client_ip_key, member_login_identifier_key, staff_login_identifier_key
 from ..utils import (
     _ensure_username_from_full_name, 
     _require_user, 
@@ -28,6 +29,10 @@ def index():
     return redirect(url_for('auth.login'))
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit("30 per minute", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("200 per hour", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("8 per minute", key_func=member_login_identifier_key, methods=["POST"])
+@limiter.limit("40 per hour", key_func=member_login_identifier_key, methods=["POST"])
 def login():
     if request.method == 'POST':
         role = 'member'
@@ -61,6 +66,10 @@ def login():
     return render_template('login.html')
 
 @auth_bp.route('/staff-login', methods=['GET', 'POST'])
+@limiter.limit("20 per minute", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("100 per hour", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("6 per minute", key_func=staff_login_identifier_key, methods=["POST"])
+@limiter.limit("30 per hour", key_func=staff_login_identifier_key, methods=["POST"])
 def staff_login():
     if request.method == 'POST':
         role = (request.form.get('role') or '').strip()
