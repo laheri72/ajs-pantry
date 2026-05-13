@@ -111,6 +111,7 @@ Main code:
 ### B. Faculty login and portal
 - Separate login page: `/faculty/login`
 - Separate layout and visual shell under `templates/faculty/`
+- Faculty login POST is rate-limited in V1 using the shared `Flask-Limiter` setup.
 
 Main code:
 - `blueprints/faculty/routes.py`
@@ -133,6 +134,7 @@ Main code:
 - Admin / Pantry Head still use `Expenses` for bills and report generation.
 - The old floor-side budget add/delete routes are blocked.
 - The print workflow now saves a real `ExpensePrintReport` record.
+- OCR bill import (`/expenses/import-receipt`) is rate-limited by tenant/user to protect the single RQ OCR worker.
 
 Main code:
 - `blueprints/finance/routes.py`

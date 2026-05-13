@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import Forbidden, Unauthorized
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import cache, db
+from app import cache, db, limiter
 from models import (
     Bill,
     Budget,
@@ -39,6 +39,7 @@ from models import (
 )
 from . import faculty_bp
 from ..budgeting import build_floor_budget_ledger
+from ..rate_limit_keys import client_ip_key, faculty_login_identifier_key
 from ..utils import (
     _ensure_username_from_full_name,
     _get_active_floor,
@@ -621,6 +622,10 @@ def _get_faculty_dashboard_stats(tenant_id):
 
 
 @faculty_bp.route('/faculty/login', methods=['GET', 'POST'])
+@limiter.limit("20 per minute", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("100 per hour", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("6 per minute", key_func=faculty_login_identifier_key, methods=["POST"])
+@limiter.limit("30 per hour", key_func=faculty_login_identifier_key, methods=["POST"])
 def login():
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip()

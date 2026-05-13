@@ -43,6 +43,8 @@ The `.github/workflows/deploy.yml` runs `flask db upgrade` directly on the live 
 ### 5. Rate Limiting
 **Why:** Expensive endpoints like `/finance/expenses` (OCR upload) and authentication routes are completely exposed, risking DoS attacks or accidental resource exhaustion.
 
+**May 2026 status:** Partially addressed. `Flask-Limiter` now protects login POSTs (`/login`, `/staff-login`, `/faculty/login`, `/platform-admin/login`) and OCR bill import (`/expenses/import-receipt`) with Redis/Upstash-backed counters and dev memory fallback. Internal email, notification dispatch, Excel imports, push subscription, and broader write/API endpoints remain future work.
+
 ---
 
 ## PHASE 3 — ROLE EXPERIENCE ISSUES
@@ -168,6 +170,7 @@ Super Admins will need a macro-level dashboard showing DAU/MAU and feature adopt
 *   [x] **Faculty Member Management:** Added `/faculty/members` with admin/super-admin isolation, active-user filtering, role assignment/demotion, soft deactivation, and DataTables-style filters/search.
 *   [x] **Excel Member Onboarding:** Added Faculty Excel template, validation, and commit routes using `openpyxl`, global TR/email uniqueness checks, partial import support, and default first-login password `maskan1447`.
 *   [x] **Tenant Audit Foundation:** Added `TenantAuditLog` and logging helpers for Faculty role changes, deactivations, and bulk import summaries.
+*   [x] **Rate Limiting V1:** Added Redis-backed Flask-Limiter protection for all login POSTs and OCR bill upload.
 *   [x] **User Soft Delete:** Added `User.is_active` and inactive-user rejection across member, staff, Faculty, and first-login password flows.
 *   [x] **Faculty Overview Cache:** Added cached Faculty overview metrics and invalidation hooks after member mutations.
 *   [x] **Faculty Meal Insights:** Added `/faculty/meal-insights` using existing `Menu`, `Feedback`, `Suggestion`, and `SuggestionVote` data for planned meal reception analytics.

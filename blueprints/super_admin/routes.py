@@ -1,9 +1,10 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, g, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-from app import db
+from app import db, limiter
 from models import User, Tenant, Dish, DishEstimate, DishAuditLog, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow, Suggestion, normalize_dish_name, TenantAuditLog
 from . import super_admin_bp
 from ..queue_health import get_queue_health
+from ..rate_limit_keys import client_ip_key, platform_admin_login_identifier_key
 from ..utils import require_super_admin, visible_budget_condition
 from sqlalchemy import func, or_
 from datetime import datetime, timedelta
@@ -72,6 +73,10 @@ def _dish_reference_counts(dish_ids):
     return counts
 
 @super_admin_bp.route('/platform-admin/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("50 per hour", key_func=client_ip_key, methods=["POST"])
+@limiter.limit("5 per minute", key_func=platform_admin_login_identifier_key, methods=["POST"])
+@limiter.limit("20 per hour", key_func=platform_admin_login_identifier_key, methods=["POST"])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')

@@ -103,7 +103,7 @@ member       → Personal feed & feedback
 | Issue | Risk | Location |
 |---|---|---|
 | No staging environment | Every deploy goes directly to production | Infrastructure |
-| No rate limiting | OCR, auth, and finance endpoints are exposed to DoS | `blueprints/finance/routes.py`, `blueprints/auth/routes.py` |
+| Partial rate limiting | V1 protects auth and OCR bill upload; remaining write/API endpoints still need throttling later | `app.py`, `blueprints/rate_limit_keys.py` |
 | `PushSubscription` not normalized | Table will bloat with stale device tokens | `models.py` |
 | Partial soft deletes only | `User.is_active` supports Faculty deactivation, but bills and other records still need soft-delete strategy | Multiple blueprints |
 
@@ -336,6 +336,8 @@ Entirely separate portal at `/platform-admin/`. Key operations:
 - `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY` — Push notifications
 - `GMAIL_USER`, `GMAIL_PASS` — Email
 - `REDIS_URL` — Background jobs (optional, falls back gracefully)
+- `RATE_LIMIT_STORAGE_URL` — Optional dedicated Redis/Upstash Redis URL for rate-limit counters; falls back to `REDIS_URL`, then in-memory local/dev storage
+- `TRUST_PROXY_HEADERS` — Optional proxy header toggle for real client IPs behind Nginx/Oracle proxy; defaults to enabled, set `0` only if the app is directly internet-exposed
 - `RECEIPT_IMPORT_ASYNC_ENABLED` — Receipt OCR queue toggle; defaults to off on Windows/dev and on for Linux production
 - `RECEIPT_TEMP_FILE_TTL_SECONDS` — Cleanup age for `tmp/receipts` files, default `300`
 - `REPORT_STORAGE_ROOT` — Faculty PDF storage path
@@ -343,7 +345,35 @@ Entirely separate portal at `/platform-admin/`. Key operations:
 
 ---
 
-### 5L. Migration Chain (as of May 2026)
+### 5L. Rate Limiting V1 (May 2026)
+
+Implemented with `Flask-Limiter[redis]` in `app.py`.
+
+**Storage behavior:**
+- Uses `RATE_LIMIT_STORAGE_URL` when set.
+- Falls back to `REDIS_URL` so existing Upstash Redis can store counters.
+- Falls back to in-memory storage for local/dev when Redis is not configured.
+- `TRUST_PROXY_HEADERS` defaults to enabled so Oracle/Nginx `X-Forwarded-For` is respected via `ProxyFix`.
+
+**Protected in V1:**
+- Member login `/login`
+- Staff login `/staff-login`
+- Faculty login `/faculty/login`
+- Super Admin login `/platform-admin/login`
+- OCR bill import `/expenses/import-receipt`
+
+**Deferred intentionally:**
+- Internal email endpoint
+- Faculty/member Excel imports
+- Push subscription
+- Notification dispatch endpoints
+- General write/API endpoints
+
+The shared limiter object lives in `app.py`; request key helpers live in `blueprints/rate_limit_keys.py`.
+
+---
+
+### 5M. Migration Chain (as of May 2026)
 
 ```
 bdd4590fc68f  initial migration
@@ -375,7 +405,7 @@ Based on the codebase state and architecture audit, here's the suggested roadmap
 
 **Short-term (operational stability):**
 3. **Pre-deploy DB backup** — Add `pg_dump` step in `.github/workflows/deploy.yml` before migration
-4. **Rate limiting** — Add Flask-Limiter on auth routes, OCR upload, and expense endpoints
+4. **Rate limiting follow-up** — V1 protects auth routes and OCR bill upload; later add limits for internal email, notification dispatch, Excel imports, push subscription, and other write/API endpoints
 5. **Keep dependency files synchronized** — `requirements.txt`, `pyproject.toml`, and `uv.lock` are now aligned; keep them that way when adding packages
 
 **Medium-term (features):**
