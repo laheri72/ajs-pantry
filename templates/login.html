@@ -5,18 +5,18 @@
 {% block content %}
 <div class="login-container">
     <div class="login-card shadow-lg animate-fade-in">
-        <div class="card-header bg-teal text-white text-center py-5 position-relative">
-            <div class="login-logo mb-3">
-                <i class="fas fa-utensils fa-3x shadow-sm p-3 rounded-circle bg-white text-teal"></i>
+        <div class="card-header bg-teal text-white text-center position-relative login-card-header">
+            <div class="login-logo mb-2">
+                <i class="fas fa-utensils shadow-sm rounded-circle bg-white text-teal"></i>
             </div>
-            <h2 class="fw-bold mb-0 mt-2">Member Login</h2>
+            <h2 class="fw-bold mb-0 mt-1">Member Login</h2>
             <p class="small opacity-75 mb-0 mt-1">Maskan Al Rahat's Pantry</p>
             <div class="header-shape"></div>
         </div>
 
-        <div class="card-body p-4 p-md-5">
+        <div class="card-body login-card-body">
             <form method="POST" class="needs-validation">
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label small fw-bold text-uppercase tracking-wider text-muted" for="email">
                         <i class="fas fa-id-card me-1"></i> TR Number
                     </label>
@@ -30,7 +30,7 @@
                     </div>
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <label class="form-label small fw-bold text-uppercase tracking-wider text-muted mb-0"
                             for="password">
@@ -49,26 +49,31 @@
                     </div>
                 </div>
 
-                <div class="mb-0 mt-5">
-                    <button type="submit" class="btn btn-teal w-100 py-3 fw-bold shadow-sm hover-scale">
+                <div class="mb-0 mt-4">
+                    <button type="submit" class="btn btn-teal w-100 py-2 fw-bold shadow-sm hover-scale">
                         Sign In <i class="fas fa-sign-in-alt ms-2"></i>
                     </button>
                 </div>
             </form>
         </div>
 
-        <div class="card-footer bg-light border-0 text-center py-4">
-            <div class="p-3 rounded bg-teal-lighter-subtle mb-3">
+        <div class="card-footer bg-light border-0 text-center login-card-footer">
+            <div class="p-2 rounded bg-teal-lighter-subtle mb-2">
                 <div class="small text-teal-dark fw-bold">
                     <i class="fas fa-info-circle me-1"></i> First time?
                 </div>
-                <div class="small text-teal-dark opacity-75">
+                <div class="small text-teal-dark opacity-75 d-inline-flex align-items-center justify-content-center flex-wrap gap-1">
                     Your temporary password is: <code
-                        class="bg-white px-2 py-1 rounded shadow-sm border border-teal-lighter">maskan1447</code>
+                        class="bg-white px-2 py-1 rounded shadow-sm border border-teal-lighter" id="temporaryPassword">maskan1447</code>
+                    <button type="button" class="btn btn-sm btn-light border text-teal copy-temp-password"
+                        data-copy-target="temporaryPassword" aria-label="Copy temporary password"
+                        title="Copy temporary password">
+                        <i class="fas fa-copy"></i>
+                    </button>
                 </div>
             </div>
 
-            <div class="pt-2 border-top mt-3">
+            <div class="pt-2 border-top mt-2">
                 <span class="small text-muted">Are you Staff?</span>
                 <a href="{{ url_for('auth.staff_login') }}"
                     class="small fw-bold text-teal text-decoration-none hover-link">
@@ -81,13 +86,13 @@
 
 <style>
     .login-container {
-        min-height: calc(100vh - 120px);
-        /* Adjust for footer height */
+        min-height: calc(100vh - 34px);
+        min-height: calc(100svh - 34px);
         display: flex;
         align-items: center;
         justify-content: center;
         background: linear-gradient(135deg, var(--teal-primary) 0%, var(--teal-dark) 100%);
-        padding: 40px 20px;
+        padding: 16px;
         position: relative;
         overflow: hidden;
     }
@@ -102,16 +107,53 @@
         padding: 0 !important;
     }
 
-    /* .footer { display: block !important; } - Keep it visible */
+    .footer {
+        background: var(--teal-dark) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.14) !important;
+        color: rgba(255, 255, 255, 0.86);
+        padding-top: 0.45rem !important;
+        padding-bottom: 0.45rem !important;
+    }
+
+    .footer .container,
+    .footer .text-muted,
+    .footer a {
+        color: rgba(255, 255, 255, 0.86) !important;
+        font-size: 0.78rem;
+    }
+
+    .footer a:hover {
+        color: #ffffff !important;
+    }
 
     .login-card {
         width: 100%;
-        max-width: 450px;
+        max-width: 430px;
         background: var(--bg-surface);
-        border-radius: 20px;
+        border-radius: 16px;
         overflow: hidden;
         border: none;
         z-index: 10;
+    }
+
+    .login-card-header {
+        padding: 1.35rem 1.5rem 1.65rem;
+    }
+
+    .login-logo i {
+        display: inline-grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        font-size: 1.65rem;
+    }
+
+    .login-card-body {
+        padding: 1.25rem 1.5rem 1.1rem;
+    }
+
+    .login-card-footer {
+        padding: 0.95rem 1.5rem 1rem;
     }
 
     .bg-teal {
@@ -139,7 +181,7 @@
         bottom: -1px;
         left: 0;
         width: 100%;
-        height: 40px;
+        height: 24px;
         background: var(--bg-surface);
         clip-path: ellipse(60% 100% at 50% 100%);
     }
@@ -186,6 +228,39 @@
     #togglePassword {
         cursor: pointer;
     }
+
+    .copy-temp-password {
+        --bs-btn-padding-y: 0.18rem;
+        --bs-btn-padding-x: 0.42rem;
+        line-height: 1;
+    }
+
+    @media (max-width: 380px), (max-height: 620px) {
+        .login-container {
+            align-items: flex-start;
+            padding: 10px;
+        }
+
+        .login-card-header {
+            padding: 1rem 1rem 1.35rem;
+        }
+
+        .login-logo i {
+            width: 44px;
+            height: 44px;
+            font-size: 1.35rem;
+        }
+
+        .login-card h2 {
+            font-size: 1.35rem;
+        }
+
+        .login-card-body,
+        .login-card-footer {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    }
 </style>
 
 <script>
@@ -199,6 +274,41 @@
                 password.setAttribute('type', type);
                 this.querySelector('i').classList.toggle('fa-eye');
                 this.querySelector('i').classList.toggle('fa-eye-slash');
+            });
+        }
+
+        const copyButton = document.querySelector('.copy-temp-password');
+        const temporaryPassword = document.querySelector('#temporaryPassword');
+
+        if (copyButton && temporaryPassword) {
+            copyButton.addEventListener('click', async function () {
+                const text = temporaryPassword.textContent.trim();
+
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        const input = document.createElement('input');
+                        input.value = text;
+                        input.setAttribute('readonly', '');
+                        input.style.position = 'absolute';
+                        input.style.left = '-9999px';
+                        document.body.appendChild(input);
+                        input.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(input);
+                    }
+
+                    const icon = this.querySelector('i');
+                    icon.classList.remove('fa-copy');
+                    icon.classList.add('fa-check');
+                    setTimeout(() => {
+                        icon.classList.remove('fa-check');
+                        icon.classList.add('fa-copy');
+                    }, 1400);
+                } catch (error) {
+                    console.error('Could not copy temporary password', error);
+                }
             });
         }
     });
