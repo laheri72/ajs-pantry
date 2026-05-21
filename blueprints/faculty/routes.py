@@ -871,7 +871,7 @@ def commit_import():
             email=row['email'],
             password_hash=generate_password_hash('maskan1447'),
             is_first_login=True,
-            is_verified=False,
+            is_verified=True,
             is_active=True,
             tenant_id=getattr(g, 'tenant_id', None),
         ))
