@@ -837,7 +837,8 @@ def people():
     team_memberships = tenant_filter(TeamMember.query).options(joinedload(TeamMember.user)).join(Team, TeamMember.team_id == Team.id).filter(Team.floor == floor).all()
     members_by_team_id = {}
     for tm in team_memberships:
-        members_by_team_id.setdefault(tm.team_id, []).append(tm.user)
+        if tm.user is not None:
+            members_by_team_id.setdefault(tm.team_id, []).append(tm.user)
 
     for team_id, members in members_by_team_id.items():
         members.sort(key=lambda u: (u.full_name or u.username or u.email or "").lower())
