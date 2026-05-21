@@ -83,6 +83,7 @@ def admin():
             new_user.role = role
             new_user.floor = floor
             new_user.password_hash = generate_password_hash('maskan1447')
+            new_user.is_verified = True
             new_user.is_first_login = True
             new_user.tr_number = tr_number
             new_user.email = email
@@ -124,6 +125,7 @@ def admin():
                     new_user.tr_number = tr
                     new_user.email = email
                     new_user.password_hash = generate_password_hash('maskan1447')
+                    new_user.is_verified = True
                     new_user.is_first_login = True
                     new_user.tenant_id = getattr(g, 'tenant_id', None)
                     db.session.add(new_user)
