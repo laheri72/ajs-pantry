@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy - AJS Pantry{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4 p-md-5">
+                    <h1 class="mb-4 text-teal"><i class="fas fa-user-shield me-2"></i>Privacy Policy</h1>
+                    <p class="text-muted small mb-4">Last Updated: June 3, 2026</p>
+                    
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">1. Introduction</h3>
+                        <p>Welcome to AJS Pantry. We are committed to protecting your personal information and your right to privacy. If you have any questions or concerns about our policy, or our practices with regards to your personal information, please contact the system administrator.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">2. Information We Collect</h3>
+                        <p>We collect personal information that you provide to us such as name, email address, and contact information. We also collect data related to your usage of the system, including pantry requests, tea duties, and feedback.</p>
+                        <ul class="list-group list-group-flush mb-3">
+                            <li class="list-group-item bg-transparent px-0"><i class="fas fa-check text-success me-2"></i>Account Information (Name, Email, Role)</li>
+                            <li class="list-group-item bg-transparent px-0"><i class="fas fa-check text-success me-2"></i>Operational Data (Requests, Duties, Procurement)</li>
+                            <li class="list-group-item bg-transparent px-0"><i class="fas fa-check text-success me-2"></i>Technical Data (IP Address, Browser Type, Cookies)</li>
+                        </ul>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">3. How We Use Your Information</h3>
+                        <p>We use the information we collect or receive:</p>
+                        <ul>
+                            <li>To facilitate account creation and logon process.</li>
+                            <li>To manage user accounts and provide the service.</li>
+                            <li>To send administrative information to you.</li>
+                            <li>To manage and track pantry operations and expenses.</li>
+                        </ul>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">4. Data Security</h3>
+                        <p>We use appropriate technical and organizational security measures designed to protect the security of any personal information we process. However, please also remember that we cannot guarantee that the internet itself is 100% secure.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">5. Your Rights</h3>
+                        <p>You may review, change, or terminate your account at any time by contacting your Floor Admin or the Faculty team. If you are a resident of the European Economic Area and you believe we are unlawfully processing your personal information, you also have the right to complain to your local data protection supervisory authority.</p>
+                    </section>
+
+                    <div class="text-center mt-5">
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-teal px-4 rounded-pill">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "public": "public",
+    "redirects": [
+      {
+        "source": "/:path*",
+        "destination": "https://140-245-12-63.sslip.io/:path*",
+        "type": 301
+      }
+    ]
+  }
+}

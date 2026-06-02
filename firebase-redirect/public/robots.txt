@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /staff-login
+Allow: /offline
+Disallow: /admin/
+Disallow: /super-admin/
+Disallow: /faculty/
+Disallow: /api/
+Disallow: /internal/
+
+Sitemap: https://ajs-pantry.web.app/sitemap.xml

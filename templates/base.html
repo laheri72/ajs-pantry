@@ -6,6 +6,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Maskan Breakfast Management{% endblock %}</title>
 
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://ajs-pantry.web.app{{ request.path }}">
+
+    <!-- SEO & Metadata -->
+    <meta name="description" content="AJS Pantry - Professional multi-tenant management system for Maskan breakfast, tea, and procurement.">
+    <meta name="author" content="Laheri72">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ajs-pantry.web.app/">
+    <meta property="og:title" content="AJS Pantry Management">
+    <meta property="og:description" content="Streamlined breakfast and pantry management for Maskan communities.">
+    <meta property="og:image" content="{{ url_for('static', filename='favicon_io/android-chrome-512x512.png') }}">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://ajs-pantry.web.app/">
+    <meta property="twitter:title" content="AJS Pantry Management">
+    <meta property="twitter:description" content="Streamlined breakfast and pantry management for Maskan communities.">
+    <meta property="twitter:image" content="{{ url_for('static', filename='favicon_io/android-chrome-512x512.png') }}">
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon_io/favicon.ico') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon_io/favicon-32x32.png') }}">
@@ -211,6 +233,10 @@
 
     <footer class="footer mt-auto py-3 bg-white border-top">
         <div class="container text-center">
+            <div class="mb-2">
+                <a href="{{ url_for('main.privacy') }}" class="text-muted text-decoration-none me-3 small">Privacy Policy</a>
+                <a href="{{ url_for('main.terms') }}" class="text-muted text-decoration-none small">Terms of Service</a>
+            </div>
             <span class="text-muted">
                 &copy; {{ now.year if now else '2026' }} <strong>Maskan1447</strong>
                 All rights Reserved | Maintained by

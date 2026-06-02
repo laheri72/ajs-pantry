@@ -1,4 +1,4 @@
-from flask import render_template, make_response, current_app, request, jsonify, g
+from flask import render_template, make_response, current_app, request, jsonify, g, send_from_directory
 from . import main_bp
 from app import db
 from models import PushSubscription
@@ -17,6 +17,43 @@ def manifest():
     response = make_response(current_app.send_static_file('manifest.json'))
     response.headers['Content-Type'] = 'application/manifest+json'
     return response
+
+@main_bp.route('/robots.txt')
+def robots():
+    response = make_response(current_app.send_static_file('robots.txt'))
+    response.headers['Content-Type'] = 'text/plain'
+    return response
+
+@main_bp.route('/sitemap.xml')
+def sitemap():
+    response = make_response(current_app.send_static_file('sitemap.xml'))
+    response.headers['Content-Type'] = 'application/xml'
+    return response
+
+@main_bp.route('/humans.txt')
+def humans():
+    response = make_response(current_app.send_static_file('humans.txt'))
+    response.headers['Content-Type'] = 'text/plain'
+    return response
+
+@main_bp.route('/.well-known/security.txt')
+@main_bp.route('/security.txt')
+def security():
+    response = make_response(current_app.send_static_file('security.txt'))
+    response.headers['Content-Type'] = 'text/plain'
+    return response
+
+@main_bp.route('/google0cbc51477636a185.html')
+def google_verification():
+    return send_from_directory(current_app.root_path, 'google0cbc51477636a185.html')
+
+@main_bp.route('/privacy')
+def privacy():
+    return render_template('privacy.html')
+
+@main_bp.route('/terms')
+def terms():
+    return render_template('terms.html')
 
 @main_bp.route('/offline')
 def offline():
