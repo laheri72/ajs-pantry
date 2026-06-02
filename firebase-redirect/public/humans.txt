@@ -1,0 +1,9 @@
+/* TEAM */
+    Developer: Laheri72
+    GitHub: https://github.com/laheri72
+
+/* SITE */
+    Last update: 2026/06/03
+    Standards: HTML5, CSS3, Flask, Python
+    Components: Bootstrap, Font Awesome
+    Software: VS Code

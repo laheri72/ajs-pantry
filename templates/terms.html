@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Terms of Service - AJS Pantry{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10 col-lg-8">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4 p-md-5">
+                    <h1 class="mb-4 text-teal"><i class="fas fa-file-contract me-2"></i>Terms of Service</h1>
+                    <p class="text-muted small mb-4">Last Updated: June 3, 2026</p>
+                    
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">1. Acceptance of Terms</h3>
+                        <p>By accessing or using AJS Pantry, you agree to be bound by these Terms of Service. If you do not agree to all the terms and conditions, then you may not access the service.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">2. Description of Service</h3>
+                        <p>AJS Pantry is a multi-tenant management system designed for pantry operations, including menu management, expense tracking, and task assignments.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">3. User Responsibilities</h3>
+                        <p>You are responsible for maintaining the confidentiality of your account and password and for restricting access to your computer or mobile device. You agree to accept responsibility for all activities that occur under your account.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">4. Prohibited Activities</h3>
+                        <p>You may not use the service for any illegal or unauthorized purpose. You must not, in the use of the service, violate any laws in your jurisdiction.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">5. Termination</h3>
+                        <p>We may terminate or suspend access to our service immediately, without prior notice or liability, for any reason whatsoever, including without limitation if you breach the Terms.</p>
+                    </section>
+
+                    <section class="mb-5">
+                        <h3 class="h5 fw-bold mb-3">6. Changes to Terms</h3>
+                        <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. What constitutes a material change will be determined at our sole discretion.</p>
+                    </section>
+
+                    <div class="text-center mt-5">
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-teal px-4 rounded-pill">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
