@@ -431,6 +431,23 @@ def dashboard():
                 'category': 'Faculty Message',
             })
 
+    # 4. Pending Suggestions (Pantry Head / Admin only)
+    if is_privileged:
+        pending_suggestions_count = tenant_filter(MenuSuggestion.query).filter(
+            MenuSuggestion.floor == floor,
+            MenuSuggestion.date >= today
+        ).count()
+        if pending_suggestions_count > 0:
+            notifications.append({
+                'type': 'suggestion',
+                'icon': 'fas fa-lightbulb',
+                'title': 'New Menu Suggestions',
+                'content': f"You have {pending_suggestions_count} pending suggestion(s) from members waiting for review.",
+                'time': datetime.combine(today, datetime.min.time()),
+                'category': 'Community',
+                'url': url_for('pantry.menus')
+            })
+
     # Sort notifications by time
     notifications.sort(key=lambda x: x['time'], reverse=True)
     
@@ -1128,6 +1145,7 @@ def calendar():
             "description": s.description,
             "date": s.date.isoformat() if s.date else None,
             "created_by": (s.suggested_by.full_name or s.suggested_by.username) if s.suggested_by else "System",
+            "suggested_by_id": s.suggested_by_id,
             "side_dish_name": s.side_dish.name if s.side_dish else s.new_side_dish_name,
             "team_name": s.suggested_team.name if s.suggested_team else None
         }
@@ -1158,6 +1176,8 @@ def suggest_menu():
         return redirect(url_for('auth.login'))
 
     floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
+    
     try:
         menu_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
     except Exception:
@@ -1168,11 +1188,31 @@ def suggest_menu():
         flash('Cannot suggest menus for past dates.', 'error')
         return redirect(url_for('pantry.calendar'))
 
+    # 1. Edge Case: Daily limit (max 2 suggestions per day per floor)
+    daily_count = tenant_filter(MenuSuggestion.query).filter_by(
+        date=menu_date, 
+        floor=floor
+    ).count()
+    if daily_count >= 2:
+        flash('This day already has enough suggestions (max 2).', 'warning')
+        return redirect(url_for('pantry.calendar'))
+
+    # 2. Edge Case: User limit (max 2 suggestions per user per week)
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    weekly_user_count = tenant_filter(MenuSuggestion.query).filter(
+        MenuSuggestion.suggested_by_id == user.id,
+        MenuSuggestion.date >= start_of_week
+    ).count()
+    if weekly_user_count >= 2:
+        flash('You have reached your limit of 2 suggestions for this week.', 'warning')
+        return redirect(url_for('pantry.calendar'))
+
     dish_id_raw = (request.form.get('dish_id') or '').strip()
     new_dish_name = (request.form.get('new_dish_name') or '').strip()
     side_dish_id_raw = (request.form.get('side_dish_id') or '').strip()
     new_side_dish_name = (request.form.get('new_side_dish_name') or '').strip()
-    suggested_team_id_raw = (request.form.get('suggested_team_id') or '').strip()
+    # suggested_team_id removed as per refactor
     description = (request.form.get('description') or '').strip()
 
     dish_id = None
@@ -1183,11 +1223,6 @@ def suggest_menu():
     side_dish_id = None
     if side_dish_id_raw:
         try: side_dish_id = int(side_dish_id_raw)
-        except ValueError: pass
-        
-    suggested_team_id = None
-    if suggested_team_id_raw:
-        try: suggested_team_id = int(suggested_team_id_raw)
         except ValueError: pass
 
     if not dish_id and not new_dish_name:
@@ -1200,11 +1235,11 @@ def suggest_menu():
         new_dish_name=new_dish_name,
         side_dish_id=side_dish_id,
         new_side_dish_name=new_side_dish_name,
-        suggested_team_id=suggested_team_id,
+        suggested_team_id=None, # Explicitly nullified
         description=description,
         floor=floor,
         suggested_by_id=user.id,
-        tenant_id=getattr(g, 'tenant_id', None)
+        tenant_id=tenant_id
     )
     
     db.session.add(suggestion)
@@ -1523,6 +1558,14 @@ def menus():
     target_date = today + timedelta(weeks=week_offset)
     start_of_week = target_date - timedelta(days=target_date.weekday())
     end_of_week = start_of_week + timedelta(days=7)
+
+    # Fetch suggestions for indicators
+    all_suggestions = tenant_filter(MenuSuggestion.query).filter_by(floor=floor).all()
+    suggestions_by_date = {}
+    for sug in all_suggestions:
+        if sug.date:
+            date_str = sug.date.strftime('%Y-%m-%d')
+            suggestions_by_date.setdefault(date_str, []).append(sug)
     
     # Fetch menus for target week
     weekly_menus = (
@@ -1593,19 +1636,36 @@ def menus():
         active_floor=floor
     )
 
-@pantry_bp.route('/menus/suggestions/<int:suggestion_id>/reject', methods=['POST'])
-def reject_menu_suggestion(suggestion_id):
+@pantry_bp.route('/menus/suggestions/<int:suggestion_id>/delete', methods=['POST'])
+def delete_menu_suggestion(suggestion_id):
     user = _require_user()
-    if not user or user.role not in ['admin', 'pantryHead']:
-        abort(403)
-        
+    if not user:
+        abort(401)
+
     suggestion = tenant_filter(MenuSuggestion.query).filter_by(id=suggestion_id).first_or_404()
+
+    # Permission: Admin, PantryHead, or the creator themselves
+    is_creator = suggestion.suggested_by_id == user.id
+    is_staff = user.role in ['admin', 'pantryHead']
+
+    if not (is_creator or is_staff):
+        abort(403)
+
     if suggestion.floor != _get_active_floor(user):
         abort(403)
-        
+
     db.session.delete(suggestion)
     db.session.commit()
-    flash('Menu suggestion rejected.', 'success')
+
+    if is_creator and not is_staff:
+        flash('Your menu suggestion has been removed.', 'success')
+    else:
+        flash('Menu suggestion removed.', 'success')
+
+    # Redirect back to where they came from
+    referrer = request.referrer or ''
+    if 'calendar' in referrer:
+        return redirect(url_for('pantry.calendar'))
     return redirect(url_for('pantry.menus'))
 
 @pantry_bp.route('/menus/<int:menu_id>/notify_single', methods=['POST'])

@@ -25,6 +25,86 @@
 .ts-wrapper.form-select.row-main-dish .ts-control, .ts-wrapper.form-select.row-side-dish .ts-control {
     padding: 0.25rem 0.5rem;
 }
+
+/* Custom Page Styles */
+.bg-soft-teal { background-color: rgba(38, 166, 154, 0.1); }
+.menu-page .nav-pills .nav-link {
+    color: var(--teal-primary);
+    background: transparent;
+    border: 1px solid var(--teal-lighter);
+}
+.menu-page .nav-pills .nav-link.active {
+    background: var(--teal-primary);
+    color: white;
+}
+
+.weekly-day-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    transition: var(--transition);
+    overflow: hidden;
+}
+.weekly-day-card.today-highlight {
+    border-color: var(--teal-primary);
+    box-shadow: 0 0 10px rgba(38, 166, 154, 0.2);
+}
+.weekly-day-card .day-header {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 12px 12px 0 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.weekly-day-card.today-highlight .day-header {
+    background: var(--teal-lighter);
+    color: var(--teal-dark);
+}
+
+.menu-item-mini {
+    transition: transform 0.1s ease;
+}
+.menu-item-mini:hover {
+    transform: translateX(4px);
+    filter: brightness(0.95);
+}
+
+.clickable-plus {
+    cursor: pointer;
+    transition: var(--transition);
+}
+.clickable-plus:hover {
+    opacity: 1 !important;
+    transform: scale(1.1);
+    color: var(--teal-primary);
+}
+
+.bg-warning-light { background-color: #fff9db; }
+.bg-success-light { background-color: #ebfbee; }
+.bg-primary-light { background-color: #e7f5ff; }
+.bg-info-light { background-color: #e3fafc; }
+
+/* Custom tooltips for weekly board */
+.popover {
+    border: none;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    border-radius: 8px;
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(108, 117, 125, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(108, 117, 125, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(108, 117, 125, 0);
+    }
+}
+.glow-ripple {
+    animation: pulse-glow 2s infinite !important;
+    border: 2px solid #fff !important;
+}
 </style>
 {% endblock %}
 
@@ -38,7 +118,7 @@
         <div class="d-flex gap-2">
             {% if current_user.role in ['admin', 'pantryHead'] %}
             {% if pending_suggestions %}
-            <button class="btn btn-secondary px-3 position-relative" data-bs-toggle="modal" data-bs-target="#suggestionsModal">
+            <button class="btn btn-secondary px-3 position-relative glow-ripple" data-bs-toggle="modal" data-bs-target="#suggestionsModal">
                 <i class="fas fa-lightbulb me-1"></i> Suggestions
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                     {{ pending_suggestions|length }}
@@ -107,11 +187,23 @@
             </div>
             <div class="row g-3 row-cols-1 row-cols-sm-2 row-cols-md-4 row-cols-xl-7">
                 {% for day in weekly_days %}
+                {% set date_str = day.date.strftime('%Y-%m-%d') %}
+                {% set ns = namespace(has_suggestions=false) %}
+                {% for s in pending_suggestions %}
+                    {% if s.date.strftime('%Y-%m-%d') == date_str %}
+                        {% set ns.has_suggestions = true %}
+                    {% endif %}
+                {% endfor %}
+                
                 <div class="col">
                     <div class="weekly-day-card h-100 {% if day.is_today %}today-highlight{% endif %}">
                         <div class="day-header text-center position-relative">
                             {% set day_num = day.date.strftime('%w')|int %}
-                            <div class="position-absolute top-0 end-0 mt-1 me-1">
+                            <div class="position-absolute top-0 end-0 mt-1 me-1 d-flex align-items-center gap-1">
+                                {% if ns.has_suggestions %}
+                                <span class="badge rounded-pill bg-secondary-subtle text-secondary border border-secondary glow-ripple" style="font-size: 0.55rem; padding: 2px 6px; cursor: pointer;" title="Pending suggestions for this day" data-bs-toggle="modal" data-bs-target="#suggestionsModal">Suggestion</span>
+                                {% endif %}
+                                
                                 {% if day_num == 2 or day_num == 5 %}
                                 <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary" style="font-size: 0.55rem; padding: 2px 6px;">Bread</span>
                                 {% else %}
@@ -519,11 +611,14 @@
                             </div>
                             <div class="d-flex flex-column gap-2 ms-3">
                                 <button class="btn btn-sm btn-teal" onclick="acceptSuggestion({{ sug.id }}, '{{ sug.date.strftime('%Y-%m-%d') }}', {{ sug.dish_id or 'null' }}, '{{ (sug.new_dish_name or '')|escape|replace("'", "\\'") }}', {{ sug.side_dish_id or 'null' }}, '{{ (sug.new_side_dish_name or '')|escape|replace("'", "\\'") }}', {{ sug.suggested_team_id or 'null' }}, '{{ (sug.description or '')|escape|replace("'", "\\'") }}')">
-                                    <i class="fas fa-check me-1"></i> Accept
+                                    <i class="fas fa-bolt me-1"></i> Accept
                                 </button>
-                                <form action="{{ url_for('pantry.reject_menu_suggestion', suggestion_id=sug.id) }}" method="POST" class="d-inline">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="editSuggestion({{ sug.id }}, '{{ sug.date.strftime('%Y-%m-%d') }}', {{ sug.dish_id or 'null' }}, '{{ (sug.new_dish_name or '')|escape|replace("'", "\\'") }}', {{ sug.side_dish_id or 'null' }}, '{{ (sug.new_side_dish_name or '')|escape|replace("'", "\\'") }}', {{ sug.suggested_team_id or 'null' }}, '{{ (sug.description or '')|escape|replace("'", "\\'") }}')">
+                                    <i class="fas fa-edit me-1"></i> Edit
+                                </button>
+                                <form action="{{ url_for('pantry.delete_menu_suggestion', suggestion_id=sug.id) }}" method="POST" class="d-inline">
                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Delete this suggestion?')">
-                                        <i class="fas fa-times me-1"></i> Reject
+                                        <i class="fas fa-trash-alt me-1"></i> Reject
                                     </button>
                                 </form>
                             </div>
@@ -542,12 +637,7 @@
     </div>
 </div>
 <script>
-function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, desc) {
-    // Hide suggestions modal
-    const sugModal = bootstrap.Modal.getInstance(document.getElementById('suggestionsModal'));
-    if (sugModal) sugModal.hide();
-    
-    // Populate form
+function populateSuggestionForm(id, date, dishId, newDish, sideId, newSide, teamId, desc) {
     document.getElementById('menuDateInput').value = date;
     document.getElementById('acceptSuggestionId').value = id;
     
@@ -567,18 +657,36 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
     
     if (teamId) {
         document.getElementById('assignedTeamSelect').value = teamId;
-        // Trigger change event to hide individual select
         document.getElementById('assignedTeamSelect').dispatchEvent(new Event('change'));
     }
     
     if (desc) {
         document.querySelector('textarea[name="description"]').value = desc;
     }
+}
+
+function editSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, desc) {
+    // Hide suggestions modal
+    const sugModal = bootstrap.Modal.getInstance(document.getElementById('suggestionsModal'));
+    if (sugModal) sugModal.hide();
+    
+    populateSuggestionForm(id, date, dishId, newDish, sideId, newSide, teamId, desc);
+    
+    // Stop at the Schedule Meal form so the Pantry Head can edit
+    const addModal = new bootstrap.Modal(document.getElementById('addMenuModal'));
+    addModal.show();
+}
+
+function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, desc) {
+    // Hide suggestions modal
+    const sugModal = bootstrap.Modal.getInstance(document.getElementById('suggestionsModal'));
+    if (sugModal) sugModal.hide();
+    
+    populateSuggestionForm(id, date, dishId, newDish, sideId, newSide, teamId, desc);
     
     // Directly proceed to the confirmation/notification modal
     const scheduleForm = document.getElementById('scheduleMealForm');
     if (!scheduleForm.checkValidity()) {
-        // If somehow invalid, fall back to showing the form
         scheduleForm.reportValidity();
         const addModal = new bootstrap.Modal(document.getElementById('addMenuModal'));
         addModal.show();
@@ -586,8 +694,12 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
     }
     
     pendingAction = 'single';
-    const customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
-    customConfirmModal.show();
+    if (window.customConfirmModal) {
+        window.customConfirmModal.show();
+    } else {
+        const fallback = new bootstrap.Modal(document.getElementById('customConfirmModal'));
+        fallback.show();
+    }
 }
 </script>
 {% endif %}
@@ -609,6 +721,7 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
     border-radius: 12px;
     border: 1px solid rgba(0,0,0,0.05);
     transition: var(--transition);
+    overflow: hidden;
 }
 .weekly-day-card.today-highlight {
     border-color: var(--teal-primary);
@@ -653,6 +766,22 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
     border: none;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border-radius: 8px;
+}
+
+@keyframes pulse-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(108, 117, 125, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(108, 117, 125, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(108, 117, 125, 0);
+    }
+}
+.glow-ripple {
+    animation: pulse-glow 2s infinite !important;
+    border: 2px solid #fff !important;
 }
 </style>
 {% if current_user.role in ['admin', 'pantryHead'] %}
@@ -1322,11 +1451,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Custom scheduling pipeline: create-only or create + tracked notifications.
-    const scheduleForm = document.getElementById('scheduleMealForm');
-    const customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
-    const recipientPickerModal = new bootstrap.Modal(document.getElementById('recipientPickerModal'));
-    const emailLoaderModal = new bootstrap.Modal(document.getElementById('menuEmailLoaderModal'));
-    let pendingAction = null; // 'single' or 'bulk'
+    window.scheduleForm = document.getElementById('scheduleMealForm');
+    window.customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
+    window.recipientPickerModal = new bootstrap.Modal(document.getElementById('recipientPickerModal'));
+    window.emailLoaderModal = new bootstrap.Modal(document.getElementById('menuEmailLoaderModal'));
+    window.pendingAction = null; 
 
     const userDirectory = JSON.parse(document.getElementById('menuRecipientDirectory')?.textContent || '{}');
     const teamMembersByTeamId = JSON.parse(document.getElementById('menuTeamMemberMap')?.textContent || '{}');
