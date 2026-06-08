@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
-from models import User, Dish, DishAuditLog, Menu, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name
+from models import User, Dish, DishAuditLog, Menu, MenuSuggestion, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -1097,6 +1097,17 @@ def calendar():
         for t in floor_tea_tasks
     ]
 
+    menu_suggestions_db = tenant_filter(MenuSuggestion.query).options(
+        joinedload(MenuSuggestion.suggested_by),
+        joinedload(MenuSuggestion.dish),
+        joinedload(MenuSuggestion.side_dish),
+        joinedload(MenuSuggestion.suggested_team)
+    ).filter(
+        MenuSuggestion.floor == floor,
+        MenuSuggestion.date >= start_bound,
+        MenuSuggestion.date <= end_bound
+    ).all()
+
     special_events = [
         {
             "id": s.id,
@@ -1108,15 +1119,98 @@ def calendar():
         }
         for s in floor_special_events
     ]
+    
+    menu_suggestions = [
+        {
+            "id": s.id,
+            "type": "suggestion",
+            "title": (s.dish.name if s.dish else s.new_dish_name) or 'Suggested Meal',
+            "description": s.description,
+            "date": s.date.isoformat() if s.date else None,
+            "created_by": (s.suggested_by.full_name or s.suggested_by.username) if s.suggested_by else "System",
+            "side_dish_name": s.side_dish.name if s.side_dish else s.new_side_dish_name,
+            "team_name": s.suggested_team.name if s.suggested_team else None
+        }
+        for s in menu_suggestions_db
+    ]
+
+    main_dishes = _active_dish_query().filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    side_dishes = _active_dish_query().filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
 
     return render_template('calendar.html', 
                            menus=menus, 
                            tea_tasks=tea_tasks, 
                            special_events=special_events, 
+                           menu_suggestions=menu_suggestions,
+                           main_dishes=main_dishes,
+                           side_dishes=side_dishes,
+                           floor_teams=floor_teams,
                            current_user=user, 
                            active_floor=floor,
                            current_year=current_year,
                            current_month=current_month)
+
+@pantry_bp.route('/menus/suggest', methods=['POST'])
+def suggest_menu():
+    user = _require_user()
+    if not user:
+        return redirect(url_for('auth.login'))
+
+    floor = _get_active_floor(user)
+    try:
+        menu_date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
+    except Exception:
+        flash('Invalid date', 'error')
+        return redirect(url_for('pantry.calendar'))
+        
+    if menu_date < date.today():
+        flash('Cannot suggest menus for past dates.', 'error')
+        return redirect(url_for('pantry.calendar'))
+
+    dish_id_raw = (request.form.get('dish_id') or '').strip()
+    new_dish_name = (request.form.get('new_dish_name') or '').strip()
+    side_dish_id_raw = (request.form.get('side_dish_id') or '').strip()
+    new_side_dish_name = (request.form.get('new_side_dish_name') or '').strip()
+    suggested_team_id_raw = (request.form.get('suggested_team_id') or '').strip()
+    description = (request.form.get('description') or '').strip()
+
+    dish_id = None
+    if dish_id_raw:
+        try: dish_id = int(dish_id_raw)
+        except ValueError: pass
+        
+    side_dish_id = None
+    if side_dish_id_raw:
+        try: side_dish_id = int(side_dish_id_raw)
+        except ValueError: pass
+        
+    suggested_team_id = None
+    if suggested_team_id_raw:
+        try: suggested_team_id = int(suggested_team_id_raw)
+        except ValueError: pass
+
+    if not dish_id and not new_dish_name:
+        flash('Please select a main dish or suggest a new one.', 'error')
+        return redirect(url_for('pantry.calendar'))
+
+    suggestion = MenuSuggestion(
+        date=menu_date,
+        dish_id=dish_id,
+        new_dish_name=new_dish_name,
+        side_dish_id=side_dish_id,
+        new_side_dish_name=new_side_dish_name,
+        suggested_team_id=suggested_team_id,
+        description=description,
+        floor=floor,
+        suggested_by_id=user.id,
+        tenant_id=getattr(g, 'tenant_id', None)
+    )
+    
+    db.session.add(suggestion)
+    db.session.commit()
+    flash('Menu suggestion submitted successfully.', 'success')
+    return redirect(url_for('pantry.calendar'))
 
 @pantry_bp.route('/special-events', methods=['POST'])
 def create_special_event():
@@ -1371,6 +1465,17 @@ def menus():
             assigned_team_id=assigned_team_id,
         )
 
+        suggestion_id_raw = request.form.get('suggestion_id')
+        if suggestion_id_raw:
+            try:
+                suggestion_id = int(suggestion_id_raw)
+                suggestion_to_delete = tenant_filter(MenuSuggestion.query).filter_by(id=suggestion_id, floor=floor).first()
+                if suggestion_to_delete:
+                    db.session.delete(suggestion_to_delete)
+                    db.session.commit()
+            except ValueError:
+                pass
+
         selected_notify_ids = []
         for raw_user_id in request.form.getlist('notify_user_ids'):
             try:
@@ -1458,12 +1563,23 @@ def menus():
         .first() is not None
     )
 
+    pending_suggestions = tenant_filter(MenuSuggestion.query).options(
+        joinedload(MenuSuggestion.suggested_by),
+        joinedload(MenuSuggestion.dish),
+        joinedload(MenuSuggestion.side_dish),
+        joinedload(MenuSuggestion.suggested_team)
+    ).filter(
+        MenuSuggestion.floor == floor,
+        MenuSuggestion.date >= today
+    ).order_by(MenuSuggestion.date.asc()).all()
+
     return render_template(
         'menus.html', 
         menus=floor_menus,
         pagination=menus_pagination,
         weekly_days=weekly_days,
         is_next_week_planned=is_next_week_planned,
+        pending_suggestions=pending_suggestions,
         floor_users=floor_users, 
         floor_teams=floor_teams, 
         floor_user_directory=floor_user_directory,
@@ -1477,6 +1593,20 @@ def menus():
         active_floor=floor
     )
 
+@pantry_bp.route('/menus/suggestions/<int:suggestion_id>/reject', methods=['POST'])
+def reject_menu_suggestion(suggestion_id):
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        abort(403)
+        
+    suggestion = tenant_filter(MenuSuggestion.query).filter_by(id=suggestion_id).first_or_404()
+    if suggestion.floor != _get_active_floor(user):
+        abort(403)
+        
+    db.session.delete(suggestion)
+    db.session.commit()
+    flash('Menu suggestion rejected.', 'success')
+    return redirect(url_for('pantry.menus'))
 
 @pantry_bp.route('/menus/<int:menu_id>/notify_single', methods=['POST'])
 def send_single_menu_notification(menu_id):
