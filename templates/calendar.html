@@ -27,6 +27,21 @@
         </div>
     </div>
 
+    {% if current_user.role == 'member' %}
+    <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4" role="alert" style="background-color: rgba(13, 202, 240, 0.1); color: var(--bs-info-text, #055160);">
+        <div class="d-flex align-items-center">
+            <div class="me-3 fs-3 text-info">
+                <i class="fas fa-magic"></i>
+            </div>
+            <div>
+                <h6 class="alert-heading fw-bold mb-1">New Feature: Shape Your Menu!</h6>
+                <p class="mb-0 small">You can now click on any upcoming date in the calendar below to <strong>Suggest a Meal</strong> directly to your Pantry Head. Tell them what you're craving and they can easily add it to the schedule!</p>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
     <!-- Calendar Grid -->
     <div class="calendar-container" id="calendarGridContainer"
          data-year="{{ current_year }}"
@@ -34,7 +49,8 @@
          data-user-role="{{ current_user.role }}"
          data-menus="{{ menus | tojson | forceescape }}"
          data-tea-tasks="{{ tea_tasks | tojson | forceescape }}"
-         data-special-events="{{ special_events | tojson | forceescape }}">
+         data-special-events="{{ special_events | tojson | forceescape }}"
+         data-menu-suggestions="{{ menu_suggestions | tojson | forceescape }}">
         <div class="calendar-header">
             <div class="calendar-day-header">Sun</div>
             <div class="calendar-day-header">Mon</div>
@@ -66,6 +82,10 @@
                     <div class="legend-item">
                         <span class="legend-color bg-info"></span>
                         <span class="small">Special Events</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color bg-secondary opacity-75"></span>
+                        <span class="small">Menu Suggestions</span>
                     </div>
                 </div>
             </div>
@@ -100,6 +120,65 @@
                 <div id="modalDescription" class="mb-3"></div>
                 <div id="modalMeta" class="p-3 bg-light rounded-3"></div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Suggesting Menu (Members) -->
+<div class="modal fade" id="suggestMenuModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-secondary text-white border-0">
+                <h5 class="modal-title fw-bold"><i class="fas fa-lightbulb me-2"></i>Suggest Menu</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('pantry.suggest_menu') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="mb-3 text-secondary fw-bold" id="suggestMenuDateDisplay"></div>
+                    <input type="hidden" name="date" id="suggestMenuDate">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Main Dish</label>
+                        <select class="form-select" name="dish_id" id="suggestDishSelect">
+                            <option value="">Choose existing...</option>
+                            {% for d in main_dishes %}
+                            <option value="{{ d.id }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="text" class="form-control mt-2" name="new_dish_name" placeholder="Or type a new main dish name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Side Dish (Optional)</label>
+                        <select class="form-select" name="side_dish_id" id="suggestSideDishSelect">
+                            <option value="">Choose existing...</option>
+                            {% for d in side_dishes %}
+                            <option value="{{ d.id }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="text" class="form-control mt-2" name="new_side_dish_name" placeholder="Or type a new side dish name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Suggest Room (Optional)</label>
+                        <select class="form-select" name="suggested_team_id">
+                            <option value="">Any Room</option>
+                            {% for t in floor_teams %}
+                            <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description / Notes</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="Any special requests or instructions..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-secondary px-4">Submit Suggestion</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -241,6 +320,7 @@ let currentDate = new Date(currentYear, currentMonth - 1, 1);
 const menus = JSON.parse(calContainer.dataset.menus);
 const teaTasks = JSON.parse(calContainer.dataset.teaTasks);
 const specialEvents = JSON.parse(calContainer.dataset.specialEvents);
+const menuSuggestions = JSON.parse(calContainer.dataset.menuSuggestions || '[]');
 
 function showEventDetail(type, data) {
     const modalElement = document.getElementById('eventDetailModal');
@@ -473,6 +553,19 @@ function generateCalendar(year, month) {
                 dayCell.appendChild(event);
             });
 
+            // Render Menu Suggestions
+            menuSuggestions.filter(s => s.date === dateStr).forEach(suggestion => {
+                const event = document.createElement('div');
+                event.className = 'calendar-event bg-secondary text-white opacity-75';
+                event.textContent = suggestion.title + ' (Suggestion)';
+                event.onclick = (e) => { 
+                    e.stopPropagation(); 
+                    // Optional: could show a detail modal for suggestion, but we'll just alert for now or ignore
+                    alert('Menu Suggestion by: ' + suggestion.created_by + '\nNotes: ' + (suggestion.description || 'None'));
+                };
+                dayCell.appendChild(event);
+            });
+
             if (['admin', 'pantryHead'].includes(currentUserRole)) {
                 dayCell.onclick = () => {
                     selectedActionDate = dateStr;
@@ -482,6 +575,21 @@ function generateCalendar(year, month) {
                     modal.show();
                 };
                 dayCell.style.cursor = 'pointer';
+            } else if (currentUserRole === 'member') {
+                const todayStr = new Date().toLocaleDateString('en-CA').split('/').reverse().join('-'); // basic local YYYY-MM-DD
+                const realToday = new Date();
+                const todayDateStr = `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
+                
+                if (dateStr >= todayDateStr) {
+                    dayCell.onclick = () => {
+                        document.getElementById('suggestMenuDate').value = dateStr;
+                        const dObj = new Date(dateStr + 'T00:00:00');
+                        document.getElementById('suggestMenuDateDisplay').textContent = dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                        const modal = new bootstrap.Modal(document.getElementById('suggestMenuModal'));
+                        modal.show();
+                    };
+                    dayCell.style.cursor = 'pointer';
+                }
             }
 
             weekRow.appendChild(dayCell);

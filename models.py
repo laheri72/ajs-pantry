@@ -149,6 +149,32 @@ class Menu(db.Model, TenantMixin):
     assigned_team = db.relationship('Team', foreign_keys=[assigned_team_id])
     created_by = db.relationship('User', foreign_keys=[created_by_id])
 
+class MenuSuggestion(db.Model, TenantMixin):
+    __table_args__ = (
+        db.Index('idx_menusuggestion_tenant_floor_date', 'tenant_id', 'floor', 'date'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False)
+    
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=True)
+    new_dish_name = db.Column(db.String(100), nullable=True)
+    
+    side_dish_id = db.Column(db.Integer, db.ForeignKey('dish.id'), nullable=True)
+    new_side_dish_name = db.Column(db.String(100), nullable=True)
+    
+    description = db.Column(db.Text, nullable=True)
+    suggested_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    
+    floor = db.Column(db.Integer, nullable=False)
+    suggested_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    dish = db.relationship('Dish', foreign_keys=[dish_id])
+    side_dish = db.relationship('Dish', foreign_keys=[side_dish_id])
+    suggested_team = db.relationship('Team', foreign_keys=[suggested_team_id])
+    suggested_by = db.relationship('User', foreign_keys=[suggested_by_id])
+
 class Expense(db.Model, TenantMixin):
     __table_args__ = (
         db.Index('idx_expense_tenant_floor_date', 'tenant_id', 'floor', 'date'),

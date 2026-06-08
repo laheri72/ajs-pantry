@@ -37,6 +37,14 @@
         </div>
         <div class="d-flex gap-2">
             {% if current_user.role in ['admin', 'pantryHead'] %}
+            {% if pending_suggestions %}
+            <button class="btn btn-secondary px-3 position-relative" data-bs-toggle="modal" data-bs-target="#suggestionsModal">
+                <i class="fas fa-lightbulb me-1"></i> Suggestions
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    {{ pending_suggestions|length }}
+                </span>
+            </button>
+            {% endif %}
             <button class="btn btn-teal px-4" data-bs-toggle="modal" data-bs-target="#addMenuModal">
                 <i class="fas fa-plus me-1"></i> Schedule Meal
             </button>
@@ -362,6 +370,9 @@
                             <textarea class="form-control shadow-none" name="description" rows="2" placeholder="e.g. Medium spicy, serve with hot buns..."></textarea>
                         </div>
 
+                        <!-- Hidden suggestion_id for accepting suggestions -->
+                        <input type="hidden" name="suggestion_id" id="acceptSuggestionId" value="">
+
                         <div class="col-md-12">
                             <hr class="my-2">
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -476,6 +487,110 @@
         </div>
     </div>
 </div>
+
+{% if current_user.role in ['admin', 'pantryHead'] %}
+<!-- Suggestions Modal -->
+<div class="modal fade" id="suggestionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-secondary text-white border-0">
+                <h5 class="modal-title fw-bold"><i class="fas fa-lightbulb me-2"></i>Pending Member Suggestions</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for sug in pending_suggestions %}
+                    <li class="list-group-item p-4">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="fw-bold mb-1">{{ sug.dish.name if sug.dish else sug.new_dish_name }}
+                                    {% if sug.side_dish or sug.new_side_dish_name %}
+                                    <span class="text-muted small fw-normal"> + {{ sug.side_dish.name if sug.side_dish else sug.new_side_dish_name }}</span>
+                                    {% endif %}
+                                </h6>
+                                <div class="small text-muted mb-2">
+                                    <i class="fas fa-calendar-alt me-1"></i> {{ sug.date.strftime('%Y-%m-%d') }} &bull;
+                                    <i class="fas fa-user me-1"></i> {{ sug.suggested_by.full_name or sug.suggested_by.username }}
+                                    {% if sug.suggested_team %}
+                                    &bull; <i class="fas fa-users me-1"></i> {{ sug.suggested_team.name }}
+                                    {% endif %}
+                                </div>
+                                <div class="small bg-light p-2 rounded text-dark fst-italic">"{{ sug.description or 'No extra notes' }}"</div>
+                            </div>
+                            <div class="d-flex flex-column gap-2 ms-3">
+                                <button class="btn btn-sm btn-teal" onclick="acceptSuggestion({{ sug.id }}, '{{ sug.date.strftime('%Y-%m-%d') }}', {{ sug.dish_id or 'null' }}, '{{ (sug.new_dish_name or '')|escape|replace("'", "\\'") }}', {{ sug.side_dish_id or 'null' }}, '{{ (sug.new_side_dish_name or '')|escape|replace("'", "\\'") }}', {{ sug.suggested_team_id or 'null' }}, '{{ (sug.description or '')|escape|replace("'", "\\'") }}')">
+                                    <i class="fas fa-check me-1"></i> Accept
+                                </button>
+                                <form action="{{ url_for('pantry.reject_menu_suggestion', suggestion_id=sug.id) }}" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger w-100" onclick="return confirm('Delete this suggestion?')">
+                                        <i class="fas fa-times me-1"></i> Reject
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </li>
+                    {% else %}
+                    <li class="list-group-item p-5 text-center text-muted">
+                        <i class="fas fa-check-circle fa-3x mb-3 opacity-25"></i>
+                        <h5>All caught up</h5>
+                        <p class="mb-0">No pending suggestions from members.</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, desc) {
+    // Hide suggestions modal
+    const sugModal = bootstrap.Modal.getInstance(document.getElementById('suggestionsModal'));
+    if (sugModal) sugModal.hide();
+    
+    // Populate form
+    document.getElementById('menuDateInput').value = date;
+    document.getElementById('acceptSuggestionId').value = id;
+    
+    if (dishId && typeof window.dishTomSelect !== 'undefined') {
+        window.dishTomSelect.setValue(dishId);
+    } else if (newDish) {
+        document.getElementById('showNewDishLink').click();
+        document.getElementById('newDishName').value = newDish;
+    }
+    
+    if (sideId && typeof window.sideDishTomSelect !== 'undefined') {
+        window.sideDishTomSelect.setValue(sideId);
+    } else if (newSide) {
+        document.getElementById('showNewSideDishLink').click();
+        document.getElementById('newSideDishName').value = newSide;
+    }
+    
+    if (teamId) {
+        document.getElementById('assignedTeamSelect').value = teamId;
+        // Trigger change event to hide individual select
+        document.getElementById('assignedTeamSelect').dispatchEvent(new Event('change'));
+    }
+    
+    if (desc) {
+        document.querySelector('textarea[name="description"]').value = desc;
+    }
+    
+    // Directly proceed to the confirmation/notification modal
+    const scheduleForm = document.getElementById('scheduleMealForm');
+    if (!scheduleForm.checkValidity()) {
+        // If somehow invalid, fall back to showing the form
+        scheduleForm.reportValidity();
+        const addModal = new bootstrap.Modal(document.getElementById('addMenuModal'));
+        addModal.show();
+        return;
+    }
+    
+    pendingAction = 'single';
+    const customConfirmModal = new bootstrap.Modal(document.getElementById('customConfirmModal'));
+    customConfirmModal.show();
+}
+</script>
+{% endif %}
 
 <style>
 .bg-soft-teal { background-color: rgba(38, 166, 154, 0.1); }
@@ -941,7 +1056,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let sideDishTomSelect = null;
 
     if (dishSelect) {
-        dishTomSelect = new TomSelect(dishSelect, {
+        window.dishTomSelect = new TomSelect(dishSelect, {
             create: false,
             sortField: { field: "text", direction: "asc" },
             placeholder: "Search main dish..."
@@ -949,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (sideDishSelect) {
-        sideDishTomSelect = new TomSelect(sideDishSelect, {
+        window.sideDishTomSelect = new TomSelect(sideDishSelect, {
             create: false,
             sortField: { field: "text", direction: "asc" },
             placeholder: "None / Search side dish..."
