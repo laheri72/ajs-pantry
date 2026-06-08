@@ -400,6 +400,24 @@
                             </div>
                             {% endif %}
 
+                            {% if user.role == 'member' %}
+                            <div class="col-6 col-md-4 col-xl-3">
+                                <a href="{{ url_for('pantry.calendar') }}" class="action-card">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <h5>Calendar</h5>
+                                    <p>View upcoming meals</p>
+                                </a>
+                            </div>
+
+                            <div class="col-6 col-md-4 col-xl-3">
+                                <a href="{{ url_for('pantry.people') }}" class="action-card">
+                                    <i class="fas fa-users"></i>
+                                    <h5>People</h5>
+                                    <p>View teams and stats</p>
+                                </a>
+                            </div>
+                            {% endif %}
+
                             <div class="col-6 col-md-4 col-xl-3">
                                 <a href="{{ url_for('pantry.feedbacks') }}" class="action-card">
                                     <i class="fas fa-comments"></i>
