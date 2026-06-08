@@ -1808,6 +1808,33 @@ def delete_suggestion(suggestion_id):
     db.session.commit()
     return ('', 204)
 
+@pantry_bp.route('/people/teams/<int:team_id>/icon', methods=['POST'])
+def update_team_icon(team_id):
+    user = _require_user()
+    if not user:
+        return redirect(url_for('auth.login'))
+
+    team = tenant_filter(Team.query).filter_by(id=team_id).first()
+    if not team:
+        abort(404)
+
+    # Verify user is a member of this team or has admin rights
+    is_member = tenant_filter(TeamMember.query).filter_by(team_id=team.id, user_id=user.id).first() is not None
+    if not is_member and user.role not in {'admin', 'pantryHead'}:
+        abort(403, description="You must be a member of this team to edit its icon.")
+
+    icon = (request.form.get('icon') or '').strip()
+    
+    # Optional basic validation/sanitization could go here
+    if len(icon) > 10:
+        icon = icon[:10]
+        
+    team.icon = icon if icon else None
+    
+    db.session.commit()
+    flash(f"Room icon updated successfully", 'success')
+    return redirect(url_for('pantry.people'))
+
 @pantry_bp.route('/feedbacks', methods=['GET', 'POST'])
 def feedbacks():
     user = _require_user()
