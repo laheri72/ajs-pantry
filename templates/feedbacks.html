@@ -6,17 +6,11 @@
 <div class="container-fluid">
     <div class="row align-items-center mb-4 g-3">
         <div class="col-lg-7">
-            <h2 class="fw-bold mb-1"><i class="fas fa-comments text-teal me-2"></i>Feedbacks</h2>
+            <h2 class="fw-bold mb-1"><i class="fas fa-comments text-teal me-2"></i>Feedbacks & Suggestions</h2>
             <div class="text-muted">Rate meals, leave reviews, and share ideas from one combined page.</div>
         </div>
         <div class="col-lg-5 text-lg-end">
             <div class="d-flex flex-wrap justify-content-lg-end gap-2">
-                <a href="#evaluations" class="btn btn-outline-teal">
-                    <i class="fas fa-star me-1"></i> Meal Evaluations
-                </a>
-                <a href="#suggestions" class="btn btn-outline-warning">
-                    <i class="fas fa-lightbulb me-1"></i> Suggestions
-                </a>
                 <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addFeedbackModal">
                     <i class="fas fa-plus me-1"></i> Add Evaluation
                 </button>
@@ -27,221 +21,236 @@
         </div>
     </div>
 
-    <section id="evaluations" class="mb-5">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h4 class="mb-1">Meal Evaluations</h4>
-                <div class="text-muted small">These ratings power performance insights across the system.</div>
-            </div>
-        </div>
+    <ul class="nav nav-tabs mb-4 border-0" id="feedbackTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold px-4 rounded-top-3" id="evaluations-tab" data-bs-toggle="tab" data-bs-target="#evaluations" type="button" role="tab" aria-selected="true">
+                <i class="fas fa-star me-1"></i> Meal Evaluations
+            </button>
+        </li>
+        <li class="nav-item ms-2" role="presentation">
+            <button class="nav-link fw-bold px-4 rounded-top-3" id="suggestions-tab" data-bs-toggle="tab" data-bs-target="#suggestions" type="button" role="tab" aria-selected="false">
+                <i class="fas fa-lightbulb me-1"></i> Suggestions
+            </button>
+        </li>
+    </ul>
 
-        <div class="row mb-4">
-            <div class="col-12">
-                <h5 class="mb-3">Rate Recent Meals</h5>
-                <div class="row g-3">
-                    {% set pending_count = 0 %}
-                    {% for m in menu_options %}
-                        {% if m.id not in rated_menu_ids %}
-                            {% set pending_count = pending_count + 1 %}
-                            <div class="col-md-6 col-lg-4 col-xl-3">
-                                <div class="card h-100 border-teal shadow-sm evaluation-pending-card">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-start mb-2">
-                                            <span class="badge bg-teal-light text-teal">{{ m.date.strftime('%a, %b %d') }}</span>
-                                            <span class="badge bg-light text-dark">{{ m.meal_type.title() }}</span>
+    <div class="tab-content" id="feedbackTabsContent">
+        <div class="tab-pane fade show active" id="evaluations" role="tabpanel" aria-labelledby="evaluations-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h4 class="mb-1">Meal Evaluations</h4>
+                    <div class="text-muted small">These ratings power performance insights across the system.</div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h5 class="mb-3">Rate Recent Meals</h5>
+                    <div class="row g-3">
+                        {% set pending_count = 0 %}
+                        {% for m in menu_options %}
+                            {% if m.id not in rated_menu_ids %}
+                                {% set pending_count = pending_count + 1 %}
+                                <div class="col-md-6 col-lg-4 col-xl-3">
+                                    <div class="card h-100 border-teal shadow-sm evaluation-pending-card">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <span class="badge bg-teal-light text-teal">{{ m.date.strftime('%a, %b %d') }}</span>
+                                                <span class="badge bg-light text-dark">{{ m.meal_type.title() }}</span>
+                                            </div>
+                                            <h5 class="card-title fw-bold mb-1">{{ m.dish.name if m.dish else m.title }}</h5>
+                                            <div class="text-muted small mb-3">
+                                                {% if m.assigned_team %}
+                                                    <i class="fas fa-users me-1"></i> {% if m.assigned_team.icon %}{{ m.assigned_team.icon }}{% endif %} {{ m.assigned_team.name }}
+                                                {% elif m.assigned_to %}
+                                                    <i class="fas fa-user me-1"></i> {{ m.assigned_to.full_name or m.assigned_to.username or m.assigned_to.email }}
+                                                {% endif %}
+                                            </div>
+                                            <button class="btn btn-teal w-100 btn-evaluate" data-menu-id="{{ m.id }}" data-dish-name="{{ (m.dish.name if m.dish else m.title) | escape }}">
+                                                Rate This Meal
+                                            </button>
                                         </div>
-                                        <h5 class="card-title fw-bold mb-1">{{ m.dish.name if m.dish else m.title }}</h5>
-                                        <div class="text-muted small mb-3">
-                                            {% if m.assigned_team %}
-                                                <i class="fas fa-users me-1"></i> {% if m.assigned_team.icon %}{{ m.assigned_team.icon }}{% endif %} {{ m.assigned_team.name }}
-                                            {% elif m.assigned_to %}
-                                                <i class="fas fa-user me-1"></i> {{ m.assigned_to.full_name or m.assigned_to.username or m.assigned_to.email }}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if pending_count == 0 %}
+                        <div class="col-12">
+                            <div class="alert alert-light border text-center py-4 mb-0">
+                                <i class="fas fa-check-circle text-success fa-2x mb-2"></i>
+                                <h5>All caught up!</h5>
+                                <p class="text-muted mb-0">You've rated all recent meals. Great job!</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <h5 class="mb-3">Recent Performance Activity</h5>
+                    <div class="row g-3">
+                        {% for feedback in feedbacks %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="feedback-card h-100">
+                                <div class="feedback-header">
+                                    <div class="d-flex flex-column">
+                                        <h5 class="mb-1 fw-bold">
+                                            {% if feedback.menu %}
+                                                {{ feedback.menu.dish.name if feedback.menu.dish else feedback.menu.title }}
+                                            {% else %}
+                                                {{ feedback.title }}
+                                            {% endif %}
+                                        </h5>
+                                        <div class="small text-muted">
+                                            {{ feedback.user.full_name or feedback.user.username or feedback.user.email }}
+                                        </div>
+                                    </div>
+                                    <div class="rating">
+                                        {% for i in range(1, 6) %}
+                                            <i class="fas fa-star {% if i <= feedback.rating %}text-warning{% else %}text-muted{% endif %}"></i>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="feedback-body">
+                                    <p class="mb-3 italic-quote">"{{ feedback.description }}"</p>
+
+                                    <div class="evaluation-meta pt-2 border-top">
+                                        {% if feedback.menu %}
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span class="text-muted"><i class="fas fa-calendar me-1"></i> {{ feedback.menu.date.strftime('%b %d') if feedback.menu.date else 'N/A' }}</span>
+                                            {% if feedback.menu.assigned_team %}
+                                            <span class="fw-bold text-teal">
+                                                {% if feedback.menu.assigned_team.icon %}{{ feedback.menu.assigned_team.icon }}{% endif %}
+                                                {{ feedback.menu.assigned_team.name }}
+                                            </span>
+                                            {% elif feedback.menu.assigned_to %}
+                                            <span class="fw-bold text-teal">
+                                                {{ feedback.menu.assigned_to.full_name or feedback.menu.assigned_to.username or feedback.menu.assigned_to.email }}
+                                            </span>
                                             {% endif %}
                                         </div>
-                                        <button class="btn btn-teal w-100" onclick="openEvaluationModal({{ m.id }}, '{{ (m.dish.name if m.dish else m.title) | escape }}')">
-                                            Rate This Meal
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endif %}
-                    {% endfor %}
-
-                    {% if pending_count == 0 %}
-                    <div class="col-12">
-                        <div class="alert alert-light border text-center py-4 mb-0">
-                            <i class="fas fa-check-circle text-success fa-2x mb-2"></i>
-                            <h5>All caught up!</h5>
-                            <p class="text-muted mb-0">You've rated all recent meals. Great job!</p>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-12">
-                <h5 class="mb-3">Recent Performance Activity</h5>
-                <div class="row g-3">
-                    {% for feedback in feedbacks %}
-                    <div class="col-md-6 col-lg-4 mb-3">
-                        <div class="feedback-card h-100">
-                            <div class="feedback-header">
-                                <div class="d-flex flex-column">
-                                    <h5 class="mb-1 fw-bold">
-                                        {% if feedback.menu %}
-                                            {{ feedback.menu.dish.name if feedback.menu.dish else feedback.menu.title }}
-                                        {% else %}
-                                            {{ feedback.title }}
                                         {% endif %}
-                                    </h5>
-                                    <div class="small text-muted">
-                                        {{ feedback.user.full_name or feedback.user.username or feedback.user.email }}
+                                        <div class="text-end small text-muted">
+                                            Submitted {{ feedback.created_at.strftime('%Y-%m-%d') }}
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="rating">
-                                    {% for i in range(1, 6) %}
-                                        <i class="fas fa-star {% if i <= feedback.rating %}text-warning{% else %}text-muted{% endif %}"></i>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                            <div class="feedback-body">
-                                <p class="mb-3 italic-quote">"{{ feedback.description }}"</p>
-
-                                <div class="evaluation-meta pt-2 border-top">
-                                    {% if feedback.menu %}
-                                    <div class="d-flex justify-content-between small mb-1">
-                                        <span class="text-muted"><i class="fas fa-calendar me-1"></i> {{ feedback.menu.date.strftime('%b %d') if feedback.menu.date else 'N/A' }}</span>
-                                        {% if feedback.menu.assigned_team %}
-                                        <span class="fw-bold text-teal">
-                                            {% if feedback.menu.assigned_team.icon %}{{ feedback.menu.assigned_team.icon }}{% endif %}
-                                            {{ feedback.menu.assigned_team.name }}
-                                        </span>
-                                        {% elif feedback.menu.assigned_to %}
-                                        <span class="fw-bold text-teal">
-                                            {{ feedback.menu.assigned_to.full_name or feedback.menu.assigned_to.username or feedback.menu.assigned_to.email }}
-                                        </span>
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
-                                    <div class="text-end small text-muted">
-                                        Submitted {{ feedback.created_at.strftime('%Y-%m-%d') }}
-                                    </div>
-                                </div>
-                            </div>
-                            {% if current_user.role in ['admin', 'pantryHead'] %}
-                            <div class="feedback-actions">
-                                <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="deleteFeedback({{ feedback.id }})">
-                                    <i class="fas fa-trash me-1"></i> Delete Evaluation
-                                </button>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="col-12">
-                        <div class="alert alert-light border text-center py-4 mb-0">
-                            <i class="fas fa-star-half-alt text-warning fa-2x mb-2"></i>
-                            <h5>No evaluations yet</h5>
-                            <p class="text-muted mb-0">Start by rating one of the recent meals above.</p>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        {% if pagination and pagination.pages > 1 %}
-        <nav class="mt-4">
-            <ul class="pagination justify-content-center">
-                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('pantry.feedbacks', page=pagination.prev_num) if pagination.has_prev else '#' }}">Previous</a>
-                </li>
-                {% for page in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
-                    {% if page %}
-                        <li class="page-item {% if page == pagination.page %}active{% endif %}">
-                            <a class="page-link" href="{{ url_for('pantry.feedbacks', page=page) }}">{{ page }}</a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled"><span class="page-link">...</span></li>
-                    {% endif %}
-                {% endfor %}
-                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('pantry.feedbacks', page=pagination.next_num) if pagination.has_next else '#' }}">Next</a>
-                </li>
-            </ul>
-        </nav>
-        {% endif %}
-    </section>
-
-    <section id="suggestions" class="pt-2">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h4 class="mb-1">Suggestions</h4>
-                <div class="text-muted small">Post ideas for your floor and vote on the ones you want implemented.</div>
-            </div>
-        </div>
-
-        <div class="row g-3">
-            {% for suggestion, vote_count in suggestions_with_votes %}
-            <div class="col-md-6 col-lg-4">
-                <div class="card suggestion-card h-100 border-0">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start mb-3">
-                            <div class="suggestion-vote-box text-center me-3 p-2 rounded-3 {% if suggestion.id in user_voted_ids %}bg-teal text-white{% else %}bg-light text-dark{% endif %}"
-                                 id="vote-box-{{ suggestion.id }}"
-                                 onclick="toggleVote({{ suggestion.id }})"
-                                 style="cursor: pointer; min-width: 60px; transition: var(--transition);">
-                                <i class="fas fa-chevron-up mb-1"></i>
-                                <div class="h5 fw-bold mb-0" id="vote-count-{{ suggestion.id }}">{{ vote_count }}</div>
-                                <div class="small" style="font-size: 0.7rem;">VOTES</div>
-                            </div>
-                            <div class="flex-grow-1">
-                                <h5 class="fw-bold mb-1">{{ suggestion.title }}</h5>
-                                <div class="text-muted small mb-2">
-                                    <i class="fas fa-user-circle me-1"></i>{{ suggestion.user.full_name or suggestion.user.username or 'Anonymous' }}
-                                    &bull; {{ suggestion.created_at.strftime('%b %d, %Y') }}
-                                </div>
-                            </div>
-                        </div>
-
-                        <p class="text-dark mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.5;">
-                            {{ suggestion.description }}
-                        </p>
-
-                        <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top border-light">
-                            <div class="d-flex gap-2 flex-wrap">
-                                <div class="badge bg-teal-light text-teal rounded-pill px-3">
-                                    <i class="fas fa-building me-1"></i>Floor {{ suggestion.floor }}
-                                </div>
-                                {% if suggestion.dish %}
-                                <div class="badge bg-warning-light text-dark rounded-pill px-3">
-                                    <i class="fas fa-tag me-1"></i>{{ suggestion.dish.name }}
+                                {% if current_user.role in ['admin', 'pantryHead'] %}
+                                <div class="feedback-actions">
+                                    <button type="button" class="btn btn-sm btn-outline-danger w-100 btn-delete-eval" data-feedback-id="{{ feedback.id }}">
+                                        <i class="fas fa-trash me-1"></i> Delete Evaluation
+                                    </button>
                                 </div>
                                 {% endif %}
                             </div>
-
-                            {% if current_user.role in ['admin', 'pantryHead'] or current_user.id == suggestion.user_id %}
-                            <button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" onclick="deleteSuggestion({{ suggestion.id }})">
-                                <i class="fas fa-trash-alt me-1"></i>Delete
-                            </button>
-                            {% endif %}
                         </div>
+                        {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-light border text-center py-4 mb-0">
+                                <i class="fas fa-star-half-alt text-warning fa-2x mb-2"></i>
+                                <h5>No evaluations yet</h5>
+                                <p class="text-muted mb-0">Start by rating one of the recent meals above.</p>
+                            </div>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
-            {% else %}
-            <div class="col-12 text-center py-5">
-                <div class="text-muted mb-3">
-                    <i class="fas fa-lightbulb fa-4x opacity-25"></i>
-                </div>
-                <h5>No suggestions yet</h5>
-                <p class="text-muted mb-0">Be the first to share an idea for Floor {{ active_floor }}.</p>
-            </div>
-            {% endfor %}
+
+            {% if pagination and pagination.pages > 1 %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('pantry.feedbacks', page=pagination.prev_num) if pagination.has_prev else '#' }}">Previous</a>
+                    </li>
+                    {% for page in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page %}
+                            <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('pantry.feedbacks', page=page) }}">{{ page }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('pantry.feedbacks', page=pagination.next_num) if pagination.has_next else '#' }}">Next</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
         </div>
-    </section>
+
+        <div class="tab-pane fade" id="suggestions" role="tabpanel" aria-labelledby="suggestions-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h4 class="mb-1">Suggestions</h4>
+                    <div class="text-muted small">Post ideas for your floor and vote on the ones you want implemented.</div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                {% for suggestion, vote_count in suggestions_with_votes %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card suggestion-card h-100 border-0 shadow-sm">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div class="suggestion-vote-box text-center me-3 p-2 rounded-3 {% if suggestion.id in user_voted_ids %}bg-teal text-white{% else %}bg-light text-dark{% endif %}"
+                                     id="vote-box-{{ suggestion.id }}"
+                                     data-suggestion-id="{{ suggestion.id }}"
+                                     style="cursor: pointer; min-width: 60px; transition: var(--transition);">
+                                    <i class="fas fa-chevron-up mb-1"></i>
+                                    <div class="h5 fw-bold mb-0" id="vote-count-{{ suggestion.id }}">{{ vote_count }}</div>
+                                    <div class="small" style="font-size: 0.7rem;">VOTES</div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h5 class="fw-bold mb-1">{{ suggestion.title }}</h5>
+                                    <div class="text-muted small mb-2">
+                                        <i class="fas fa-user-circle me-1"></i>{{ suggestion.user.full_name or suggestion.user.username or 'Anonymous' }}
+                                        &bull; {{ suggestion.created_at.strftime('%b %d, %Y') }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-dark mb-4 flex-grow-1" style="font-size: 0.95rem; line-height: 1.5;">
+                                {{ suggestion.description }}
+                            </p>
+
+                            <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top border-light">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <div class="badge bg-teal-light text-teal rounded-pill px-3">
+                                        <i class="fas fa-building me-1"></i>Floor {{ suggestion.floor }}
+                                    </div>
+                                    {% if suggestion.dish %}
+                                    <div class="badge bg-warning-light text-dark rounded-pill px-3">
+                                        <i class="fas fa-tag me-1"></i>{{ suggestion.dish.name }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                {% if current_user.role in ['admin', 'pantryHead'] or current_user.id == suggestion.user_id %}
+                                <button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none btn-delete-sugg" data-suggestion-id="{{ suggestion.id }}">
+                                    <i class="fas fa-trash-alt me-1"></i>Delete
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12 text-center py-5">
+                    <div class="text-muted mb-3">
+                        <i class="fas fa-lightbulb fa-4x opacity-25"></i>
+                    </div>
+                    <h5>No suggestions yet</h5>
+                    <p class="text-muted mb-0">Be the first to share an idea for Floor {{ active_floor }}.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="addFeedbackModal" tabindex="-1">
@@ -349,7 +358,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_scripts %}
 <style>
 .italic-quote {
     font-style: italic;
@@ -469,6 +480,7 @@ function deleteSuggestion(suggestionId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Stars input
     const ratingInputs = document.querySelectorAll('.rating-input input[type="radio"]');
     const ratingLabels = document.querySelectorAll('.rating-input label');
 
@@ -483,6 +495,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     label.classList.remove('text-warning');
                 }
             });
+        });
+    });
+
+    // Event listener for Evaluate buttons to prevent inline JS parsing errors
+    document.querySelectorAll('.btn-evaluate').forEach(btn => {
+        btn.addEventListener('click', function() {
+            openEvaluationModal(this.dataset.menuId, this.dataset.dishName);
+        });
+    });
+
+    // Event listener for Delete Evaluation buttons
+    document.querySelectorAll('.btn-delete-eval').forEach(btn => {
+        btn.addEventListener('click', function() {
+            deleteFeedback(this.dataset.feedbackId);
+        });
+    });
+
+    // Event listener for Vote buttons
+    document.querySelectorAll('.suggestion-vote-box').forEach(box => {
+        box.addEventListener('click', function() {
+            toggleVote(this.dataset.suggestionId);
+        });
+    });
+
+    // Event listener for Delete Suggestion buttons
+    document.querySelectorAll('.btn-delete-sugg').forEach(btn => {
+        btn.addEventListener('click', function() {
+            deleteSuggestion(this.dataset.suggestionId);
         });
     });
 });
