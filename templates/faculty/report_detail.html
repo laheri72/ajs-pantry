@@ -34,10 +34,28 @@
             <div class="mb-3">{{ submission.submitted_at.strftime('%d %b %Y %H:%M') }}</div>
             <div class="small text-muted mb-2">Submission Notes</div>
             <div class="mb-4">{{ submission.submission_notes or 'No notes provided.' }}</div>
-            <form method="POST" action="{{ url_for('faculty.verify_report', submission_id=submission.id) }}" class="mb-3">
+            <!-- Unified Review Notes & Action Buttons -->
+            <div class="mb-4">
                 <label class="form-label fw-bold">Faculty Review Notes</label>
-                <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Add optional review notes or final approval context">{{ submission.review_notes or '' }}</textarea>
-                <button type="button" class="btn btn-success rounded-pill px-4 w-100" data-bs-toggle="modal" data-bs-target="#verifyReportModal">Verify Report</button>
+                <textarea id="unifiedReviewNotes" class="form-control rounded-4" rows="4" placeholder="Add optional review notes for approval, or explain what must be fixed if rejecting.">{{ submission.review_notes or '' }}</textarea>
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-sm-6">
+                    <button type="button" class="btn btn-success rounded-pill px-4 w-100 py-2 fw-bold" onclick="submitVerify()">
+                        <i class="fas fa-check-circle me-1"></i> Verify & Approve
+                    </button>
+                </div>
+                <div class="col-sm-6">
+                    <button type="button" class="btn btn-outline-danger rounded-pill px-4 w-100 py-2 fw-bold" onclick="submitReject()">
+                        <i class="fas fa-times-circle me-1"></i> Reject Report
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hidden Form for Verification -->
+            <form id="verifyForm" method="POST" action="{{ url_for('faculty.verify_report', submission_id=submission.id) }}">
+                <input type="hidden" name="review_notes" id="verifyReviewNotes">
                 <div class="modal fade" id="verifyReportModal" tabindex="-1" aria-labelledby="verifyReportModalLabel" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
                         <div class="modal-content border-0 shadow">
@@ -91,10 +109,10 @@
                     </div>
                 </div>
             </form>
-            <form method="POST" action="{{ url_for('faculty.reject_report', submission_id=submission.id) }}">
-                <label class="form-label fw-bold">Reject with Notes</label>
-                <textarea name="review_notes" class="form-control rounded-4 mb-3" rows="4" placeholder="Explain what must be fixed">{{ submission.review_notes if submission.status == 'rejected' else '' }}</textarea>
-                <button class="btn btn-outline-danger rounded-pill px-4 w-100">Reject Report</button>
+
+            <!-- Hidden Form for Rejection -->
+            <form id="rejectForm" method="POST" action="{{ url_for('faculty.reject_report', submission_id=submission.id) }}">
+                <input type="hidden" name="review_notes" id="rejectReviewNotes">
             </form>
         </div>
     </div>
@@ -160,4 +178,27 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    window.submitVerify = function() {
+        const notes = document.getElementById('unifiedReviewNotes').value;
+        document.getElementById('verifyReviewNotes').value = notes;
+        const verifyModal = new bootstrap.Modal(document.getElementById('verifyReportModal'));
+        verifyModal.show();
+    };
+
+    window.submitReject = function() {
+        const notes = document.getElementById('unifiedReviewNotes').value.trim();
+        if (!notes) {
+            alert('Please add review notes explaining what must be fixed before rejecting the report.');
+            return;
+        }
+        document.getElementById('rejectReviewNotes').value = notes;
+        if (confirm('Are you sure you want to reject this submission? The floor will be notified to revise and re-submit.')) {
+            document.getElementById('rejectForm').submit();
+        }
+    };
+</script>
 {% endblock %}

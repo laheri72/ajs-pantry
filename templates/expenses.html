@@ -1222,12 +1222,12 @@
                         <div class="input-group input-group-lg">
                             <span class="input-group-text bg-light border-end-0">₹</span>
                             <input type="number" step="0.01" class="form-control border-start-0 ps-0"
-                                id="printBudgetInput" value="{{ '%.2f'|format(current_available_budget) }}" {% if faculty_workflow_enabled and current_budget_period and current_budget_period.source_type == 'faculty_cycle' %}readonly{% endif %}>
+                                id="printBudgetInput" value="{{ '%.2f'|format(total_budget if faculty_workflow_enabled and current_budget_period and current_budget_period.source_type == 'faculty_cycle' else current_available_budget) }}" {% if faculty_workflow_enabled and current_budget_period and current_budget_period.source_type == 'faculty_cycle' %}readonly{% endif %}>
                         </div>
                         <div class="form-text mt-2">
                             <i class="fas fa-info-circle me-1"></i>
                             {% if faculty_workflow_enabled and current_budget_period and current_budget_period.source_type == 'faculty_cycle' %}
-                            Locked to the current Faculty cycle's available balance for this floor: carry-forward plus this cycle's new allocation.
+                            Locked to the current Faculty cycle's allocated budget for this floor (the remaining carryforward balance is for reference only).
                             {% else %}
                             This is a temporary adjustment only for the PDF printout.
                             {% endif %}

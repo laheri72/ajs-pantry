@@ -330,10 +330,12 @@ def _message_target_floors(message):
 
 def _build_submission_verification_data(submission, linked_bills):
     allocation = _cycle_for_floor(submission.cycle_id, submission.floor)
-    if submission.allocated_amount is not None:
+    if allocation:
+        allocated_budget = float(allocation.amount_allocated)
+    elif submission.allocated_amount is not None:
         allocated_budget = float(submission.allocated_amount)
     else:
-        allocated_budget = float(allocation.amount_allocated) if allocation else 0
+        allocated_budget = 0
     
     linked_bills_total = float(sum(float(bill.total_amount or 0) for bill in linked_bills))
     difference_amount = round(abs(allocated_budget - linked_bills_total), 2)
@@ -1376,14 +1378,6 @@ def reports_page():
             except (TypeError, ValueError):
                 print_report_id = 0
 
-            if not upload or not upload.filename:
-                flash('Please upload the combined PDF report generated from Expenses.', 'error')
-                return redirect(url_for('faculty.reports_page'))
-
-            if not upload.filename.lower().endswith('.pdf'):
-                flash('Only PDF uploads are allowed for Faculty submissions.', 'error')
-                return redirect(url_for('faculty.reports_page'))
-
             if not print_report_id:
                 flash('Please choose a saved print report from Expenses first.', 'error')
                 return redirect(url_for('faculty.reports_page'))
@@ -1397,6 +1391,12 @@ def reports_page():
                 return redirect(url_for('faculty.reports_page'))
             if selected_print_report.cycle_id and selected_print_report.cycle_id != active_cycle.id:
                 flash('Please choose a print report created for the current active cycle.', 'error')
+                return redirect(url_for('faculty.reports_page'))
+
+            # Check if we have a PDF source: either a newly uploaded one or the pre-uploaded one
+            has_new_upload = upload and upload.filename
+            if not has_new_upload and not selected_print_report.storage_path:
+                flash('Please upload the combined PDF report generated from Expenses.', 'error')
                 return redirect(url_for('faculty.reports_page'))
 
             selected_bills = []
@@ -1414,18 +1414,34 @@ def reports_page():
                     return redirect(url_for('faculty.reports_page'))
 
             revision_no = (submission.revision_no + 1) if submission else 1
-            stored_filename, storage_path, file_size = _save_submission_file(upload, active_cycle, floor, revision_no)
+            stored_filename = None
+            storage_path = None
+            file_size = 0
+            original_filename = None
+
+            if has_new_upload:
+                if not upload.filename.lower().endswith('.pdf'):
+                    flash('Only PDF uploads are allowed for Faculty submissions.', 'error')
+                    return redirect(url_for('faculty.reports_page'))
+                stored_filename, storage_path, file_size = _save_submission_file(upload, active_cycle, floor, revision_no)
+                original_filename = upload.filename
+            else:
+                # Reuse the existing PDF from the print report without copying/renaming on the filesystem
+                stored_filename = _build_report_filename(active_cycle, floor, revision_no)
+                storage_path = selected_print_report.storage_path
+                file_size = selected_print_report.file_size_bytes or 0
+                original_filename = selected_print_report.original_filename or selected_print_report.stored_filename or "report.pdf"
 
             if submission:
                 old_path = submission.storage_path
                 submission.report_title = selected_print_report.report_title
                 submission.print_report_id = selected_print_report.id
                 submission.status = 'submitted'
-                submission.allocated_amount = current_available_budget
+                submission.allocated_amount = allocation.amount_allocated if allocation else 0
                 submission.submission_notes = submission_notes
                 submission.review_notes = None
                 submission.stored_filename = stored_filename
-                submission.original_filename = upload.filename
+                submission.original_filename = original_filename
                 submission.storage_path = storage_path
                 submission.file_size_bytes = file_size
                 submission.revision_no = revision_no
@@ -1434,11 +1450,8 @@ def reports_page():
                 submission.verified_at = None
                 submission.verified_by_id = None
                 _sync_submission_links(submission, selected_bills, [])
-                if old_path and old_path != storage_path and os.path.exists(old_path):
-                    try:
-                        os.remove(old_path)
-                    except OSError:
-                        pass
+                if old_path and old_path != storage_path:
+                    _safe_remove_file(old_path)
             else:
                 submission = FacultyReportSubmission(
                     cycle_id=active_cycle.id,
@@ -1447,10 +1460,10 @@ def reports_page():
                     uploaded_by_id=user.id,
                     report_title=selected_print_report.report_title,
                     status='submitted',
-                    allocated_amount=current_available_budget,
+                    allocated_amount=allocation.amount_allocated if allocation else 0,
                     submission_notes=submission_notes,
                     stored_filename=stored_filename,
-                    original_filename=upload.filename,
+                    original_filename=original_filename,
                     storage_path=storage_path,
                     file_size_bytes=file_size,
                     revision_no=revision_no,

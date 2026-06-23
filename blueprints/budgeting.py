@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from flask import g
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import joinedload
 
 from app import db
@@ -20,13 +20,42 @@ def _tenant_scoped_query(query, tenant_id=None):
     return query
 
 
-def _sum_period_bills(floor, start_date, end_date=None, tenant_id=None):
+def _sum_period_bills(floor, start_date, end_date=None, cycle_id=None, tenant_id=None, faculty_workflow_enabled=False, is_current=False):
     query = _tenant_scoped_query(db.session.query(func.sum(Bill.total_amount)), tenant_id).filter(
-        Bill.floor == floor,
-        Bill.bill_date >= start_date,
+        Bill.floor == floor
     )
-    if end_date is not None:
-        query = query.filter(Bill.bill_date <= end_date)
+    
+    conditions = []
+    
+    # If this period is tied to a Faculty cycle, resolve the submission ID
+    submission_id = None
+    if cycle_id:
+        from models import FacultyReportSubmission
+        sub = _tenant_scoped_query(FacultyReportSubmission.query, tenant_id).filter_by(
+            cycle_id=cycle_id,
+            floor=floor
+        ).first()
+        if sub:
+            submission_id = sub.id
+            
+    if submission_id:
+        conditions.append(Bill.report_submission_id == submission_id)
+        
+    if faculty_workflow_enabled:
+        if is_current:
+            # For the current active/fallback period, count all unlinked bills regardless of their date
+            conditions.append(Bill.report_submission_id.is_(None))
+    else:
+        # Non-faculty tenant: count unlinked bills in this period's date range
+        date_condition = (Bill.bill_date >= start_date)
+        if end_date is not None:
+            date_condition = and_(date_condition, Bill.bill_date <= end_date)
+        conditions.append(and_(Bill.report_submission_id.is_(None), date_condition))
+    
+    if not conditions:
+        return 0.0
+        
+    query = query.filter(or_(*conditions))
     return _coerce_float(query.scalar())
 
 
@@ -110,13 +139,36 @@ def build_floor_budget_ledger(floor, tenant_id=None, faculty_workflow_enabled=Tr
     running_balance = 0.0
     for idx, period in enumerate(periods):
         next_start = periods[idx + 1]['start_date'] if idx + 1 < len(periods) else None
-        effective_end = period['end_date']
-        if effective_end is None and next_start and next_start > period['start_date']:
-            effective_end = next_start - timedelta(days=1)
-        if effective_end and effective_end < period['start_date']:
-            effective_end = period['start_date']
+        if faculty_workflow_enabled:
+            # For Faculty cycle floors, remove date gaps so that all expenses
+            # recorded in between cycles are correctly carry-forwarded.
+            if next_start:
+                effective_end = next_start - timedelta(days=1)
+            else:
+                effective_end = None
+        else:
+            effective_end = period['end_date']
+            if effective_end is None and next_start and next_start > period['start_date']:
+                effective_end = next_start - timedelta(days=1)
+            if effective_end and effective_end < period['start_date']:
+                effective_end = period['start_date']
 
-        spent_amount = _sum_period_bills(floor, period['start_date'], effective_end, tenant_id=tenant_id)
+        is_current_period = False
+        if faculty_workflow_enabled:
+            if active_cycle:
+                is_current_period = (period['cycle_id'] == active_cycle.id)
+            else:
+                is_current_period = (idx == len(periods) - 1)
+
+        spent_amount = _sum_period_bills(
+            floor=floor,
+            start_date=period['start_date'],
+            end_date=effective_end,
+            cycle_id=period['cycle_id'],
+            tenant_id=tenant_id,
+            faculty_workflow_enabled=faculty_workflow_enabled,
+            is_current=is_current_period
+        )
         spent_amount += _sum_period_legacy_expenses(floor, period['start_date'], effective_end, tenant_id=tenant_id)
 
         opening_balance = running_balance
@@ -135,13 +187,16 @@ def build_floor_budget_ledger(floor, tenant_id=None, faculty_workflow_enabled=Tr
     current_period = None
     if active_cycle:
         current_period = next((period for period in periods if period['cycle_id'] == active_cycle.id), None)
-    elif periods:
+    
+    if not current_period and periods:
         latest_period = periods[-1]
-        has_faculty_history = any(period['source_type'] == 'faculty_cycle' for period in periods)
-        if not faculty_workflow_enabled:
-            current_period = latest_period if latest_period['source_type'] == 'manual' else None
-        elif latest_period['source_type'] == 'manual' or not has_faculty_history:
+        if faculty_workflow_enabled:
+            # For Faculty-active floors, if there is no active cycle,
+            # fall back to the latest period so they can see real-time updates.
             current_period = latest_period
+        else:
+            # For non-faculty tenants, keep the original behavior.
+            current_period = latest_period if latest_period['source_type'] == 'manual' else None
 
     if current_period:
         current_period['is_current'] = True

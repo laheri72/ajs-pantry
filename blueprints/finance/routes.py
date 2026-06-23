@@ -316,7 +316,7 @@ def save_print_report():
     active_cycle = budget_ledger['active_cycle'] if faculty_workflow_enabled else None
     # Use user-selected print-modal budget in manual/inactive-cycle mode.
     # Keep budget locked to ledger only when an active Faculty cycle is present.
-    report_budget = budget_ledger['current_available_budget'] if active_cycle else requested_report_budget
+    report_budget = budget_ledger['current_allocated_amount'] if active_cycle else requested_report_budget
     remaining_balance = report_budget - total_spent
 
     print_report = ExpensePrintReport(
