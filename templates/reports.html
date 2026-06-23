@@ -96,58 +96,136 @@
     <div class="card shadow-sm border-0">
         <div class="card-body p-4">
             {% if submission and submission.status == 'verified' %}
-            <div class="alert alert-success rounded-4 mb-0">
-                This report has already been verified by Faculty. No further upload is required for this cycle.
-            </div>
-            {% else %}
-            <form method="POST" enctype="multipart/form-data">
-                <div class="row g-3 mb-4">
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold">Combined PDF</label>
-                        <input type="file" name="report_pdf" accept=".pdf,application/pdf" class="form-control rounded-4" required>
-                    </div>
-                </div>
+            <div class="text-center py-5">
                 <div class="mb-4">
-                    <label class="form-label fw-bold">Submission Notes</label>
-                    <textarea name="submission_notes" class="form-control rounded-4" rows="3" placeholder="Optional note for Faculty">{{ submission.submission_notes if submission and submission.status == 'rejected' else '' }}</textarea>
+                    <span class="bg-success bg-opacity-10 text-success rounded-circle d-inline-flex align-items-center justify-content-center animate-pulse" style="width: 80px; height: 80px;">
+                        <i class="fas fa-check-circle fs-1"></i>
+                    </span>
                 </div>
-
-                <div class="border rounded-4 p-3 mb-4">
-                    <div class="fw-bold mb-2">Which print report's bills to include here</div>
-                    <div class="small text-muted mb-3">These saved reports come from the Print Report flow in Expenses. Choose one saved report title and its bill set will be linked to this upload.</div>
-                    {% for report in saved_print_reports %}
-                    <label class="d-block border rounded-4 p-3 mb-3">
-                        <div class="d-flex gap-3">
-                            <input type="radio" name="print_report_id" value="{{ report.id }}" class="mt-1" {% if (submission and submission.print_report_id == report.id) or (not submission and loop.first) %}checked{% endif %}>
-                            <div class="flex-grow-1">
-                                <div class="fw-bold">{{ report.report_title }}</div>
-                                <div class="small text-muted">Saved {{ report.created_at.strftime('%d %b %Y %H:%M') }} • Budget &#8377;{{ "%.2f"|format(report.report_budget) }} • Spent &#8377;{{ "%.2f"|format(report.total_spent) }}</div>
-                                <div class="small text-muted mt-2">Bills in this print:</div>
-                                <div class="mt-1">
-                                    {% for link in report.bill_links %}
-                                    <div class="small d-flex justify-content-between border rounded-3 px-2 py-1 mb-1 bg-light">
-                                        <span>#{{ link.bill.bill_no }}{% if link.include_as_voucher and not link.include_in_summary %} <span class="text-muted">(voucher)</span>{% endif %}</span>
-                                        <span class="fw-bold">&#8377;{{ "%.2f"|format(link.bill.total_amount) }}</span>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                    </label>
-                    {% else %}
-                    <div class="alert alert-light border rounded-4 mb-0">
-                        No saved print reports were found yet. Open Expenses, use Print Report, and generate a report first so it gets stored here.
-                    </div>
-                    {% endfor %}
+                <h4 class="fw-bold text-success">Report Verified</h4>
+                <p class="text-muted mx-auto" style="max-width: 500px;">
+                    This report has been fully verified and approved by the Faculty. No further action is required for this cycle.
+                </p>
+                {% if submission %}
+                <div class="mt-4">
+                    <a href="{{ url_for('faculty.download_floor_submission', submission_id=submission.id) }}" class="btn btn-outline-success px-4 rounded-pill">
+                        <i class="fas fa-download me-1"></i> Download Verified PDF
+                    </a>
                 </div>
-
-                <div class="mt-4 d-flex justify-content-end">
-                    <button class="btn btn-teal rounded-pill px-4">
-                        <i class="fas fa-paper-plane me-2"></i>{% if submission and submission.status == 'rejected' %}Re-submit to Faculty{% else %}Submit to Faculty{% endif %}
+                {% endif %}
+            </div>
+            {% elif submission and submission.status == 'submitted' %}
+            <!-- Waiting Card -->
+            <div id="waitingForReviewCard" class="text-center py-5">
+                <div class="mb-4">
+                    <span class="bg-info bg-opacity-10 text-info rounded-circle d-inline-flex align-items-center justify-content-center animate-pulse" style="width: 80px; height: 80px;">
+                        <i class="fas fa-hourglass-half fs-1 text-info"></i>
+                    </span>
+                </div>
+                <h4 class="fw-bold text-dark">Waiting for Faculty Review</h4>
+                <p class="text-muted mx-auto small" style="max-width: 500px;">
+                    Your report for <strong>{{ active_cycle.title }}</strong> has been successfully submitted and is currently awaiting review by the faculty office. 
+                </p>
+                <div class="mt-4 d-flex justify-content-center gap-2">
+                    <a href="{{ url_for('faculty.download_floor_submission', submission_id=submission.id) }}" class="btn btn-outline-teal px-4 rounded-pill">
+                        <i class="fas fa-download me-1"></i> View Submitted PDF
+                    </a>
+                    <button type="button" class="btn btn-light px-4 rounded-pill border" onclick="showResubmissionForm()">
+                        <i class="fas fa-edit me-1"></i> Resubmit / Edit
                     </button>
                 </div>
-            </form>
+            </div>
             {% endif %}
+
+            <!-- Resubmission/Submission Form -->
+            <div id="submissionFormContainer" class="{% if submission and submission.status == 'submitted' %}d-none{% endif %}">
+                {% if submission and submission.status == 'rejected' %}
+                <div class="alert alert-danger rounded-4 p-4 mb-4">
+                    <div class="d-flex gap-3">
+                        <i class="fas fa-exclamation-circle fs-3 mt-1 text-danger"></i>
+                        <div>
+                            <h5 class="fw-bold text-danger mb-1">Action Required: Submission Rejected</h5>
+                            <p class="mb-2 text-muted-dark small">Your submission was rejected by Faculty. Please address the feedback, upload the corrected PDF, and submit again.</p>
+                            {% if submission.review_notes %}
+                            <div class="p-3 bg-danger bg-opacity-10 text-danger rounded-3 fw-bold small mt-2">
+                                <i class="fas fa-comment-dots me-1"></i> Feedback: "{{ submission.review_notes }}"
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if not (submission and submission.status == 'verified') %}
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Combined PDF</label>
+                            
+                            <!-- Alert showing file is already on server -->
+                            <div id="pdfAlreadyUploadedAlert" class="p-3 border border-success bg-success bg-opacity-10 text-success rounded-4 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-3 d-none">
+                                <div>
+                                    <div class="fw-bold mb-1"><i class="fas fa-check-circle me-1"></i> PDF Report Found on Server</div>
+                                    <div class="small">File name: <span id="uploadedPdfFilename" class="fw-bold text-dark bg-light px-2 py-1 rounded border small"></span></div>
+                                    <div class="small mt-1 text-muted">You do not need to upload anything. Simply click <strong>Submit to Faculty</strong> below!</div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-success align-self-start align-self-sm-center px-3 rounded-pill" onclick="showPdfUploadField()">
+                                    <i class="fas fa-redo me-1"></i> Replace File
+                                </button>
+                            </div>
+                            
+                            <!-- File input element container -->
+                            <div id="pdfUploadInputContainer">
+                                <input type="file" id="reportPdfInput" name="report_pdf" accept=".pdf,application/pdf" class="form-control rounded-4">
+                                <div id="pdfUploadHelpText" class="form-text mt-2 small"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Submission Notes</label>
+                        <textarea name="submission_notes" class="form-control rounded-4" rows="3" placeholder="Optional note for Faculty">{{ submission.submission_notes if submission and submission.status == 'rejected' else '' }}</textarea>
+                    </div>
+
+                    <div class="border rounded-4 p-3 mb-4">
+                        <div class="fw-bold mb-2">Which print report's bills to include here</div>
+                        <div class="small text-muted mb-3">These saved reports come from the Print Report flow in Expenses. Choose one saved report title and its bill set will be linked to this upload.</div>
+                        {% for report in saved_print_reports %}
+                        <label class="d-block border rounded-4 p-3 mb-3">
+                            <div class="d-flex gap-3">
+                                <input type="radio" name="print_report_id" value="{{ report.id }}" class="mt-1" 
+                                       data-has-pdf="{{ 'true' if report.storage_path else 'false' }}"
+                                       data-filename="{{ report.original_filename or report.stored_filename or '' }}"
+                                       {% if (submission and submission.print_report_id == report.id) or (not submission and loop.first) %}checked{% endif %}>
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold">{{ report.report_title }}</div>
+                                    <div class="small text-muted">Saved {{ report.created_at.strftime('%d %b %Y %H:%M') }} • Budget &#8377;{{ "%.2f"|format(report.report_budget) }} • Spent &#8377;{{ "%.2f"|format(report.total_spent) }}</div>
+                                    <div class="small text-muted mt-2">Bills in this print:</div>
+                                    <div class="mt-1">
+                                        {% for link in report.bill_links %}
+                                        <div class="small d-flex justify-content-between border rounded-3 px-2 py-1 mb-1 bg-light">
+                                            <span>#{{ link.bill.bill_no }}{% if link.include_as_voucher and not link.include_in_summary %} <span class="text-muted">(voucher)</span>{% endif %}</span>
+                                            <span class="fw-bold">&#8377;{{ "%.2f"|format(link.bill.total_amount) }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        {% else %}
+                        <div class="alert alert-light border rounded-4 mb-0">
+                            No saved print reports were found yet. Open Expenses, use Print Report, and generate a report first so it gets stored here.
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mt-4 d-flex justify-content-end">
+                        <button class="btn btn-teal rounded-pill px-4">
+                            <i class="fas fa-paper-plane me-2"></i>{% if submission and submission.status == 'rejected' %}Re-submit to Faculty{% else %}Submit to Faculty{% endif %}
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
         </div>
     </div>
     {% else %}
@@ -235,6 +313,71 @@
                 this.classList.add('active');
             });
         });
+
+        // Dynamic PDF requirement logic
+        const radios = document.querySelectorAll('input[name="print_report_id"]');
+        const pdfInput = document.getElementById('reportPdfInput');
+        const pdfAlert = document.getElementById('pdfAlreadyUploadedAlert');
+        const pdfContainer = document.getElementById('pdfUploadInputContainer');
+        const filenameSpan = document.getElementById('uploadedPdfFilename');
+        const helpText = document.getElementById('pdfUploadHelpText');
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        window.showPdfUploadField = function() {
+            pdfAlert.classList.add('d-none');
+            pdfContainer.classList.remove('d-none');
+            pdfInput.setAttribute('required', 'required');
+            pdfInput.click(); // Trigger file dialog automatically
+        };
+
+        window.showResubmissionForm = function() {
+            document.getElementById('waitingForReviewCard').classList.add('d-none');
+            document.getElementById('submissionFormContainer').classList.remove('d-none');
+        };
+
+        function updatePdfRequirement() {
+            if (!pdfInput) return;
+            const checkedRadio = document.querySelector('input[name="print_report_id"]:checked');
+            if (!checkedRadio) {
+                pdfInput.removeAttribute('required');
+                pdfAlert.classList.add('d-none');
+                pdfContainer.classList.remove('d-none');
+                if (helpText) helpText.innerHTML = '';
+                return;
+            }
+            const hasPdf = checkedRadio.getAttribute('data-has-pdf') === 'true';
+            const filename = checkedRadio.getAttribute('data-filename');
+            
+            if (hasPdf) {
+                pdfInput.removeAttribute('required');
+                pdfInput.value = ''; // Reset file input
+                pdfAlert.classList.remove('d-none');
+                pdfContainer.classList.add('d-none');
+                if (filenameSpan) filenameSpan.textContent = filename;
+            } else {
+                pdfInput.setAttribute('required', 'required');
+                pdfAlert.classList.add('d-none');
+                pdfContainer.classList.remove('d-none');
+                if (helpText) {
+                    helpText.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i> This report does not have an uploaded PDF on the server. You <strong>must</strong> select the PDF file here.</span>`;
+                }
+            }
+        }
+
+        if (radios.length > 0) {
+            radios.forEach(radio => {
+                radio.addEventListener('change', updatePdfRequirement);
+            });
+            updatePdfRequirement(); // Run initial check
+        }
     });
 </script>
 {% endblock %} 
