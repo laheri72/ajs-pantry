@@ -175,6 +175,19 @@ class MenuSuggestion(db.Model, TenantMixin):
     suggested_team = db.relationship('Team', foreign_keys=[suggested_team_id])
     suggested_by = db.relationship('User', foreign_keys=[suggested_by_id])
 
+class DishChampion(db.Model, TenantMixin):
+    __tablename__ = 'dish_champion'
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'team_id', 'dish_id', name='uq_tenant_team_dish_champion'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id', ondelete='CASCADE'), nullable=False, index=True)
+    dish_id = db.Column(db.Integer, db.ForeignKey('dish.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship('Team', foreign_keys=[team_id])
+    dish = db.relationship('Dish', foreign_keys=[dish_id])
+
 class Expense(db.Model, TenantMixin):
     __table_args__ = (
         db.Index('idx_expense_tenant_floor_date', 'tenant_id', 'floor', 'date'),

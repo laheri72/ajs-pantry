@@ -24,6 +24,35 @@
     color: #fdba74 !important;
     border: 1px solid #7c2d12 !important;
 }
+/* Interactive Room/Team Champion Badges */
+.room-badge-interactive {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    padding: 5px 10px !important;
+    letter-spacing: 0.02em;
+    border-radius: 50rem !important;
+    display: inline-flex;
+    align-items: center;
+    background-color: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid #bbf7d0 !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: all 0.15s ease-in-out;
+}
+.room-badge-interactive:hover {
+    background-color: #dcfce7 !important;
+    border-color: #86efac !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+.dark-theme .room-badge-interactive {
+    background-color: #052e16 !important;
+    color: #86efac !important;
+    border: 1px solid #14532d !important;
+}
+.dark-theme .room-badge-interactive:hover {
+    background-color: #064e3b !important;
+}
 /* Tweaks to blend Tom Select natively with the design */
 .ts-control {
     border-radius: 0.375rem;
@@ -143,6 +172,9 @@
                 </span>
             </button>
             {% endif %}
+            <button class="btn btn-outline-teal px-4" data-bs-toggle="modal" data-bs-target="#manageChampionsModal">
+                <i class="fas fa-trophy me-1"></i> Manage Champions
+            </button>
             <button class="btn btn-teal px-4" data-bs-toggle="modal" data-bs-target="#addMenuModal">
                 <i class="fas fa-plus me-1"></i> Schedule Meal
             </button>
@@ -385,6 +417,59 @@
             </div>
             <form method="POST" id="scheduleMealForm">
                 <div class="modal-body p-4">
+                    <!-- Room Selection & Manual Champions (Moved to Top) -->
+                    <div class="p-3 mb-4 rounded-3 border bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="form-label fw-bold mb-0 text-teal"><i class="fas fa-users me-1"></i>Select {{ TERM_TEAM }}</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="btnShowChampionDishes" style="font-size: 0.7rem; padding: 2px 6px;">
+                                    <i class="fas fa-star me-1 text-warning"></i>Show Champions
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-teal" id="btnSuggestTeam">
+                                <i class="fas fa-magic me-1"></i> Suggest Next Room
+                            </button>
+                        </div>
+                        <select class="form-select border-teal shadow-none mb-3" id="assignedTeamSelect" name="assigned_team_id" required>
+                            <option value="">Select {{ TERM_TEAM }}</option>
+                            {% for t in floor_teams %}
+                            <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <!-- Room Champion Dishes Panel -->
+                        <div id="roomChampionDishesWrap" class="d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.7rem;"><i class="fas fa-star me-1 text-warning"></i>Champion Dishes for <span id="championRoomName">this Room</span></span>
+                                {% if current_user.role in ['admin', 'pantryHead'] %}
+                                <button type="button" class="btn btn-link text-teal p-0 border-0 small text-decoration-none" id="btnAddChampionLinkBtn" style="font-size: 0.72rem;">
+                                    <i class="fas fa-plus-circle me-1"></i>Link New Champion
+                                </button>
+                                {% endif %}
+                            </div>
+
+                            <!-- Add Champion Dish Selector -->
+                            <div id="addChampionSelectWrap" class="mb-3 d-none p-3 border rounded bg-white">
+                                <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.65rem;">Link Dish as Champion</label>
+                                <div class="d-flex gap-2">
+                                    <select class="form-select form-select-sm" id="championDishSelect">
+                                        <option value="">Search/Select dish...</option>
+                                        {% for d in main_dishes %}
+                                        <option value="{{ d.id }}">{{ d.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-teal" id="btnSaveChampionLink">Link</button>
+                                    <button type="button" class="btn btn-sm btn-light" id="btnCancelChampionLink">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- List of Champion Dishes -->
+                            <div id="roomChampionDishesList" class="d-flex flex-wrap gap-2 mb-1">
+                                <!-- Rendered dynamically by JS -->
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <!-- Main Dish -->
                         <div class="col-md-6">
@@ -487,25 +572,6 @@
                         <!-- Hidden suggestion_id for accepting suggestions -->
                         <input type="hidden" name="suggestion_id" id="acceptSuggestionId" value="">
 
-                        <div class="col-md-12">
-                            <hr class="my-2">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <label class="form-label fw-bold mb-0">Assignment</label>
-                                <button type="button" class="btn btn-sm btn-outline-teal" id="btnSuggestTeam">
-                                    <i class="fas fa-magic me-1"></i> Suggest Next Room
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="col-md-12" id="teamAssignmentWrap">
-                            <label class="form-label small fw-bold text-teal">{{ TERM_TEAM }}</label>
-                            <select class="form-select border-teal shadow-none" id="assignedTeamSelect" name="assigned_team_id">
-                                <option value="">Select {{ TERM_TEAM }}</option>
-                                {% for t in floor_teams %}
-                                <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 p-4 pt-0">
@@ -513,6 +579,124 @@
                     <button type="button" class="btn btn-teal px-4" id="btnSubmitSingleMenu">Schedule</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+<!-- Manage Champions Modal -->
+<div class="modal fade" id="manageChampionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0">
+            <div class="modal-header bg-teal text-white border-0">
+                <h5 class="modal-title fw-bold"><i class="fas fa-trophy me-2 text-warning"></i>Manage Room Champions</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="championModalSearchInput" placeholder="Search dishes by name or category...">
+                </div>
+                
+                <div class="accordion" id="championsAccordion">
+                    <!-- Assigned Accordion -->
+                    <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                        <h2 class="accordion-header" id="headingAssigned">
+                            <button class="accordion-button bg-teal-subtle text-teal-dark fw-bold rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAssigned" aria-expanded="true">
+                                <i class="fas fa-trophy me-2 text-warning"></i> Assigned Champions (<span id="assignedCount">0</span>)
+                            </button>
+                        </h2>
+                        <div id="collapseAssigned" class="accordion-collapse collapse show" data-bs-parent="#championsAccordion">
+                            <div class="accordion-body p-0">
+                                <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light sticky-top" style="z-index: 1;">
+                                            <tr>
+                                                <th>Dish Name</th>
+                                                <th>Category</th>
+                                                <th>Champion Room / Team</th>
+                                                <th style="width: 80px;">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="assignedChampionsTableBody">
+                                            <!-- Dynamically populated -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Unassigned Accordion -->
+                    <div class="accordion-item border-0 mb-3 shadow-sm rounded-3">
+                        <h2 class="accordion-header" id="headingUnassigned">
+                            <button class="accordion-button collapsed bg-light text-dark fw-bold rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUnassigned" aria-expanded="false">
+                                <i class="fas fa-circle-question me-2 text-muted"></i> Unassigned Dishes (<span id="unassignedCount">0</span>)
+                            </button>
+                        </h2>
+                        <div id="collapseUnassigned" class="accordion-collapse collapse" data-bs-parent="#championsAccordion">
+                            <div class="accordion-body p-0">
+                                <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light sticky-top" style="z-index: 1;">
+                                            <tr>
+                                                <th>Dish Name</th>
+                                                <th>Category</th>
+                                                <th>Champion Room / Team</th>
+                                                <th style="width: 80px;">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="unassignedChampionsTableBody">
+                                            {% set all_dishes = main_dishes + side_dishes %}
+                                            {% for d in all_dishes %}
+                                            <tr class="champion-dish-row" id="dishRow-{{ d.id }}" data-dish-id="{{ d.id }}" data-dish-name="{{ d.name|lower }}" data-dish-category="{{ d.category|lower }}">
+                                                <td>
+                                                    <strong>{{ d.name }}</strong>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-soft-secondary text-secondary border border-secondary px-2">
+                                                        {{ d.category|capitalize }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <!-- Dropdown State -->
+                                                    <div class="dropdown-wrap" id="dropdownWrap-{{ d.id }}">
+                                                        <select class="form-select form-select-sm champion-room-select" data-dish-id="{{ d.id }}">
+                                                            <option value="">Select Room</option>
+                                                            {% for t in floor_teams %}
+                                                            <option value="{{ t.id }}">{% if t.icon %}{{ t.icon }} {% endif %}{{ t.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <!-- Display State -->
+                                                    <div class="display-wrap d-none" id="displayWrap-{{ d.id }}">
+                                                        <span class="badge room-badge me-2" id="displayBadge-{{ d.id }}">
+                                                            <i class="fas fa-trophy text-warning me-1"></i> <span class="room-text">Room Name</span>
+                                                        </span>
+                                                        <button type="button" class="btn btn-sm btn-link text-teal p-0 border-0 btn-edit-champion" data-dish-id="{{ d.id }}" title="Change Champion">
+                                                            <i class="fas fa-pencil-alt"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-link text-danger p-0 border-0 ms-2 btn-clear-champion" data-dish-id="{{ d.id }}" title="Clear Champion">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="save-status text-success d-none" id="saveStatus-{{ d.id }}">
+                                                        <i class="fas fa-circle-check fs-5"></i>
+                                                    </span>
+                                                    <span class="save-spinner spinner-border spinner-border-sm text-teal d-none" id="saveSpinner-{{ d.id }}" role="status"></span>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4 pt-0">
+                <button type="button" class="btn btn-teal px-4" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -1219,28 +1403,440 @@ document.addEventListener('DOMContentLoaded', function () {
                  .then(data => {
                      if (data.id) {
                          teamSelect.value = data.id;
-                        
-                        // Conflict Alert
-                        if (data.conflicts && data.conflicts.length > 0) {
-                            const names = data.conflicts.join(', ');
-                            alert(`Warning: The following {{ TERM_TEAM_MEMBERS | lower }} are marked absent on this date: ${names}. You may want to assign a buffer day instead.`);
-                        }
+                         teamSelect.dispatchEvent(new Event('change'));
+                         
+                         // Conflict Alert
+                         if (data.conflicts && data.conflicts.length > 0) {
+                             const names = data.conflicts.join(', ');
+                             alert(`Warning: The following {{ TERM_TEAM_MEMBERS | lower }} are marked absent on this date: ${names}. You may want to assign a buffer day instead.`);
+                         }
+ 
+                         // Flash success
+                         teamSelect.classList.add('is-valid');
+                         setTimeout(() => teamSelect.classList.remove('is-valid'), 2000);
+                     } else {
+                         alert(data.error || "No teams found on this floor. Create a team first!");
+                     }
+                 })
+                 .finally(() => {
+                     btnSuggestTeam.innerHTML = '<i class="fas fa-magic me-1"></i> Suggest Next Room';
+                 });
+         });
+     }
 
-                        // Flash success
-                        teamSelect.classList.add('is-valid');
-                        setTimeout(() => teamSelect.classList.remove('is-valid'), 2000);
-                    } else {
-                        alert(data.error || "No teams found on this floor. Create a team first!");
-                    }
-                })
-                .finally(() => {
-                    btnSuggestTeam.innerHTML = '<i class="fas fa-magic me-1"></i> Suggest Next Room';
-                });
-        });
-    }
+     // Manual Champion Dishes management in Schedule Meal Modal
+     const roomChampionDishesWrap = document.getElementById('roomChampionDishesWrap');
+     const championRoomName = document.getElementById('championRoomName');
+     const roomChampionDishesList = document.getElementById('roomChampionDishesList');
+     const btnShowChampionDishes = document.getElementById('btnShowChampionDishes');
+     const btnAddChampionLinkBtn = document.getElementById('btnAddChampionLinkBtn');
+     const addChampionSelectWrap = document.getElementById('addChampionSelectWrap');
+     const championDishSelect = document.getElementById('championDishSelect');
+     const btnSaveChampionLink = document.getElementById('btnSaveChampionLink');
+     const btnCancelChampionLink = document.getElementById('btnCancelChampionLink');
+
+     function loadTeamChampions(teamId) {
+         if (!teamId) {
+             if (roomChampionDishesWrap) roomChampionDishesWrap.classList.add('d-none');
+             if (btnShowChampionDishes) btnShowChampionDishes.classList.add('d-none');
+             return;
+         }
+
+         fetch(`/menus/team-champions/${teamId}`)
+             .then(res => res.json())
+             .then(data => {
+                 const teamText = teamSelect.options[teamSelect.selectedIndex].text;
+                 if (championRoomName) championRoomName.textContent = teamText;
+                 if (roomChampionDishesList) {
+                     roomChampionDishesList.innerHTML = '';
+
+                     if (data.champions && data.champions.length > 0) {
+                         data.champions.forEach(dish => {
+                             const chip = document.createElement('span');
+                             chip.className = 'badge room-badge-interactive me-1 mb-1 d-inline-flex align-items-center gap-1';
+                             chip.style.cursor = 'pointer';
+                             chip.style.fontSize = '0.72rem';
+                             chip.style.padding = '5px 10px';
+                             chip.innerHTML = `
+                                 <span class="chip-label">${dish.name}</span>
+                                 <span class="btn-close btn-close-white ms-1 btn-remove-champion" data-dish-id="${dish.id}" style="font-size: 0.5rem; padding: 0.15rem;" title="Remove champion link"></span>
+                             `;
+                             
+                             // Click on the chip label to select the dish
+                             chip.querySelector('.chip-label').addEventListener('click', (e) => {
+                                 e.stopPropagation();
+                                 if (window.dishTomSelect) {
+                                     window.dishTomSelect.setValue(dish.id);
+                                 } else {
+                                     dishSelect.value = dish.id;
+                                     dishSelect.dispatchEvent(new Event('change'));
+                                 }
+                                 // Hide the champion list when dish is selected
+                                 roomChampionDishesWrap.classList.add('d-none');
+                                 btnShowChampionDishes.classList.remove('d-none');
+                             });
+
+                             // Click on the remove icon to delete the link
+                             chip.querySelector('.btn-remove-champion').addEventListener('click', (e) => {
+                                 e.stopPropagation();
+                                 if (confirm(`Are you sure you want to remove ${dish.name} from ${teamText}'s champions?`)) {
+                                     fetch('/menus/team-champions/remove', {
+                                         method: 'POST',
+                                         headers: { 'Content-Type': 'application/json' },
+                                         body: JSON.stringify({ team_id: teamId, dish_id: dish.id })
+                                     })
+                                     .then(res => res.json())
+                                     .then(resData => {
+                                         if (resData.success) {
+                                             loadTeamChampions(teamId);
+                                         } else {
+                                             alert(resData.error || 'Failed to remove champion link');
+                                         }
+                                     });
+                                 }
+                             });
+
+                             roomChampionDishesList.appendChild(chip);
+                         });
+                     } else {
+                         const empty = document.createElement('div');
+                         empty.className = 'text-muted small py-1 italic';
+                         empty.textContent = 'No champion dishes linked yet for this Room.';
+                         roomChampionDishesList.appendChild(empty);
+                     }
+                 }
+
+                 if (roomChampionDishesWrap) roomChampionDishesWrap.classList.remove('d-none');
+                 if (btnShowChampionDishes) btnShowChampionDishes.classList.add('d-none');
+            });
+     }
+
+     // Manage Champions Modal Directory and Search
+     const manageChampionsModalEl = document.getElementById('manageChampionsModal');
+     const championModalSearchInput = document.getElementById('championModalSearchInput');
+     const championRoomSelects = document.querySelectorAll('.champion-room-select');
+     const assignedTableBody = document.getElementById('assignedChampionsTableBody');
+     const unassignedTableBody = document.getElementById('unassignedChampionsTableBody');
+     const assignedCountEl = document.getElementById('assignedCount');
+     const unassignedCountEl = document.getElementById('unassignedCount');
+
+     function refreshChampionsTable(mapping) {
+         if (!assignedTableBody || !unassignedTableBody) return;
+         
+         const rows = document.querySelectorAll('.champion-dish-row');
+         rows.forEach(row => {
+             const dishId = row.getAttribute('data-dish-id');
+             const teamId = mapping[dishId] || '';
+             
+             const select = row.querySelector('.champion-room-select');
+             const dropdownWrap = document.getElementById(`dropdownWrap-${dishId}`);
+             const displayWrap = document.getElementById(`displayWrap-${dishId}`);
+             const displayBadgeText = document.querySelector(`#displayBadge-${dishId} .room-text`);
+             
+             if (select) {
+                 select.value = teamId;
+             }
+
+             if (teamId) {
+                 if (select && displayBadgeText) {
+                     const selectedOpt = select.options[select.selectedIndex];
+                     displayBadgeText.textContent = selectedOpt ? selectedOpt.text : 'Room';
+                 }
+                 if (dropdownWrap) dropdownWrap.classList.add('d-none');
+                 if (displayWrap) displayWrap.classList.remove('d-none');
+                 assignedTableBody.appendChild(row);
+             } else {
+                 if (dropdownWrap) dropdownWrap.classList.remove('d-none');
+                 if (displayWrap) displayWrap.classList.add('d-none');
+                 unassignedTableBody.appendChild(row);
+             }
+         });
+         
+         updateAccordionHeaders();
+     }
+
+     function updateAccordionHeaders() {
+         const assignedCount = assignedTableBody ? assignedTableBody.children.length : 0;
+         const unassignedCount = unassignedTableBody ? unassignedTableBody.children.length : 0;
+         
+         if (assignedCountEl) assignedCountEl.textContent = assignedCount;
+         if (unassignedCountEl) unassignedCountEl.textContent = unassignedCount;
+
+         const collapseAssigned = document.getElementById('collapseAssigned');
+         const collapseUnassigned = document.getElementById('collapseUnassigned');
+         const btnAssigned = document.querySelector('[data-bs-target="#collapseAssigned"]');
+         const btnUnassigned = document.querySelector('[data-bs-target="#collapseUnassigned"]');
+
+         if (assignedCount === 0) {
+             if (collapseAssigned) collapseAssigned.classList.remove('show');
+             if (btnAssigned) {
+                 btnAssigned.setAttribute('aria-expanded', 'false');
+                 btnAssigned.classList.add('collapsed');
+             }
+             if (collapseUnassigned) collapseUnassigned.classList.add('show');
+             if (btnUnassigned) {
+                 btnUnassigned.setAttribute('aria-expanded', 'true');
+                 btnUnassigned.classList.remove('collapsed');
+             }
+         } else {
+             if (collapseAssigned) collapseAssigned.classList.add('show');
+             if (btnAssigned) {
+                 btnAssigned.setAttribute('aria-expanded', 'true');
+                 btnAssigned.classList.remove('collapsed');
+             }
+             if (collapseUnassigned) collapseUnassigned.classList.remove('show');
+             if (btnUnassigned) {
+                 btnUnassigned.setAttribute('aria-expanded', 'false');
+                 btnUnassigned.classList.add('collapsed');
+             }
+         }
+     }
+
+     function fetchChampionsAndRefresh() {
+         fetch('/menus/champions-directory')
+             .then(res => res.json())
+             .then(mapping => {
+                 refreshChampionsTable(mapping);
+             });
+     }
+
+     function saveChampionAssignment(dishId, teamId) {
+         const spinner = document.getElementById(`saveSpinner-${dishId}`);
+         const checkmark = document.getElementById(`saveStatus-${dishId}`);
+         const row = document.getElementById(`dishRow-${dishId}`);
+
+         if (checkmark) checkmark.classList.add('d-none');
+         if (spinner) spinner.classList.remove('d-none');
+
+         fetch('/menus/team-champions/set', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ dish_id: dishId, team_id: teamId })
+         })
+         .then(res => res.json())
+         .then(data => {
+             if (spinner) spinner.classList.add('d-none');
+             if (data.success) {
+                 if (checkmark) {
+                     checkmark.classList.remove('d-none');
+                     setTimeout(() => checkmark.classList.add('d-none'), 1500);
+                 }
+                 
+                 const dropdownWrap = document.getElementById(`dropdownWrap-${dishId}`);
+                 const displayWrap = document.getElementById(`displayWrap-${dishId}`);
+                 const displayBadgeText = document.querySelector(`#displayBadge-${dishId} .room-text`);
+                 const select = row.querySelector('.champion-room-select');
+
+                 if (select) {
+                     select.value = teamId;
+                 }
+
+                 if (teamId) {
+                     if (select && displayBadgeText) {
+                         const selectedOpt = select.options[select.selectedIndex];
+                         displayBadgeText.textContent = selectedOpt ? selectedOpt.text : 'Room';
+                     }
+                     if (dropdownWrap) dropdownWrap.classList.add('d-none');
+                     if (displayWrap) displayWrap.classList.remove('d-none');
+                     if (assignedTableBody && row) {
+                         assignedTableBody.appendChild(row);
+                     }
+                 } else {
+                     if (dropdownWrap) dropdownWrap.classList.remove('d-none');
+                     if (displayWrap) displayWrap.classList.add('d-none');
+                     if (unassignedTableBody && row) {
+                         unassignedTableBody.appendChild(row);
+                     }
+                 }
+                 
+                 updateAccordionHeaders();
+
+                 if (teamSelect && teamSelect.value) {
+                     loadTeamChampions(teamSelect.value);
+                 }
+             } else {
+                 alert(data.error || 'Failed to update champion.');
+             }
+         })
+         .catch(err => {
+             if (spinner) spinner.classList.add('d-none');
+             alert('Network error while saving champion assignment.');
+         });
+     }
+
+     if (manageChampionsModalEl) {
+         manageChampionsModalEl.addEventListener('show.bs.modal', function() {
+             if (championModalSearchInput) {
+                 championModalSearchInput.value = '';
+                 document.querySelectorAll('.champion-dish-row').forEach(row => row.classList.remove('d-none'));
+             }
+             fetchChampionsAndRefresh();
+         });
+     }
+
+     if (championModalSearchInput) {
+         championModalSearchInput.addEventListener('input', function() {
+             const query = this.value.trim().toLowerCase();
+             let hasAssignedMatches = false;
+             let hasUnassignedMatches = false;
+
+             document.querySelectorAll('.champion-dish-row').forEach(row => {
+                 const name = row.getAttribute('data-dish-name') || '';
+                 const category = row.getAttribute('data-dish-category') || '';
+                 const isMatch = name.includes(query) || category.includes(query);
+
+                 if (isMatch) {
+                     row.classList.remove('d-none');
+                     if (row.parentNode === assignedTableBody) {
+                         hasAssignedMatches = true;
+                     } else if (row.parentNode === unassignedTableBody) {
+                         hasUnassignedMatches = true;
+                     }
+                 } else {
+                     row.classList.add('d-none');
+                 }
+             });
+
+             const collapseAssigned = document.getElementById('collapseAssigned');
+             const collapseUnassigned = document.getElementById('collapseUnassigned');
+             const btnAssigned = document.querySelector('[data-bs-target="#collapseAssigned"]');
+             const btnUnassigned = document.querySelector('[data-bs-target="#collapseUnassigned"]');
+
+             if (query !== '') {
+                 if (hasAssignedMatches) {
+                     if (collapseAssigned) collapseAssigned.classList.add('show');
+                     if (btnAssigned) {
+                         btnAssigned.setAttribute('aria-expanded', 'true');
+                         btnAssigned.classList.remove('collapsed');
+                     }
+                 } else {
+                     if (collapseAssigned) collapseAssigned.classList.remove('show');
+                     if (btnAssigned) {
+                         btnAssigned.setAttribute('aria-expanded', 'false');
+                         btnAssigned.classList.add('collapsed');
+                     }
+                 }
+
+                 if (hasUnassignedMatches) {
+                     if (collapseUnassigned) collapseUnassigned.classList.add('show');
+                     if (btnUnassigned) {
+                         btnUnassigned.setAttribute('aria-expanded', 'true');
+                         btnUnassigned.classList.remove('collapsed');
+                     }
+                 } else {
+                     if (collapseUnassigned) collapseUnassigned.classList.remove('show');
+                     if (btnUnassigned) {
+                         btnUnassigned.setAttribute('aria-expanded', 'false');
+                         btnUnassigned.classList.add('collapsed');
+                     }
+                 }
+             } else {
+                 updateAccordionHeaders();
+             }
+         });
+     }
+
+     championRoomSelects.forEach(select => {
+         select.addEventListener('change', function() {
+             const dishId = this.getAttribute('data-dish-id');
+             const teamId = this.value;
+             saveChampionAssignment(dishId, teamId);
+         });
+     });
+
+     // Event Delegation for Edit / Clear Champion actions
+     document.addEventListener('click', function(e) {
+         const editBtn = e.target.closest('.btn-edit-champion');
+         if (editBtn) {
+             const dishId = editBtn.getAttribute('data-dish-id');
+             const dropdownWrap = document.getElementById(`dropdownWrap-${dishId}`);
+             const displayWrap = document.getElementById(`displayWrap-${dishId}`);
+             if (dropdownWrap) dropdownWrap.classList.remove('d-none');
+             if (displayWrap) displayWrap.classList.add('d-none');
+             return;
+         }
+
+         const clearBtn = e.target.closest('.btn-clear-champion');
+         if (clearBtn) {
+             const dishId = clearBtn.getAttribute('data-dish-id');
+             if (confirm('Are you sure you want to remove the champion room for this dish?')) {
+                 saveChampionAssignment(dishId, '');
+             }
+             return;
+         }
+     });
+
+     if (teamSelect) {
+         teamSelect.addEventListener('change', function() {
+             loadTeamChampions(teamSelect.value);
+         });
+     }
+
+     if (btnShowChampionDishes) {
+         btnShowChampionDishes.addEventListener('click', () => {
+             if (teamSelect.value) {
+                 roomChampionDishesWrap.classList.remove('d-none');
+                 btnShowChampionDishes.classList.add('d-none');
+             }
+         });
+     }
+
+     // Toggle Link Panel
+     if (btnAddChampionLinkBtn) {
+         btnAddChampionLinkBtn.addEventListener('click', () => {
+             addChampionSelectWrap.classList.toggle('d-none');
+         });
+     }
+
+     if (btnCancelChampionLink) {
+         btnCancelChampionLink.addEventListener('click', () => {
+             addChampionSelectWrap.classList.add('d-none');
+             championDishSelect.value = '';
+         });
+     }
+
+     // Save Link
+     if (btnSaveChampionLink) {
+         btnSaveChampionLink.addEventListener('click', () => {
+             const teamId = teamSelect.value;
+             const dishId = championDishSelect.value;
+             if (!teamId || !dishId) {
+                 alert('Please select both a Room and a Dish.');
+                 return;
+             }
+
+             fetch('/menus/team-champions/add', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ team_id: teamId, dish_id: dishId })
+             })
+             .then(res => res.json())
+             .then(data => {
+                 if (data.success) {
+                     addChampionSelectWrap.classList.add('d-none');
+                     championDishSelect.value = '';
+                     loadTeamChampions(teamId);
+                 } else {
+                     alert(data.error || 'Failed to link champion dish.');
+                 }
+             });
+         });
+     }
+
+     const addMenuModalEl = document.getElementById('addMenuModal');
+     if (addMenuModalEl) {
+         addMenuModalEl.addEventListener('show.bs.modal', function() {
+             if (roomChampionDishesWrap) roomChampionDishesWrap.classList.add('d-none');
+             if (btnShowChampionDishes) btnShowChampionDishes.classList.add('d-none');
+             if (addChampionSelectWrap) addChampionSelectWrap.classList.add('d-none');
+             if (championDishSelect) championDishSelect.value = '';
+             if (teamSelect && teamSelect.value) {
+                 loadTeamChampions(teamSelect.value);
+             }
+         });
+     }
 
     function renderTextList(listEl, items, emptyText, formatter) {
-        listEl.innerHTML = '';
         const safeItems = Array.isArray(items) ? items : [];
         if (safeItems.length === 0) {
             const li = document.createElement('li');
@@ -1325,6 +1921,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (estimateWrap) estimateWrap.classList.add('d-none');
                 return;
             }
+
+            // Hide the champion list when dish is selected
+            if (roomChampionDishesWrap) roomChampionDishesWrap.classList.add('d-none');
+            if (btnShowChampionDishes) btnShowChampionDishes.classList.remove('d-none');
 
             fetch(`/menus/dish-insights/${dishId}`)
                 .then(res => res.json())
