@@ -175,6 +175,9 @@
             <button class="btn btn-outline-teal px-4" data-bs-toggle="modal" data-bs-target="#manageChampionsModal">
                 <i class="fas fa-trophy me-1"></i> Manage Champions
             </button>
+            <button class="btn btn-outline-teal px-4" data-bs-toggle="modal" data-bs-target="#rotationModal">
+                <i class="fas fa-sync-alt me-1"></i> Rotation Planner
+            </button>
             <button class="btn btn-teal px-4" data-bs-toggle="modal" data-bs-target="#addMenuModal">
                 <i class="fas fa-plus me-1"></i> Schedule Meal
             </button>
@@ -265,6 +268,20 @@
                                 <span class="badge room-badge" title="Assigned {{ TERM_TEAM }}">
                                     <i class="fas fa-users me-1"></i>{% if ns.assigned_team.icon %}{{ ns.assigned_team.icon }} {% endif %}{{ ns.assigned_team.name }}
                                 </span>
+                                {% elif not day.menus and day.slated %}
+                                    {% if day.slated.status == 'slated' and day.slated.team %}
+                                    <span class="badge room-badge-interactive opacity-75 border-dashed" title="Slated rotation turn. Click to schedule!" style="cursor: pointer; background-color: #fafafa; border-style: dashed !important; color: var(--teal) !important; border-color: var(--teal) !important;" onclick="openScheduleForDate('{{ date_str }}', '{{ day.slated.team.id }}')">
+                                        <i class="fas fa-calendar-check me-1"></i>{% if day.slated.team.icon %}{{ day.slated.team.icon }} {% endif %}{{ day.slated.team.name }}
+                                    </span>
+                                    {% elif day.slated.status == 'skip' %}
+                                    <span class="badge bg-soft-danger text-danger border border-danger-subtle" style="font-size: 0.55rem; padding: 2px 6px;" title="Rotation paused (Skip/Holiday)">
+                                        <i class="fas fa-ban me-1"></i>Leave
+                                    </span>
+                                    {% elif day.slated.status == 'override' and day.slated.team %}
+                                    <span class="badge bg-soft-primary text-primary border border-primary-subtle" style="font-size: 0.55rem; padding: 2px 6px;" title="Manual rotation override turn">
+                                        <i class="fas fa-edit me-1"></i>{% if day.slated.team.icon %}{{ day.slated.team.icon }} {% endif %}{{ day.slated.team.name }}
+                                    </span>
+                                    {% endif %}
                                 {% endif %}
                                 
                                 {% if day_num == 2 or day_num == 5 %}
@@ -700,6 +717,145 @@
             </div>
             <div class="modal-footer border-0 p-4 pt-0">
                 <button type="button" class="btn btn-teal px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Room Rotation Modal -->
+<div class="modal fade" id="rotationModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-teal text-white border-0 py-3">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i class="fas fa-sync-alt text-warning animate-spin-slow"></i>
+                    <span>Room Rotation Planner</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Steps Navigation tabs -->
+                <ul class="nav nav-pills nav-fill mb-4 p-1 bg-light rounded-3 border" id="rotationTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold py-2 border-0" id="step-order-tab" data-bs-toggle="pill" data-bs-target="#rotation-step-order" type="button">
+                            <i class="fas fa-sort-amount-down me-2"></i>1. Sequence
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold py-2 border-0" id="step-rules-tab" data-bs-toggle="pill" data-bs-target="#rotation-step-rules" type="button">
+                            <i class="fas fa-cog me-2"></i>2. Rules
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold py-2 border-0" id="step-exceptions-tab" data-bs-toggle="pill" data-bs-target="#rotation-step-exceptions" type="button">
+                            <i class="fas fa-calendar-minus me-2"></i>3. Leaves/Holidays
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Steps Contents -->
+                <div class="tab-content">
+                    <!-- Step 1: Sequence Order -->
+                    <div class="tab-pane fade show active" id="rotation-step-order" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0 text-teal">Sort Rooms (Draggable)</h6>
+                            <span class="badge bg-soft-teal text-teal border border-teal-subtle py-1 px-2" style="font-size: 0.65rem;">Custom Order Sequence</span>
+                        </div>
+                        <p class="text-muted small mb-3">Re-arrange the sequence line-wise to determine the turn order. Use the handles to drag & drop.</p>
+                        <div class="list-group rounded-3 border mb-3" id="rotationSortableList" style="max-height: 280px; overflow-y: auto;">
+                            <!-- Populated dynamically by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Settings / Rules -->
+                    <div class="tab-pane fade" id="rotation-step-rules" role="tabpanel">
+                        <h6 class="fw-bold mb-3 text-teal">Rotation Rules & Parameters</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted">START DATE (BENCHMARK)</label>
+                                <input type="date" class="form-control shadow-none border-teal" id="rotationStartDate" value="{{ today.strftime('%Y-%m-%d') }}">
+                                <small class="text-muted" style="font-size: 0.7rem;">The rotation starts counting sequentially from this date.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted">CONSECUTIVE TURN DURATION (DAYS)</label>
+                                <input type="number" class="form-control shadow-none border-teal text-teal fw-bold" id="rotationWaariCount" value="1" min="1" max="14">
+                                <small class="text-muted" style="font-size: 0.7rem;">Number of days each room cooks before rotation advances.</small>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-muted mb-2">ACTIVE WEEKDAYS FOR ROTATION</label>
+                                <div class="d-flex flex-wrap justify-content-between p-3 border rounded-3 bg-light">
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="1" id="maskMon" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskMon">Mon</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="2" id="maskTue" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskTue">Tue</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="3" id="maskWed" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskWed">Wed</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="4" id="maskThu" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskThu">Thu</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="5" id="maskFri" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskFri">Fri</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="6" id="maskSat" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskSat">Sat</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input rotation-day-mask shadow-none" type="checkbox" value="7" id="maskSun" checked>
+                                        <label class="form-check-label fw-bold text-muted small" for="maskSun">Sun</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Leaves & Holidays -->
+                    <div class="tab-pane fade" id="rotation-step-exceptions" role="tabpanel">
+                        <h6 class="fw-bold mb-2 text-teal">Pause Rotation (Leaves/Holidays)</h6>
+                        <p class="text-muted small mb-3">Add leave days to pause/shift the rotation order. Future dates will advance forward dynamically.</p>
+                        
+                        <div class="row g-2 align-items-center mb-3">
+                            <div class="col-md-8">
+                                <input type="date" class="form-control shadow-none" id="exceptionDateInput" value="{{ today.strftime('%Y-%m-%d') }}">
+                            </div>
+                            <div class="col-md-4 d-grid">
+                                <button type="button" class="btn btn-teal px-3 shadow-none" id="btnAddException">
+                                    <i class="fas fa-plus me-1"></i>Add Leave Day
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive rounded border" style="max-height: 220px; overflow-y: auto;">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Exception Type</th>
+                                        <th style="width: 80px;" class="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rotationExceptionsTableBody">
+                                    <!-- Populated dynamically by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-4 pt-0 justify-content-between">
+                <span class="text-muted small"><i class="fas fa-info-circle me-1 text-teal"></i>Rotation will resume automatically after leave days.</span>
+                <div>
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-teal px-4" id="btnSaveRotation">Save Settings</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1418,7 +1574,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (menuDateInput) {
-        menuDateInput.addEventListener('change', updateDayTypeChip);
+        menuDateInput.addEventListener('change', function() {
+            updateDayTypeChip();
+            if (typeof updateSlatedTeamForDate === 'function') {
+                updateSlatedTeamForDate(this.value);
+            }
+        });
         updateDayTypeChip();
     }
 
@@ -1894,6 +2055,12 @@ document.addEventListener('DOMContentLoaded', function () {
              if (championDishSelect) championDishSelect.value = '';
              if (teamSelect && teamSelect.value) {
                  loadTeamChampions(teamSelect.value);
+             }
+             const menuDateInputEl = document.getElementById('menuDateInput');
+             if (menuDateInputEl && menuDateInputEl.value) {
+                 if (typeof updateSlatedTeamForDate === 'function') {
+                     updateSlatedTeamForDate(menuDateInputEl.value);
+                 }
              }
          });
      }
@@ -2634,6 +2801,313 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+    // ==========================================
+    // ROOM ROTATION PLANNER CODE
+    // ==========================================
+    const rotationModalEl = document.getElementById('rotationModal');
+    const teamSelectEl = document.getElementById('assignedTeamSelect');
+
+    function updateSlatedTeamForDate(dateVal) {
+        if (!dateVal || !teamSelectEl) return;
+        fetch(`/menus/rotation/slated-team?date=${dateVal}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.team_id) {
+                    teamSelectEl.value = data.team_id;
+                    teamSelectEl.dispatchEvent(new Event('change'));
+                } else {
+                    teamSelectEl.value = '';
+                    teamSelectEl.dispatchEvent(new Event('change'));
+                }
+            })
+            .catch(err => console.error("Error loading slated team:", err));
+    }
+    // Expose helper to global scope for the first block's date input change listener
+    window.updateSlatedTeamForDate = updateSlatedTeamForDate;
+
+    if (rotationModalEl) {
+        let rotationData = null;
+
+        rotationModalEl.addEventListener('show.bs.modal', function() {
+            loadRotationPlanner();
+        });
+
+        function loadRotationPlanner() {
+            fetch('/menus/rotation/settings')
+                .then(res => res.json())
+                .then(data => {
+                    rotationData = data;
+                    renderRotationSequence();
+                    renderRotationRules();
+                    renderRotationExceptions();
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Error loading rotation settings: " + err.message);
+                });
+        }
+
+        function renderRotationSequence() {
+            const listContainer = document.getElementById('rotationSortableList');
+            if (!listContainer) return;
+            listContainer.innerHTML = '';
+
+            rotationData.sequence.forEach((team, index) => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center p-3 border-bottom';
+                item.setAttribute('draggable', 'true');
+                item.setAttribute('data-team-id', team.team_id);
+                item.id = `rot-team-${team.team_id}`;
+                item.innerHTML = `
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-grip-vertical text-muted drag-handle me-2" style="cursor: grab;"></i>
+                        <span class="badge bg-teal-subtle text-teal border border-teal-subtle me-1 fw-bold" style="font-size: 0.65rem;">
+                            #${index + 1}
+                        </span>
+                        <span class="fw-bold">${team.icon ? team.icon + ' ' : ''}${team.name}</span>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-light border py-1 px-2 btn-move-up" type="button" title="Move Up"><i class="fas fa-chevron-up"></i></button>
+                        <button class="btn btn-sm btn-light border py-1 px-2 btn-move-down" type="button" title="Move Down"><i class="fas fa-chevron-down"></i></button>
+                    </div>
+                `;
+                listContainer.appendChild(item);
+                bindSortableItemEvents(item);
+            });
+        }
+
+        function bindSortableItemEvents(item) {
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('dragend', handleDragEnd);
+
+            const upBtn = item.querySelector('.btn-move-up');
+            if (upBtn) {
+                upBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const prev = item.previousElementSibling;
+                    if (prev) {
+                        item.parentNode.insertBefore(item, prev);
+                        reorderSequenceBadges();
+                    }
+                });
+            }
+
+            const downBtn = item.querySelector('.btn-move-down');
+            if (downBtn) {
+                downBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const next = item.nextElementSibling;
+                    if (next) {
+                        item.parentNode.insertBefore(next, item);
+                        reorderSequenceBadges();
+                    }
+                });
+            }
+        }
+
+        function handleDragStart(e) {
+            e.dataTransfer.setData('text/plain', this.id);
+            this.classList.add('dragging');
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            reorderSequenceBadges();
+        }
+
+        const sortableContainer = document.getElementById('rotationSortableList');
+        if (sortableContainer) {
+            sortableContainer.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(sortableContainer, e.clientY);
+                const draggable = document.querySelector('.dragging');
+                if (draggable) {
+                    if (afterElement == null) {
+                        sortableContainer.appendChild(draggable);
+                    } else {
+                        sortableContainer.insertBefore(draggable, afterElement);
+                    }
+                }
+            });
+        }
+
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.list-group-item:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function reorderSequenceBadges() {
+            const items = document.querySelectorAll('#rotationSortableList .list-group-item');
+            items.forEach((item, index) => {
+                const badge = item.querySelector('.badge');
+                if (badge) {
+                    badge.textContent = `#${index + 1}`;
+                }
+            });
+        }
+
+        function renderRotationRules() {
+            if (!rotationData.settings) return;
+            document.getElementById('rotationStartDate').value = rotationData.settings.start_date;
+            document.getElementById('rotationWaariCount').value = rotationData.settings.waari_count;
+            
+            const mask = rotationData.settings.active_days_mask;
+            document.querySelectorAll('.rotation-day-mask').forEach(cb => {
+                cb.checked = mask.includes(parseInt(cb.value));
+            });
+        }
+
+        function renderRotationExceptions() {
+            const tbody = document.getElementById('rotationExceptionsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (rotationData.exceptions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-3">No active leave days configured yet.</td></tr>`;
+                return;
+            }
+
+            rotationData.exceptions.forEach(ex => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="fw-bold">${ex.date}</td>
+                    <td>
+                        <span class="badge bg-soft-danger text-danger border border-danger-subtle">
+                            <i class="fas fa-ban me-1"></i>Leave / Holiday
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-link text-danger p-0 border-0 btn-remove-exception" type="button" data-date="${ex.date}">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            tbody.querySelectorAll('.btn-remove-exception').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const exDate = this.getAttribute('data-date');
+                    if (confirm(`Remove leave for ${exDate}?`)) {
+                        fetch('/menus/rotation/exceptions/remove', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ date: exDate })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                loadRotationPlanner();
+                            } else {
+                                alert(data.error);
+                            }
+                        })
+                        .catch(err => console.error(err));
+                    }
+                });
+            });
+        }
+
+        const btnAddException = document.getElementById('btnAddException');
+        if (btnAddException) {
+            btnAddException.addEventListener('click', function() {
+                const dateVal = document.getElementById('exceptionDateInput').value;
+                if (!dateVal) {
+                    alert("Please select a valid date.");
+                    return;
+                }
+                fetch('/menus/rotation/exceptions/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: dateVal, type: 'skip' })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        loadRotationPlanner();
+                    } else {
+                        alert(data.error);
+                    }
+                })
+                .catch(err => console.error(err));
+            });
+        }
+
+        const btnSaveRotation = document.getElementById('btnSaveRotation');
+        if (btnSaveRotation) {
+            btnSaveRotation.addEventListener('click', function() {
+                const start_date = document.getElementById('rotationStartDate').value;
+                const waari_count = parseInt(document.getElementById('rotationWaariCount').value) || 1;
+                
+                const active_days_mask = [...document.querySelectorAll('.rotation-day-mask:checked')].map(cb => parseInt(cb.value));
+                const sequence = [...document.querySelectorAll('#rotationSortableList .list-group-item')].map(item => parseInt(item.getAttribute('data-team-id')));
+
+                if (sequence.length === 0) {
+                    alert("No teams available to schedule rotation.");
+                    return;
+                }
+                if (active_days_mask.length === 0) {
+                    alert("Please select at least one active day of the week.");
+                    return;
+                }
+
+                fetch('/menus/rotation/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        start_date: start_date,
+                        waari_count: waari_count,
+                        active_days_mask: active_days_mask,
+                        sequence: sequence
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert("Room rotation settings saved successfully!");
+                        location.reload();
+                    } else {
+                        alert(data.error);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Error saving rotation settings.");
+                });
+            });
+        }
+    }
+
+
+
+    window.openScheduleForDate = function(dateStr, teamId) {
+        const menuDateInputEl = document.getElementById('menuDateInput');
+        if (menuDateInputEl) {
+            menuDateInputEl.value = dateStr;
+            if (typeof updateDayTypeChip === 'function') {
+                updateDayTypeChip();
+            }
+        }
+        
+        setTimeout(() => {
+            if (teamSelectEl) {
+                teamSelectEl.value = teamId || '';
+                teamSelectEl.dispatchEvent(new Event('change'));
+            }
+        }, 150);
+
+        const modalEl = document.getElementById('addMenuModal');
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    };
     // {% endif %}
 });
 </script>

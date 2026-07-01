@@ -74,6 +74,24 @@ The finance subsystem tracks bills, OCR imports, and calculates floor ledger bal
     *   Selecting a main dish (via shortcut tag or dropdown) hides the champion tag panel and reveals the rating-based "Dish Insights" panel. A "Show Champions" button lets users reopen the panel.
     *   "Manage Champions" modal houses a dual-accordion dashboard (Assigned vs Unassigned) with inline dropdown selection, instant auto-saving status animations, and an active search filter that automatically expands accordions when matches are found.
 
+
+### 3.5 Room Rotation (Planning Engine) Feature
+*   **Purpose**: Allows Pantry Heads to define a structured cooking turn rotation for rooms (teams) on their floor. Pauses/resumes automatically for holidays/leaves without losing any room's turn.
+*   **Models**: 
+    1.  `RoomRotationSettings`: Stores rotation start date, waari count (consecutive turn duration), and weekly active days mask.
+    2.  `RoomRotationOrder`: Maintains the user-sorted sequence of rooms.
+    3.  `RoomRotationException`: Stores leave/skip days (holiday) and manual overrides.
+*   **Endpoints**:
+    1.  `GET /menus/rotation/settings`: Returns active rotation rules and sorted sequence of rooms.
+    2.  `POST /menus/rotation/save`: Saves active rotation sequence, start date, waari duration, and active weekdays.
+    3.  `POST /menus/rotation/exceptions/add`: Registers a leave/skip exception.
+    4.  `POST /menus/rotation/exceptions/remove`: Removes an exception.
+    5.  `GET /menus/rotation/slated-team?date=YYYY-MM-DD`: Returns the slated team ID and status for a given calendar date.
+*   **UX Flow & Integration**:
+    *   **Planner Modal Wizard**: Houses steps for sorting rooms (using HTML5 drag-and-drop handles and accessibility Up/Down buttons), defining benchmark parameters, and adding/removing leave dates.
+    *   **Dynamic Slated Badges**: If a calendar day has no scheduled menus, a dashed, interactive slated chip (e.g. `Slated: Room 2091`) is displayed. Clicking it opens the Schedule Modal pre-populated with that date and team.
+    *   **Auto-populate Selection**: When the Schedule modal opens or its date input changes, the slated team for that date is automatically fetched and selected. This in turn triggers loading the team's custom champion dishes.
+
 ---
 
 ## 4. Key References from Documentation

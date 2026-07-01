@@ -123,6 +123,44 @@ class DishAuditLog(db.Model):
     performed_by = db.relationship('User', foreign_keys=[performed_by_id])
     actor_tenant = db.relationship('Tenant', foreign_keys=[actor_tenant_id])
 
+class RoomRotationSettings(db.Model, TenantMixin):
+    __tablename__ = 'room_rotation_settings'
+    __table_args__ = (
+        db.Index('idx_rotation_settings_tenant_floor', 'tenant_id', 'floor'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    start_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    waari_count = db.Column(db.Integer, nullable=False, default=1)
+    active_days_mask = db.Column(db.String(30), nullable=False, default='1,2,3,4,5,6,7')  # 1-7 representing Monday-Sunday
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    floor = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    orders = db.relationship('RoomRotationOrder', back_populates='settings', cascade='all, delete-orphan')
+
+class RoomRotationOrder(db.Model):
+    __tablename__ = 'room_rotation_order'
+    id = db.Column(db.Integer, primary_key=True)
+    rotation_settings_id = db.Column(db.Integer, db.ForeignKey('room_rotation_settings.id'), nullable=False, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False, index=True)
+    position = db.Column(db.Integer, nullable=False)
+
+    settings = db.relationship('RoomRotationSettings', back_populates='orders', foreign_keys=[rotation_settings_id])
+    team = db.relationship('Team')
+
+class RoomRotationException(db.Model, TenantMixin):
+    __tablename__ = 'room_rotation_exception'
+    __table_args__ = (
+        db.Index('idx_rotation_exception_tenant_floor_date', 'tenant_id', 'floor', 'exception_date'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    exception_date = db.Column(db.Date, nullable=False)
+    exception_type = db.Column(db.String(20), nullable=False)  # 'skip' or 'override'
+    override_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    floor = db.Column(db.Integer, nullable=False)
+
+    override_team = db.relationship('Team')
+
 class Menu(db.Model, TenantMixin):
     __table_args__ = (
         db.Index('idx_menu_tenant_floor_date', 'tenant_id', 'floor', 'date', 'is_buffer', 'assigned_team_id'),
