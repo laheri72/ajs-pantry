@@ -457,6 +457,35 @@
 
         <div class="col-lg-4">
             <div class="d-grid gap-3">
+                {% if rotation_schedule %}
+                <div class="card dashboard-section border-0 shadow-sm rounded-4" style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, rgba(20, 184, 166, 0.02) 100%); border-left: 4px solid var(--teal) !important;">
+                    <div class="card-header bg-transparent border-0 pb-0 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-teal d-flex align-items-center gap-2">
+                            <i class="fas fa-sync-alt fa-spin" style="animation-duration: 6s;"></i>
+                            <span>Your Cooking turns</span>
+                        </h5>
+                        <span class="badge bg-teal-subtle text-teal border border-teal-subtle small">Upcoming</span>
+                    </div>
+                    <div class="card-body pt-3">
+                        <div class="d-flex flex-column gap-2">
+                            {% for turn in rotation_schedule %}
+                            <div class="d-flex justify-content-between align-items-center p-2 rounded-3 bg-white border border-light shadow-sm">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-teal text-white font-monospace" style="font-size: 0.65rem; padding: 3px 6px;">
+                                        {{ turn.date.strftime('%a') }}
+                                    </span>
+                                    <span class="fw-bold small text-dark">{{ turn.date.strftime('%b %d') }}</span>
+                                </div>
+                                <span class="badge rounded-pill bg-teal-subtle text-teal border border-teal-subtle small">
+                                    {% if turn.team_icon %}{{ turn.team_icon }} {% endif %}{{ turn.team_name }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="card dashboard-section">
                     <div class="card-header bg-transparent border-0 pb-0">
                         <h5 class="mb-0">Your Profile</h5>

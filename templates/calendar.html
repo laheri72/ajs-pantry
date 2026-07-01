@@ -28,7 +28,7 @@
     </div>
 
     {% if current_user.role == 'member' %}
-    <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4" role="alert" style="background-color: rgba(13, 202, 240, 0.1); color: var(--bs-info-text, #055160);">
+    <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm rounded-4 mb-4" id="shapeMenuAlert" role="alert" style="background-color: rgba(13, 202, 240, 0.1); color: var(--bs-info-text, #055160);">
         <div class="d-flex align-items-center">
             <div class="me-3 fs-3 text-info">
                 <i class="fas fa-magic"></i>
@@ -42,12 +42,26 @@
     </div>
     {% endif %}
 
+    <!-- Rotation Cooking Turns Reminder Banner -->
+    <div id="rotationReminderBanner" class="alert alert-teal border-0 shadow-sm rounded-4 mb-4 d-none" style="background: linear-gradient(135deg, rgba(20, 184, 166, 0.08) 0%, rgba(20, 184, 166, 0.02) 100%); border-left: 4px solid var(--teal-primary) !important; color: var(--teal-dark);">
+        <div class="d-flex align-items-center">
+            <div class="me-3 fs-3 text-teal">
+                <i class="fas fa-calendar-check animate-pulse"></i>
+            </div>
+            <div>
+                <h6 class="alert-heading fw-bold mb-1">Your Cooking Days This Month:</h6>
+                <p class="mb-0 small" id="rotationReminderDates">Loading your schedule...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Calendar Grid -->
     <div class="calendar-container" id="calendarGridContainer"
          data-year="{{ current_year }}"
          data-month="{{ current_month }}"
          data-user-role="{{ current_user.role }}"
          data-user-id="{{ current_user.id }}"
+         data-user-team-ids="{{ user_team_ids | tojson | forceescape }}"
          data-menus="{{ menus | tojson | forceescape }}"
          data-tea-tasks="{{ tea_tasks | tojson | forceescape }}"
          data-special-events="{{ special_events | tojson | forceescape }}"
@@ -343,6 +357,23 @@
         padding-left: 0.8rem;
         border-left: 3px solid var(--warning);
     }
+    @keyframes pulse-highlight {
+        0% { box-shadow: inset 0 0 0 2px rgba(20, 184, 166, 0.8), 0 0 0 0 rgba(20, 184, 166, 0.4); }
+        70% { box-shadow: inset 0 0 0 2px rgba(20, 184, 166, 0.8), 0 0 0 8px rgba(20, 184, 166, 0); }
+        100% { box-shadow: inset 0 0 0 2px rgba(20, 184, 166, 0.8), 0 0 0 0 rgba(20, 184, 166, 0); }
+    }
+    .rotation-user-turn {
+        animation: pulse-highlight 2s infinite;
+        border: 2px solid var(--teal-primary) !important;
+        background-color: rgba(20, 184, 166, 0.05) !important;
+    }
+    .rotation-slated-turn-chip {
+        font-size: 0.55rem;
+        padding: 2px 4px;
+        background-color: #fafafa;
+        border: 1px dashed var(--teal-primary) !important;
+        color: var(--teal-primary) !important;
+    }
 </style>
 
 <script>
@@ -592,6 +623,7 @@ function generateCalendar(year, month) {
             const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
             const dd = String(currentDay.getDate()).padStart(2, '0');
             const dateStr = `${yyyy}-${mm}-${dd}`;
+            dayCell.setAttribute('data-date', dateStr);
 
             if (currentDay.getMonth() !== month) {
                 dayCell.classList.add('other-month');
@@ -709,6 +741,117 @@ function generateCalendar(year, month) {
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                        'July', 'August', 'September', 'October', 'November', 'December'];
     document.getElementById('currentMonth').textContent = monthNames[month] + ' ' + year;
+
+    // Fetch slated rotation turns for the 6-week grid range
+    const yyyyStart = startDate.getFullYear();
+    const mmStart = String(startDate.getMonth() + 1).padStart(2, '0');
+    const ddStart = String(startDate.getDate()).padStart(2, '0');
+    const startStr = `${yyyyStart}-${mmStart}-${ddStart}`;
+
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 41);
+    const yyyyEnd = endDate.getFullYear();
+    const mmEnd = String(endDate.getMonth() + 1).padStart(2, '0');
+    const ddEnd = String(endDate.getDate()).padStart(2, '0');
+    const endStr = `${yyyyEnd}-${mmEnd}-${ddEnd}`;
+
+    let userTeamIds = [];
+    try {
+        userTeamIds = JSON.parse(calContainer.dataset.userTeamIds || '[]');
+    } catch(e) {
+        console.error(e);
+    }
+
+    fetch(`/menus/rotation/slated-range?start=${startStr}&end=${endStr}`)
+        .then(res => res.json())
+        .then(slatedMap => {
+            const roomDatesMap = {};
+
+            for (let dateKey in slatedMap) {
+                const info = slatedMap[dateKey];
+                const dayCell = calendarBody.querySelector(`.calendar-day[data-date="${dateKey}"]`);
+                if (!dayCell) continue;
+
+                const hasMenu = dayCell.querySelector('.calendar-event.bg-teal');
+                
+                if (info.status === 'slated' && info.team) {
+                    const isUserTurn = userTeamIds.includes(info.team.id);
+                    if (isUserTurn) {
+                        dayCell.classList.add('rotation-user-turn');
+                        dayCell.title = `Your turn to cook (Room ${info.team.name})!`;
+
+                        const dParts = dateKey.split('-');
+                        const dMonth = parseInt(dParts[1]) - 1;
+                        const dYear = parseInt(dParts[0]);
+
+                        if (dMonth === month && dYear === year && !hasMenu) {
+                            const dateObj = new Date(dateKey + 'T00:00:00');
+                            const formatted = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            
+                            const roomKey = info.team.name;
+                            if (!roomDatesMap[roomKey]) {
+                                roomDatesMap[roomKey] = {
+                                    icon: info.team.icon || '',
+                                    dates: [],
+                                    dateValFirst: dateObj
+                                };
+                            }
+                            roomDatesMap[roomKey].dates.push({
+                                formatted: `<strong>${formatted}</strong>`,
+                                val: dateObj
+                            });
+                        }
+                    }
+
+                    if (!hasMenu) {
+                        const badgeContainer = dayCell.querySelector('.day-badge-container');
+                        if (badgeContainer) {
+                            const rotationChip = document.createElement('span');
+                            rotationChip.className = 'badge rotation-slated-turn-chip';
+                            const iconStr = info.team.icon ? `${info.team.icon} ` : '';
+                            rotationChip.innerHTML = `<i class="fas fa-sync-alt me-1"></i>${iconStr}${info.team.name}`;
+                            badgeContainer.appendChild(rotationChip);
+                        }
+                    }
+                } else if (info.status === 'skip' && !hasMenu) {
+                    const badgeContainer = dayCell.querySelector('.day-badge-container');
+                    if (badgeContainer) {
+                        const leaveChip = document.createElement('span');
+                        leaveChip.className = 'badge bg-soft-danger text-danger border border-danger-subtle';
+                        leaveChip.style.fontSize = '0.55rem';
+                        leaveChip.style.padding = '2px 4px';
+                        leaveChip.innerHTML = `<i class="fas fa-ban me-1"></i>Leave`;
+                        badgeContainer.appendChild(leaveChip);
+                    }
+                }
+            }
+
+            const bannerEl = document.getElementById('rotationReminderBanner');
+            const datesEl = document.getElementById('rotationReminderDates');
+            if (bannerEl && datesEl) {
+                const roomKeys = Object.keys(roomDatesMap);
+                if (roomKeys.length > 0) {
+                    roomKeys.sort((a, b) => roomDatesMap[a].dateValFirst - roomDatesMap[b].dateValFirst);
+                    
+                    let htmlContent = '';
+                    roomKeys.forEach(roomName => {
+                        const roomInfo = roomDatesMap[roomName];
+                        roomInfo.dates.sort((a, b) => a.val - b.val);
+                        const dateStrings = roomInfo.dates.map(d => d.formatted).join(' &bull; ');
+                        const iconStr = roomInfo.icon ? `${roomInfo.icon} ` : '';
+                        
+                        if (htmlContent) htmlContent += '<br class="my-1">';
+                        htmlContent += `<span class="badge bg-teal text-white me-2" style="font-size: 0.72rem; padding: 4px 8px;"><i class="fas fa-users me-1"></i>${iconStr}${roomName}</span> ${dateStrings}`;
+                    });
+                    
+                    datesEl.innerHTML = htmlContent;
+                    bannerEl.classList.remove('d-none');
+                } else {
+                    bannerEl.classList.add('d-none');
+                }
+            }
+        })
+        .catch(err => console.error("Error loading rotation range:", err));
 }
 
 function previousMonth() {
@@ -735,6 +878,30 @@ function nextMonth() {
 
 document.addEventListener('DOMContentLoaded', function() {
     generateCalendar(currentDate.getFullYear(), currentDate.getMonth());
+
+    const alertEl = document.getElementById('shapeMenuAlert');
+    if (alertEl) {
+        if (localStorage.getItem('dismissedShapeMenuAlert') === 'true') {
+            alertEl.remove();
+        } else {
+            setTimeout(() => {
+                if (alertEl.parentNode) {
+                    alertEl.classList.remove('show');
+                    setTimeout(() => {
+                        alertEl.remove();
+                    }, 150);
+                }
+                localStorage.setItem('dismissedShapeMenuAlert', 'true');
+            }, 5000);
+
+            const closeBtn = alertEl.querySelector('.btn-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    localStorage.setItem('dismissedShapeMenuAlert', 'true');
+                });
+            }
+        }
+    }
 });
 
 let selectedActionDate = '';

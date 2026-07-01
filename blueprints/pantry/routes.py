@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
-from models import User, Dish, DishAuditLog, Menu, MenuSuggestion, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name, DishChampion
+from models import User, Dish, DishAuditLog, Menu, MenuSuggestion, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name, DishChampion, RoomRotationSettings, RoomRotationOrder, RoomRotationException
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -516,6 +516,25 @@ def dashboard():
             ProcurementItem.status != 'completed'
         ).count()
 
+    rotation_schedule = []
+    is_staff = user.role in ['admin', 'pantryHead']
+    if is_staff or team_ids:
+        end_date = today + timedelta(days=30)
+        slated_map = _get_slated_rooms_for_date_range(floor, today, end_date)
+        for d, info in slated_map.items():
+            if info['status'] == 'slated' and info['team']:
+                if is_staff or info['team'].id in team_ids:
+                    has_menu = tenant_filter(Menu.query).filter_by(floor=floor, date=d).first() is not None
+                    if not has_menu:
+                        rotation_schedule.append({
+                            'date': d,
+                            'team_id': info['team'].id,
+                            'team_name': info['team'].name,
+                            'team_icon': info['team'].icon or ''
+                        })
+        rotation_schedule.sort(key=lambda x: x['date'])
+        rotation_schedule = rotation_schedule[:5]
+
     return render_template(
         'dashboard.html',
         user=user,
@@ -530,7 +549,8 @@ def dashboard():
         today=today,
         upcoming_until=upcoming_until,
         current_user=user,
-        morning_brief=morning_brief
+        morning_brief=morning_brief,
+        rotation_schedule=rotation_schedule
     )
 
 def _get_next_team_in_rotation(floor):
@@ -847,8 +867,19 @@ def people():
 
     floor = _get_active_floor(user)
     tenant_id = getattr(g, 'tenant_id', None)
-    users = tenant_filter(User.query).filter_by(floor=floor).all()
-    users.sort(key=lambda u: (u.full_name or u.username or u.email or "").lower())
+    
+    all_users = tenant_filter(User.query).filter_by(floor=floor).all()
+    all_users.sort(key=lambda u: (u.full_name or u.username or u.email or "").lower())
+    
+    page = request.args.get('page', 1, type=int)
+    users_pagination = (
+        tenant_filter(User.query)
+        .filter_by(floor=floor)
+        .order_by(func.lower(func.coalesce(User.full_name, User.username, User.email)).asc())
+        .paginate(page=page, per_page=10, error_out=False)
+    )
+    users = users_pagination.items
+
     teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
 
     team_memberships = tenant_filter(TeamMember.query).options(joinedload(TeamMember.user)).join(Team, TeamMember.team_id == Team.id).filter(Team.floor == floor).all()
@@ -865,7 +896,6 @@ def people():
 
     leaderboard_since = datetime.utcnow() - timedelta(days=30)
 
-    team_leaderboard = []
     team_query = db.session.query(
             Team.id.label('team_id'),
             Team.name.label('team_name'),
@@ -886,6 +916,22 @@ def people():
         .limit(10)
         .all()
     )
+    
+    is_fallback = False
+    if not team_rows:
+        is_fallback = True
+        team_rows = (
+            team_query
+            .join(Menu, Menu.assigned_team_id == Team.id)
+            .join(Feedback, Feedback.menu_id == Menu.id)
+            .filter(Team.floor == floor)
+            .group_by(Team.id, Team.name, Team.icon)
+            .order_by(func.sum(Feedback.rating).desc(), func.count(Feedback.id).desc(), Team.name.asc())
+            .limit(10)
+            .all()
+        )
+
+    team_leaderboard = []
     for r in team_rows:
         team_leaderboard.append(
             {
@@ -910,16 +956,30 @@ def people():
         )
     if tenant_id:
         individual_query = individual_query.filter(Menu.tenant_id == tenant_id)
-    individual_rows = (
-        individual_query
-        .join(Menu, Menu.assigned_to_id == User.id)
-        .join(Feedback, Feedback.menu_id == Menu.id)
-        .filter(User.floor == floor, Feedback.created_at >= leaderboard_since)
-        .group_by(User.id, User.full_name, User.username, User.email)
-        .order_by(func.sum(Feedback.rating).desc(), func.count(Feedback.id).desc())
-        .limit(10)
-        .all()
-    )
+        
+    if is_fallback:
+        individual_rows = (
+            individual_query
+            .join(Menu, Menu.assigned_to_id == User.id)
+            .join(Feedback, Feedback.menu_id == Menu.id)
+            .filter(User.floor == floor)
+            .group_by(User.id, User.full_name, User.username, User.email)
+            .order_by(func.sum(Feedback.rating).desc(), func.count(Feedback.id).desc())
+            .limit(10)
+            .all()
+        )
+    else:
+        individual_rows = (
+            individual_query
+            .join(Menu, Menu.assigned_to_id == User.id)
+            .join(Feedback, Feedback.menu_id == Menu.id)
+            .filter(User.floor == floor, Feedback.created_at >= leaderboard_since)
+            .group_by(User.id, User.full_name, User.username, User.email)
+            .order_by(func.sum(Feedback.rating).desc(), func.count(Feedback.id).desc())
+            .limit(10)
+            .all()
+        )
+        
     for r in individual_rows:
         label = (r.full_name or r.username or r.email or '').strip()
         individual_leaderboard.append(
@@ -942,16 +1002,30 @@ def people():
         )
     if tenant_id:
         dish_query = dish_query.filter(Menu.tenant_id == tenant_id)
-    dish_rows = (
-        dish_query
-        .join(Menu, Feedback.menu_id == Menu.id)
-        .outerjoin(Dish, Menu.dish_id == Dish.id)
-        .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
-        .group_by(dish_name_expr)
-        .order_by(func.sum(Feedback.rating).desc(), dish_name_expr.asc())
-        .limit(10)
-        .all()
-    )
+        
+    if is_fallback:
+        dish_rows = (
+            dish_query
+            .join(Menu, Feedback.menu_id == Menu.id)
+            .outerjoin(Dish, Menu.dish_id == Dish.id)
+            .filter(Menu.floor == floor)
+            .group_by(dish_name_expr)
+            .order_by(func.sum(Feedback.rating).desc(), dish_name_expr.asc())
+            .limit(10)
+            .all()
+        )
+    else:
+        dish_rows = (
+            dish_query
+            .join(Menu, Feedback.menu_id == Menu.id)
+            .outerjoin(Dish, Menu.dish_id == Dish.id)
+            .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
+            .group_by(dish_name_expr)
+            .order_by(func.sum(Feedback.rating).desc(), dish_name_expr.asc())
+            .limit(10)
+            .all()
+        )
+        
     for r in dish_rows:
         name = (r.dish_name or '').strip()
         if not name:
@@ -974,15 +1048,30 @@ def people():
         )
     if tenant_id:
         dish_champion_query = dish_champion_query.filter(Menu.tenant_id == tenant_id)
-    dish_champion_rows = (
-        dish_champion_query
-        .join(Menu, Feedback.menu_id == Menu.id)
-        .outerjoin(Dish, Menu.dish_id == Dish.id)
-        .join(Team, Menu.assigned_team_id == Team.id)
-        .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
-        .group_by(dish_name_expr, Team.id, Team.name, Team.icon)
-        .all()
-    )
+        
+    if is_fallback:
+        dish_champion_rows = (
+            dish_champion_query
+            .join(Menu, Feedback.menu_id == Menu.id)
+            .outerjoin(Dish, Menu.dish_id == Dish.id)
+            .join(Team, Menu.assigned_team_id == Team.id)
+            .filter(Menu.floor == floor)
+            .group_by(dish_name_expr, Team.id, Team.name, Team.icon)
+            .all()
+        )
+    else:
+        dish_champion_rows = (
+            dish_champion_query
+            .join(Menu, Feedback.menu_id == Menu.id)
+            .outerjoin(Dish, Menu.dish_id == Dish.id)
+            .join(Team, Menu.assigned_team_id == Team.id)
+            .filter(Menu.floor == floor, Feedback.created_at >= leaderboard_since)
+            .group_by(dish_name_expr, Team.id, Team.name, Team.icon)
+            .all()
+        )
+        
+    leaderboard_period = "All Time" if is_fallback else f"Since {leaderboard_since.strftime('%b %d')}"
+
     champions_by_dish = {}
     for r in dish_champion_rows:
         dish_name = (r.dish_name or '').strip()
@@ -1002,9 +1091,27 @@ def people():
     dish_champions.sort(key=lambda x: (-x["stars"], (x["dish_name"] or "").lower()))
     dish_champions = dish_champions[:10]
 
+    manual_champions = tenant_filter(DishChampion.query).options(
+        joinedload(DishChampion.dish),
+        joinedload(DishChampion.team)
+    ).join(Team, DishChampion.team_id == Team.id).filter(Team.floor == floor).all()
+    
+    manual_champions_list = [
+        {
+            "dish_name": mc.dish.name,
+            "dish_category": mc.dish.category,
+            "team_name": mc.team.name,
+            "team_icon": mc.team.icon or ''
+        }
+        for mc in manual_champions if mc.dish and mc.team
+    ]
+    manual_champions_list.sort(key=lambda x: x["dish_name"].lower())
+
     return render_template(
         'people.html',
         users=users,
+        all_users=all_users,
+        users_pagination=users_pagination,
         teams=teams,
         members_by_team_id=members_by_team_id,
         my_teams=my_teams,
@@ -1013,6 +1120,8 @@ def people():
         individual_leaderboard=individual_leaderboard,
         dish_leaderboard=dish_leaderboard,
         dish_champions=dish_champions,
+        manual_champions=manual_champions_list,
+        leaderboard_period=leaderboard_period,
         current_user=user,
         active_floor=floor
     )
@@ -1158,6 +1267,7 @@ def calendar():
     main_dishes = _active_dish_query().filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
     side_dishes = _active_dish_query().filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
     floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
+    user_team_ids = [m.team_id for m in tenant_filter(TeamMember.query).filter_by(user_id=user.id).all()]
 
     return render_template('calendar.html', 
                            menus=menus, 
@@ -1170,7 +1280,8 @@ def calendar():
                            current_user=user, 
                            active_floor=floor,
                            current_year=current_year,
-                           current_month=current_month)
+                           current_month=current_month,
+                           user_team_ids=user_team_ids)
 
 @pantry_bp.route('/menus/suggest', methods=['POST'])
 def suggest_menu():
@@ -1589,14 +1700,33 @@ def menus():
     )
     floor_menus = menus_pagination.items
     
+    # Fetch slated rooms for the week
+    week_start = start_of_week
+    week_end = start_of_week + timedelta(days=6)
+    slated_map = _get_slated_rooms_for_date_range(floor, week_start, week_end)
+    
     weekly_days = []
     for i in range(7):
         day_date = start_of_week + timedelta(days=i)
         day_menus = [m for m in weekly_menus if m.date == day_date]
+        
+        slated_info = slated_map.get(day_date)
+        slated_payload = None
+        if slated_info:
+            slated_payload = {
+                'status': slated_info['status'],
+                'team': {
+                    'id': slated_info['team'].id,
+                    'name': slated_info['team'].name,
+                    'icon': slated_info['team'].icon or ''
+                } if slated_info['team'] else None
+            }
+            
         weekly_days.append({
             "date": day_date,
             "is_today": day_date == today,
-            "menus": day_menus
+            "menus": day_menus,
+            "slated": slated_payload
         })
 
     # Calculate if the UPCOMING week (starting next Monday) is already planned
@@ -2125,6 +2255,321 @@ def set_team_champion():
     
     db.session.commit()
     return jsonify({'success': True, 'message': 'Champion updated successfully'})
+
+def _get_slated_rooms_for_date_range(floor, start_date, end_date):
+    """
+    Dynamically computes slated rooms for a date range based on rotation settings.
+    Returns a dictionary mapping date -> dict {status, team}
+    """
+    from models import RoomRotationSettings, RoomRotationOrder, RoomRotationException, Team
+    from app import db
+    
+    settings = tenant_filter(RoomRotationSettings.query).filter_by(floor=floor, is_active=True).first()
+    if not settings:
+        return {}
+        
+    order_records = RoomRotationOrder.query.filter_by(rotation_settings_id=settings.id).order_by(RoomRotationOrder.position.asc()).all()
+    if not order_records:
+        return {}
+        
+    ordered_teams = [rec.team for rec in order_records if rec.team is not None]
+    if not ordered_teams:
+        return {}
+        
+    exceptions = tenant_filter(RoomRotationException.query).filter(
+        RoomRotationException.floor == floor,
+        RoomRotationException.exception_date <= end_date
+    ).all()
+    
+    exception_map = {ex.exception_date: ex for ex in exceptions}
+    
+    try:
+        active_days = [int(x) for x in settings.active_days_mask.split(',') if x]
+    except Exception:
+        active_days = [1,2,3,4,5,6,7]
+        
+    slated_map = {}
+    current = settings.start_date
+    active_days_elapsed = 0
+    waari_count = max(1, settings.waari_count or 1)
+    num_rooms = len(ordered_teams)
+    
+    # Loop day-by-day
+    while current <= end_date:
+        ex = exception_map.get(current)
+        is_in_range = (current >= start_date)
+        
+        if ex:
+            if ex.exception_type == 'skip':
+                if is_in_range:
+                    slated_map[current] = {'status': 'skip', 'team': None}
+                current += timedelta(days=1)
+                continue
+            elif ex.exception_type == 'override':
+                if is_in_range:
+                    slated_map[current] = {'status': 'override', 'team': ex.override_team}
+                current += timedelta(days=1)
+                continue
+                
+        mask_day = current.weekday() + 1
+        if mask_day in active_days:
+            room_index = (active_days_elapsed // waari_count) % num_rooms
+            slated_team = ordered_teams[room_index]
+            if is_in_range:
+                slated_map[current] = {'status': 'slated', 'team': slated_team}
+            active_days_elapsed += 1
+            
+        current += timedelta(days=1)
+        
+    return slated_map
+
+@pantry_bp.route('/menus/rotation/settings', methods=['GET'])
+def get_rotation_settings():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    
+    settings = tenant_filter(RoomRotationSettings.query).filter_by(floor=floor, is_active=True).first()
+    floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
+    
+    if not settings:
+        return jsonify({
+            'settings': None,
+            'sequence': [{'team_id': t.id, 'name': t.name, 'icon': t.icon or ''} for t in floor_teams],
+            'exceptions': []
+        })
+        
+    order_records = RoomRotationOrder.query.filter_by(rotation_settings_id=settings.id).order_by(RoomRotationOrder.position.asc()).all()
+    
+    sequence = []
+    added_team_ids = set()
+    for rec in order_records:
+        if rec.team and rec.team.floor == floor:
+            sequence.append({'team_id': rec.team_id, 'name': rec.team.name, 'icon': rec.team.icon or ''})
+            added_team_ids.add(rec.team_id)
+            
+    for t in floor_teams:
+        if t.id not in added_team_ids:
+            sequence.append({'team_id': t.id, 'name': t.name, 'icon': t.icon or ''})
+            
+    exceptions = tenant_filter(RoomRotationException.query).filter(
+        RoomRotationException.floor == floor,
+        RoomRotationException.exception_date >= datetime.utcnow().date()
+    ).order_by(RoomRotationException.exception_date.asc()).all()
+    
+    exceptions_list = [{
+        'date': ex.exception_date.strftime('%Y-%m-%d'),
+        'type': ex.exception_type,
+        'override_team_id': ex.override_team_id
+    } for ex in exceptions]
+    
+    return jsonify({
+        'settings': {
+            'start_date': settings.start_date.strftime('%Y-%m-%d'),
+            'waari_count': settings.waari_count,
+            'active_days_mask': [int(x) for x in settings.active_days_mask.split(',') if x]
+        },
+        'sequence': sequence,
+        'exceptions': exceptions_list
+    })
+
+@pantry_bp.route('/menus/rotation/save', methods=['POST'])
+def save_rotation_settings():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
+    
+    data = request.json or {}
+    start_date_str = data.get('start_date')
+    waari_count = int(data.get('waari_count') or 1)
+    active_days_mask = ','.join(str(x) for x in (data.get('active_days_mask') or [1,2,3,4,5,6,7]))
+    sequence = data.get('sequence') or []
+    
+    if not start_date_str:
+        return jsonify({'error': 'Missing start date'}), 400
+        
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid start date format'}), 400
+        
+    tenant_filter(RoomRotationSettings.query).filter_by(floor=floor, is_active=True).update(
+        {RoomRotationSettings.is_active: False},
+        synchronize_session=False
+    )
+    
+    settings = RoomRotationSettings(
+        tenant_id=tenant_id,
+        floor=floor,
+        start_date=start_date,
+        waari_count=waari_count,
+        active_days_mask=active_days_mask,
+        is_active=True
+    )
+    db.session.add(settings)
+    db.session.flush()
+    
+    for idx, team_id in enumerate(sequence):
+        team = tenant_filter(Team.query).filter_by(id=team_id, floor=floor).first()
+        if team:
+            order = RoomRotationOrder(
+                rotation_settings_id=settings.id,
+                team_id=team_id,
+                position=idx
+            )
+            db.session.add(order)
+            
+    db.session.commit()
+    _clear_dashboard_cache(tenant_id, floor)
+    return jsonify({'success': True, 'message': 'Room rotation saved successfully'})
+
+@pantry_bp.route('/menus/rotation/exceptions/add', methods=['POST'])
+def add_rotation_exception():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
+    
+    data = request.json or {}
+    date_str = data.get('date')
+    ex_type = data.get('type', 'skip')
+    override_team_id = data.get('override_team_id')
+    
+    if not date_str:
+        return jsonify({'error': 'Missing date'}), 400
+        
+    try:
+        ex_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+        
+    tenant_filter(RoomRotationException.query).filter_by(
+        floor=floor,
+        exception_date=ex_date
+    ).delete(synchronize_session=False)
+    
+    ex = RoomRotationException(
+        tenant_id=tenant_id,
+        floor=floor,
+        exception_date=ex_date,
+        exception_type=ex_type,
+        override_team_id=override_team_id if ex_type == 'override' else None
+    )
+    db.session.add(ex)
+    db.session.commit()
+    _clear_dashboard_cache(tenant_id, floor)
+    return jsonify({'success': True, 'message': 'Exception added successfully'})
+
+@pantry_bp.route('/menus/rotation/exceptions/remove', methods=['POST'])
+def remove_rotation_exception():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
+    
+    data = request.json or {}
+    date_str = data.get('date')
+    
+    if not date_str:
+        return jsonify({'error': 'Missing date'}), 400
+        
+    try:
+        ex_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+        
+    tenant_filter(RoomRotationException.query).filter_by(
+        floor=floor,
+        exception_date=ex_date
+    ).delete(synchronize_session=False)
+    
+    db.session.commit()
+    _clear_dashboard_cache(tenant_id, floor)
+    return jsonify({'success': True, 'message': 'Exception removed successfully'})
+
+@pantry_bp.route('/menus/rotation/slated-team', methods=['GET'])
+def get_slated_team_for_date():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    floor = _get_active_floor(user)
+    date_str = request.args.get('date')
+    
+    if not date_str:
+        return jsonify({'error': 'Missing date'}), 400
+        
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+        
+    slated_map = _get_slated_rooms_for_date_range(floor, target_date, target_date)
+    slated_info = slated_map.get(target_date)
+    
+    if slated_info and slated_info['team']:
+        return jsonify({
+            'team_id': slated_info['team'].id,
+            'team_name': slated_info['team'].name,
+            'status': slated_info['status']
+        })
+        
+    return jsonify({
+        'team_id': None,
+        'team_name': None,
+        'status': slated_info['status'] if slated_info else None
+    })
+
+@pantry_bp.route('/menus/rotation/slated-range', methods=['GET'])
+def get_slated_range():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    floor = _get_active_floor(user)
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    
+    if not start_str or not end_str:
+        return jsonify({'error': 'Missing start/end date'}), 400
+        
+    try:
+        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+        
+    slated_map = _get_slated_rooms_for_date_range(floor, start_date, end_date)
+    
+    payload = {}
+    for d, info in slated_map.items():
+        payload[d.strftime('%Y-%m-%d')] = {
+            'status': info['status'],
+            'team': {
+                'id': info['team'].id,
+                'name': info['team'].name,
+                'icon': info['team'].icon or ''
+            } if info['team'] else None
+        }
+        
+    return jsonify(payload)
 
 @pantry_bp.route('/suggestions/<int:suggestion_id>/vote', methods=['POST'])
 def vote_suggestion(suggestion_id):
