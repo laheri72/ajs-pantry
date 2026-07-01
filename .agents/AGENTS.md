@@ -62,6 +62,18 @@ The finance subsystem tracks bills, OCR imports, and calculates floor ledger bal
 *   **OCR Pipeline:** Uploaded receipts are processed asynchronously using an RQ queue worker (SimpleCache sync fallback if Redis is down) via Tesseract/pdfplumber. The client polls the status of the OCR task.
 *   **Limiter:** `Flask-Limiter` protects OCR upload endpoints and login views. Additional write endpoints remain unthrottled in V1.
 
+### 3.4 Room Champions (Manual Linking) Feature
+*   **Purpose:** Allows pantry heads to manually designate specific Rooms (Teams) as "Champions" for any dish in the global catalog, bypassing waiting for user feedback ratings.
+*   **Model:** `DishChampion` stores many-to-many associations between `Team` and `Dish` with a unique constraint on `(tenant_id, team_id, dish_id)`.
+*   **Endpoints:**
+    1.  `GET /menus/team-champions/<team_id>`: Returns manually linked champion dishes for a Room.
+    2.  `POST /menus/team-champions/set`: Atomically clears any existing champion room for a dish on the active floor and links the new room (or unlinks if the parameter is empty).
+    3.  `GET /menus/champions-directory`: Returns the full mapping of dishes to champion teams for the current floor.
+*   **UX Flow:**
+    *   Room selection is at the top of the "Schedule Meal" modal. Selecting a room loads its champion dishes as clickable tags.
+    *   Selecting a main dish (via shortcut tag or dropdown) hides the champion tag panel and reveals the rating-based "Dish Insights" panel. A "Show Champions" button lets users reopen the panel.
+    *   "Manage Champions" modal houses a dual-accordion dashboard (Assigned vs Unassigned) with inline dropdown selection, instant auto-saving status animations, and an active search filter that automatically expands accordions when matches are found.
+
 ---
 
 ## 4. Key References from Documentation

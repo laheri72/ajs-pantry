@@ -450,6 +450,18 @@ def update_dish_estimate(dish_id):
         },
     )
     db.session.commit()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({
+            'success': True,
+            'message': 'Dish estimate updated.',
+            'estimate': {
+                'available': True,
+                'serving_count': serving_count,
+                'summary': summary,
+                'ingredients': ingredients,
+                'tips': tips
+            }
+        })
     flash('Dish estimate updated.', 'success')
     return redirect(url_for('super_admin.global_dishes', q=dish.name))
 
