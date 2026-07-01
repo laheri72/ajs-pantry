@@ -1,6 +1,6 @@
 from flask import render_template, request, redirect, url_for, session, flash, abort, jsonify, g
 from app import db
-from models import User, Dish, DishAuditLog, Menu, MenuSuggestion, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name
+from models import User, Dish, DishAuditLog, Menu, MenuSuggestion, Feedback, Request, ProcurementItem, Team, TeamMember, TeaTask, FloorLendBorrow, SpecialEvent, Announcement, Suggestion, SuggestionVote, Expense, Budget, FacultyBudgetCycle, FacultyReportSubmission, FacultyMessage, FacultyMessageFloor, normalize_dish_name, DishChampion
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
@@ -1952,6 +1952,179 @@ def get_dish_insights(dish_id):
         'suggestions': [s[0] for s in suggestions],
         'estimate': _estimate_payload_for(dish),
     })
+
+@pantry_bp.route('/menus/team-champions/<int:team_id>')
+def get_team_champions(team_id):
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    floor = _get_active_floor(user)
+    team = tenant_filter(Team.query).filter_by(id=team_id, floor=floor).first()
+    if not team:
+        return jsonify({'error': 'Team not found'}), 404
+    
+    champions = tenant_filter(DishChampion.query).options(joinedload(DishChampion.dish)).filter_by(team_id=team_id).all()
+    
+    dish_list = [
+        {
+            'id': dc.dish.id,
+            'name': dc.dish.name,
+            'category': dc.dish.category
+        }
+        for dc in champions if dc.dish
+    ]
+    
+    return jsonify({'team_id': team_id, 'champions': dish_list})
+
+@pantry_bp.route('/menus/team-champions/add', methods=['POST'])
+def add_team_champion():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
+    
+    team_id = request.form.get('team_id') or request.json.get('team_id')
+    dish_id = request.form.get('dish_id') or request.json.get('dish_id')
+    
+    if not team_id or not dish_id:
+        return jsonify({'error': 'Missing parameters'}), 400
+        
+    try:
+        team_id = int(team_id)
+        dish_id = int(dish_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid parameters'}), 400
+        
+    team = tenant_filter(Team.query).filter_by(id=team_id, floor=floor).first()
+    if not team:
+        return jsonify({'error': 'Team not found'}), 404
+        
+    dish = Dish.query.filter_by(id=dish_id).first()
+    if not dish:
+        return jsonify({'error': 'Dish not found'}), 404
+        
+    existing = tenant_filter(DishChampion.query).filter_by(team_id=team_id, dish_id=dish_id).first()
+    if existing:
+        return jsonify({'message': 'Already a champion'}), 200
+        
+    dc = DishChampion(
+        team_id=team_id,
+        dish_id=dish_id,
+        tenant_id=tenant_id
+    )
+    db.session.add(dc)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': f'Linked {dish.name} as champion for {team.name}'})
+
+@pantry_bp.route('/menus/team-champions/remove', methods=['POST'])
+def remove_team_champion():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    
+    team_id = request.form.get('team_id') or request.json.get('team_id')
+    dish_id = request.form.get('dish_id') or request.json.get('dish_id')
+    
+    if not team_id or not dish_id:
+        return jsonify({'error': 'Missing parameters'}), 400
+        
+    try:
+        team_id = int(team_id)
+        dish_id = int(dish_id)
+    except ValueError:
+        return jsonify({'error': 'Invalid parameters'}), 400
+        
+    team = tenant_filter(Team.query).filter_by(id=team_id, floor=floor).first()
+    if not team:
+        return jsonify({'error': 'Team not found'}), 404
+        
+    dc = tenant_filter(DishChampion.query).filter_by(team_id=team_id, dish_id=dish_id).first()
+    if not dc:
+        return jsonify({'error': 'Champion relationship not found'}), 404
+        
+    db.session.delete(dc)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Champion link removed'})
+
+@pantry_bp.route('/menus/champions-directory')
+def get_champions_directory():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    floor = _get_active_floor(user)
+    
+    # Query all dish champions for teams on this floor
+    champions = (
+        tenant_filter(DishChampion.query)
+        .join(Team, Team.id == DishChampion.team_id)
+        .filter(Team.floor == floor)
+        .all()
+    )
+    
+    mapping = {dc.dish_id: dc.team_id for dc in champions}
+    return jsonify(mapping)
+
+@pantry_bp.route('/menus/team-champions/set', methods=['POST'])
+def set_team_champion():
+    user = _require_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+    if user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Permission denied'}), 403
+        
+    floor = _get_active_floor(user)
+    tenant_id = getattr(g, 'tenant_id', None)
+    
+    dish_id = request.form.get('dish_id') or request.json.get('dish_id')
+    team_id = request.form.get('team_id') or request.json.get('team_id')
+    
+    if not dish_id:
+        return jsonify({'error': 'Missing dish_id'}), 400
+        
+    try:
+        dish_id = int(dish_id)
+        team_id = int(team_id) if team_id else None
+    except ValueError:
+        return jsonify({'error': 'Invalid parameters'}), 400
+    
+    # Delete all existing champions for this dish on this floor
+    floor_teams = tenant_filter(Team.query).filter_by(floor=floor).all()
+    floor_team_ids = [t.id for t in floor_teams]
+    
+    if floor_team_ids:
+        tenant_filter(DishChampion.query).filter(
+            DishChampion.dish_id == dish_id,
+            DishChampion.team_id.in_(floor_team_ids)
+        ).delete(synchronize_session=False)
+    
+    if team_id:
+        # Verify team belongs to floor
+        team = tenant_filter(Team.query).filter_by(id=team_id, floor=floor).first()
+        if not team:
+            db.session.rollback()
+            return jsonify({'error': 'Team not found or not on this floor'}), 404
+            
+        dc = DishChampion(
+            team_id=team_id,
+            dish_id=dish_id,
+            tenant_id=tenant_id
+        )
+        db.session.add(dc)
+    
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Champion updated successfully'})
 
 @pantry_bp.route('/suggestions/<int:suggestion_id>/vote', methods=['POST'])
 def vote_suggestion(suggestion_id):
