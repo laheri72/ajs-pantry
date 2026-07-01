@@ -2402,31 +2402,39 @@ def save_rotation_settings():
     except ValueError:
         return jsonify({'error': 'Invalid start date format'}), 400
         
-    tenant_filter(RoomRotationSettings.query).filter_by(floor=floor, is_active=True).update(
-        {RoomRotationSettings.is_active: False},
-        synchronize_session=False
-    )
+    # Clean up any leftover inactive settings from previous runs to reclaim database space
+    inactive_settings = tenant_filter(RoomRotationSettings.query).filter_by(floor=floor, is_active=False).all()
+    for s in inactive_settings:
+        db.session.delete(s)
+
+    settings = tenant_filter(RoomRotationSettings.query).filter_by(floor=floor, is_active=True).first()
+    if settings:
+        settings.start_date = start_date
+        settings.waari_count = waari_count
+        settings.active_days_mask = active_days_mask
+        # Clears existing orders, triggering SQLAlchemy's delete-orphan cascade
+        settings.orders.clear()
+    else:
+        settings = RoomRotationSettings(
+            tenant_id=tenant_id,
+            floor=floor,
+            start_date=start_date,
+            waari_count=waari_count,
+            active_days_mask=active_days_mask,
+            is_active=True
+        )
+        db.session.add(settings)
     
-    settings = RoomRotationSettings(
-        tenant_id=tenant_id,
-        floor=floor,
-        start_date=start_date,
-        waari_count=waari_count,
-        active_days_mask=active_days_mask,
-        is_active=True
-    )
-    db.session.add(settings)
     db.session.flush()
     
     for idx, team_id in enumerate(sequence):
         team = tenant_filter(Team.query).filter_by(id=team_id, floor=floor).first()
         if team:
             order = RoomRotationOrder(
-                rotation_settings_id=settings.id,
                 team_id=team_id,
                 position=idx
             )
-            db.session.add(order)
+            settings.orders.append(order)
             
     db.session.commit()
     _clear_dashboard_cache(tenant_id, floor)
