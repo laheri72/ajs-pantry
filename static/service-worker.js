@@ -46,7 +46,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('push', (event) => {
     let data = {};
     if (event.data) {
-        data = event.data.json();
+        try {
+            data = event.data.json();
+        } catch (e) {
+            data = {
+                title: 'Maskan Breakfast Notification',
+                body: event.data.text()
+            };
+        }
     }
 
     const title = data.title || 'Maskan Breakfast Notification';
@@ -54,6 +61,10 @@ self.addEventListener('push', (event) => {
         body: data.body || 'You have a new update.',
         icon: data.icon || '/static/icons/icon-192.png',
         badge: '/static/icons/icon-192.png',
+        vibrate: [100, 50, 100], // Vibrates device
+        tag: 'ajs-pantry-alert', // Collapses duplicate alerts
+        renotify: true, // Forces sound and vibration for new alerts
+        silent: false, // Ensures sound is not suppressed
         data: {
             url: data.url || '/dashboard'
         }
