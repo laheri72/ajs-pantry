@@ -1087,6 +1087,9 @@ def calendar():
             "description": m.description,
             "date": m.date.isoformat() if m.date else None,
             "assigned_to_id": m.assigned_to_id,
+            "assigned_team_id": m.assigned_team_id,
+            "assigned_team_name": m.assigned_team.name if m.assigned_team else None,
+            "assigned_team_icon": m.assigned_team.icon if m.assigned_team else None,
             "assigned_to_label": (
                 (
                     (f"{m.assigned_team.icon} {m.assigned_team.name}".strip() if m.assigned_team.icon else m.assigned_team.name)

@@ -267,6 +267,24 @@
 {% endif %}
 
 <style>
+    .room-badge {
+        font-size: 0.62rem !important;
+        font-weight: 700 !important;
+        padding: 3px 6px !important;
+        letter-spacing: 0.02em;
+        border-radius: 50rem !important;
+        display: inline-flex;
+        align-items: center;
+        background-color: #fff7ed !important;
+        color: #c2410c !important;
+        border: 1px solid #fdb874 !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .dark-theme .room-badge {
+        background-color: #431407 !important;
+        color: #fdba74 !important;
+        border: 1px solid #7c2d12 !important;
+    }
     .calendar-event {
         cursor: pointer;
         white-space: nowrap;
@@ -601,12 +619,22 @@ function generateCalendar(year, month) {
             dayCell.appendChild(badgeContainer);
 
             // Render Menus
-            menus.filter(m => m.date === dateStr).forEach(menu => {
+            const dayMenus = menus.filter(m => m.date === dateStr);
+            dayMenus.forEach(menu => {
                 const event = document.createElement('div');
                 event.className = 'calendar-event bg-teal';
                 event.textContent = menu.title;
                 event.onclick = (e) => { e.stopPropagation(); showEventDetail('menu', menu); };
                 dayCell.appendChild(event);
+
+                 // Add room/team badge if assigned
+                 if (menu.assigned_team_name) {
+                     const teamBadge = document.createElement('span');
+                     teamBadge.className = 'badge room-badge';
+                     const iconStr = menu.assigned_team_icon ? `${menu.assigned_team_icon} ` : '';
+                     teamBadge.innerHTML = `<i class="fas fa-users me-1"></i>${iconStr}${menu.assigned_team_name}`;
+                     badgeContainer.appendChild(teamBadge);
+                 }
             });
 
             // Render Tea Tasks
