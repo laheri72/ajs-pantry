@@ -46,7 +46,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.6">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.9">
     <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}?v=1.3">
 
     <!-- Active Navigation Tab Highlight (Bypasses Static File Cache) -->
@@ -65,6 +65,19 @@
 </head>
 
 <body>
+    <script>
+        (function() {
+            let savedTheme = localStorage.getItem('selected-theme');
+            if (!savedTheme) {
+                savedTheme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'teal';
+            }
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-theme');
+            } else if (savedTheme !== 'teal') {
+                document.body.classList.add('theme-' + savedTheme);
+            }
+        })();
+    </script>
     {% if current_user %}
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-teal fixed-top app-navbar{% if current_user.role in ['admin', 'pantryHead'] %} app-navbar--dense{% endif %}">
@@ -191,10 +204,44 @@
                 {% endif %}
 
                 <ul class="navbar-nav app-user-nav d-flex align-items-center flex-row gap-2">
-                    <li class="nav-item">
-                        <a class="nav-link px-2" href="#" onclick="toggleTheme(); return false;" aria-label="Toggle theme" title="Toggle theme">
-                            <i class="fas fa-moon" id="themeIcon"></i>
+                    <li class="nav-item dropdown me-1 d-flex align-items-center">
+                        <a class="nav-link px-0 app-theme-button" href="#" id="themeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Theme">
+                            <span id="currentThemeIconContainer"><i class="fas fa-palette" id="currentThemeIcon"></i></span>
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="themeDropdown" id="themeDropdownMenu">
+                            <li><h6 class="dropdown-header small text-muted text-uppercase fw-bold">Select Theme</h6></li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setAppTheme('teal'); return false;" data-theme-opt="teal">
+                                    <i class="fas fa-palette text-teal" style="color: #26A69A !important;"></i> Teal Green
+                                    <i class="fas fa-check ms-auto d-none check-mark"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setAppTheme('navy'); return false;" data-theme-opt="navy">
+                                    <svg viewBox="0 0 512 512" style="width: 1rem; height: 1rem; color: #1E3A8A !important; fill: currentColor;" class="svg-inline--fa"><path d="M488 232h-33c-5.2-32.9-20.9-62.5-43.2-85.3l23.3-23.3c6.2-6.2 6.2-16.4 0-22.6s-16.4-6.2-22.6 0l-23.3 23.3c-22.8-22.3-52.4-38-85.3-43.2V48c0-8.8-7.2-16-16-16s-16 7.2-16 16v33.9c-32.9 5.2-62.5 20.9-85.3 43.2L165.7 101.8c-6.2-6.2-16.4-6.2-22.6 0s-6.2 16.4 0 22.6l23.3 23.3c-22.3 22.8-38 52.4-43.2 85.3H90.1c-8.8 0-16 7.2-16 16s7.2 16 16 16h33.9c5.2 32.9 20.9 62.5 43.2 85.3L143.9 373c-6.2 6.2-6.2 16.4 0 22.6s16.4 6.2 22.6 0l23.3-23.3c22.8 22.3 52.4 38 85.3 43.2V448c0 8.8 7.2 16 16 16s16-7.2 16-16v-33.9c32.9-5.2 62.5-20.9 85.3-43.2l23.3 23.3c6.2 6.2 16.4 6.2 22.6 0s6.2-16.4 0-22.6l-23.3-23.3c22.3-22.8 38-52.4 43.2-85.3H488c8.8 0 16-7.2 16-16s-7.2-16-16-16zm-232 88c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64z"/></svg> Navy Blue
+                                    <i class="fas fa-check ms-auto d-none check-mark"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setAppTheme('platinum'); return false;" data-theme-opt="platinum">
+                                    <i class="fas fa-gem" style="color: #94A3B8 !important;"></i> Platinum Elegance
+                                    <i class="fas fa-check ms-auto d-none check-mark"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setAppTheme('saffron'); return false;" data-theme-opt="saffron">
+                                    <i class="fas fa-sun" style="color: #D4AF37 !important;"></i> Saffron & Gold
+                                    <i class="fas fa-check ms-auto d-none check-mark"></i>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setAppTheme('dark'); return false;" data-theme-opt="dark">
+                                    <i class="fas fa-moon" style="color: #64748B !important;"></i> Dark Mode
+                                    <i class="fas fa-check ms-auto d-none check-mark"></i>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -267,7 +314,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=1.3"></script>
     <script>
         // Initialize cooking alerts on page load
         document.addEventListener('DOMContentLoaded', function () {

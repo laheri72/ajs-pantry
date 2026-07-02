@@ -6,6 +6,7 @@
     --teal-dark: #00695C;
     --teal-light: #4DB6AC;
     --teal-lighter: #B2DFDB;
+    --teal-soft: rgba(38, 166, 154, 0.1);
     
     /* Semantic Colors - Light (Default) */
     --bg-body: #F5F5F5;
@@ -1246,7 +1247,7 @@ main {
 .bg-soft-warning { background-color: rgba(255, 152, 0, 0.1) !important; color: #FF9800 !important; }
 .bg-soft-danger { background-color: rgba(244, 67, 54, 0.1) !important; color: #F44336 !important; }
 .bg-soft-info { background-color: rgba(33, 150, 243, 0.1) !important; color: #2196F3 !important; }
-.bg-soft-teal { background-color: rgba(38, 166, 154, 0.1) !important; color: #26A69A !important; }
+.bg-soft-teal { background-color: var(--teal-soft) !important; color: var(--teal-primary) !important; }
 
 /* Vibrant Room/Team Badge styles with high contrast for both light & dark themes */
 .room-badge {
@@ -1301,3 +1302,116 @@ body.dark-theme .room-badge-interactive {
 body.dark-theme .room-badge-interactive:hover {
     background-color: #064e3b !important;
 }
+
+/* Theme Customizations */
+body.theme-navy {
+    --teal-primary: #1e3a8a;
+    --teal-dark: #0f172a;
+    --teal-light: #3b82f6;
+    --teal-lighter: #dbeafe;
+    --border-teal: #1e3a8a;
+    --bg-surface-alt: #eff6ff;
+    --teal-soft: rgba(30, 58, 138, 0.1);
+}
+
+body.theme-platinum {
+    --teal-primary: #475569;
+    --teal-dark: #0f172a;
+    --teal-light: #94a3b8;
+    --teal-lighter: #f1f5f9;
+    --border-teal: #475569;
+    --bg-surface-alt: #f1f5f9;
+    --teal-soft: rgba(71, 85, 105, 0.1);
+}
+
+body.theme-saffron {
+    --teal-primary: #d97706;
+    --teal-dark: #7c2d12;
+    --teal-light: #d4af37;
+    --teal-lighter: #fffbeb;
+    --border-teal: #d97706;
+    --bg-surface-alt: #fef3c7;
+    --teal-soft: rgba(217, 119, 6, 0.1);
+}
+
+/* Premium Theme Selector Badge */
+.app-theme-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-theme-button:hover {
+    transform: scale(1.08) translateY(-1px);
+    background-color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+body.dark-theme .app-theme-button {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .app-theme-button:hover {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+#themeDropdownMenu .dropdown-item.active {
+    background-color: var(--teal-lighter) !important;
+    color: var(--teal-dark) !important;
+    font-weight: 600;
+}
+
+/* Global Smooth Transitions */
+body, nav, .card, .btn, .nav-link, .modal-content, .dropdown-menu {
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
+}
+
+/* Premium Selection & Scrollbar Colors */
+body ::selection {
+    background-color: var(--teal-lighter) !important;
+    color: var(--teal-dark) !important;
+}
+
+body::-webkit-scrollbar {
+    width: 10px;
+}
+
+body::-webkit-scrollbar-track {
+    background: var(--bg-body);
+}
+
+body::-webkit-scrollbar-thumb {
+    background-color: var(--teal-light);
+    border-radius: 5px;
+    border: 2px solid var(--bg-body);
+}
+
+body::-webkit-scrollbar-thumb:hover {
+    background-color: var(--teal-primary);
+}
+
+/* Dynamic Glow Shadows on Buttons */
+.btn-teal {
+    box-shadow: 0 4px 12px rgba(38, 166, 154, 0.18);
+}
+
+body.theme-navy .btn-teal {
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.18);
+}
+
+body.theme-platinum .btn-teal {
+    box-shadow: 0 4px 12px rgba(71, 85, 105, 0.18);
+}
+
+body.theme-saffron .btn-teal {
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.18);
+}
+
+
