@@ -65,31 +65,71 @@ function initializeSilentPasswordMatching() {
 }
 
 // Theme Management
-function loadTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark-theme');
-        const themeIcon = document.getElementById('themeIcon');
-        if (themeIcon) {
-            themeIcon.className = 'fas fa-sun';
+function setAppTheme(themeName) {
+    const body = document.body;
+    
+    // Remove all theme classes
+    body.classList.remove('theme-teal', 'theme-navy', 'theme-platinum', 'theme-saffron', 'dark-theme');
+    
+    // Set theme representation icon
+    const iconContainer = document.getElementById('currentThemeIconContainer');
+    if (iconContainer) {
+        if (themeName === 'dark') {
+            iconContainer.innerHTML = '<i class="fas fa-moon" id="currentThemeIcon" style="color: #F59E0B;"></i>';
+        } else if (themeName === 'navy') {
+            iconContainer.innerHTML = `<svg id="currentThemeIcon" viewBox="0 0 512 512" style="width: 1rem; height: 1rem; display: inline-block; vertical-align: middle; color: #1E3A8A; fill: currentColor;"><path d="M488 232h-33c-5.2-32.9-20.9-62.5-43.2-85.3l23.3-23.3c6.2-6.2 6.2-16.4 0-22.6s-16.4-6.2-22.6 0l-23.3 23.3c-22.8-22.3-52.4-38-85.3-43.2V48c0-8.8-7.2-16-16-16s-16 7.2-16 16v33.9c-32.9 5.2-62.5 20.9-85.3 43.2L165.7 101.8c-6.2-6.2-16.4-6.2-22.6 0s-6.2 16.4 0 22.6l23.3 23.3c-22.3 22.8-38 52.4-43.2 85.3H90.1c-8.8 0-16 7.2-16 16s7.2 16 16 16h33.9c5.2 32.9 20.9 62.5 43.2 85.3L143.9 373c-6.2 6.2-6.2 16.4 0 22.6s16.4 6.2 22.6 0l23.3-23.3c22.8 22.3 52.4 38 85.3 43.2V448c0 8.8 7.2 16 16 16s16-7.2 16-16v-33.9c32.9-5.2 62.5-20.9 85.3-43.2l23.3 23.3c6.2 6.2 16.4 6.2 22.6 0s6.2-16.4 0-22.6l-23.3-23.3c22.3-22.8 38-52.4 43.2-85.3H488c8.8 0 16-7.2 16-16s-7.2-16-16-16zm-232 88c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64z"/></svg>`;
+        } else if (themeName === 'platinum') {
+            iconContainer.innerHTML = '<i class="fas fa-gem" id="currentThemeIcon" style="color: #475569;"></i>';
+        } else if (themeName === 'saffron') {
+            iconContainer.innerHTML = '<i class="fas fa-sun" id="currentThemeIcon" style="color: #D97706;"></i>';
+        } else {
+            iconContainer.innerHTML = '<i class="fas fa-palette" id="currentThemeIcon" style="color: #26A69A;"></i>';
         }
     }
+    
+    // Apply new theme class
+    if (themeName === 'dark') {
+        body.classList.add('dark-theme');
+    } else if (themeName !== 'teal') {
+        body.classList.add(`theme-${themeName}`);
+    }
+
+    // Update active checkmarks in the dropdown
+    const dropdownOptions = document.querySelectorAll('#themeDropdownMenu [data-theme-opt]');
+    dropdownOptions.forEach(opt => {
+        const check = opt.querySelector('.check-mark');
+        if (check) {
+            if (opt.getAttribute('data-theme-opt') === themeName) {
+                check.classList.remove('d-none');
+                opt.classList.add('active');
+            } else {
+                check.classList.add('d-none');
+                opt.classList.remove('active');
+            }
+        }
+    });
+    
+    // Save to local storage
+    localStorage.setItem('selected-theme', themeName);
+    
+    // Synchronize legacy key for backward compatibility
+    localStorage.setItem('theme', themeName === 'dark' ? 'dark' : 'light');
+}
+
+function loadTheme() {
+    let savedTheme = localStorage.getItem('selected-theme');
+    if (!savedTheme) {
+        savedTheme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'teal';
+    }
+    setAppTheme(savedTheme);
 }
 
 function toggleTheme() {
     const body = document.body;
-    const themeIcon = document.getElementById('themeIcon');
-    
     if (body.classList.contains('dark-theme')) {
-        body.classList.remove('dark-theme');
-        if (themeIcon) themeIcon.className = 'fas fa-moon';
-        localStorage.setItem('theme', 'light');
-        showNotification('Light theme activated', 'success');
+        setAppTheme('teal');
     } else {
-        body.classList.add('dark-theme');
-        if (themeIcon) themeIcon.className = 'fas fa-sun';
-        localStorage.setItem('theme', 'dark');
-        showNotification('Dark theme activated', 'success');
+        setAppTheme('dark');
     }
 }
 
@@ -862,6 +902,7 @@ function showCookingNotification(task) {
 }
 
 // Expose global functions
+window.setAppTheme = setAppTheme;
 window.toggleTheme = toggleTheme;
 window.refreshData = refreshData;
 window.downloadApp = downloadApp;
