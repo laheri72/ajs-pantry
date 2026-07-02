@@ -113,6 +113,16 @@ body {
     transform: translateY(-1px);
 }
 
+.app-navbar .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.22);
+    color: var(--white) !important;
+    font-weight: 600;
+}
+
+.app-navbar .nav-link.active:hover {
+    background-color: rgba(255, 255, 255, 0.28);
+}
+
 .navbar-toggler {
     border: none;
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ajs-pantry-v2';
+const CACHE_NAME = 'ajs-pantry-v3';
 const STATIC_ASSETS = [
     '/',
     '/static/style.css',

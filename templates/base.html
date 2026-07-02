@@ -46,8 +46,20 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.6">
     <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}?v=1.3">
+
+    <!-- Active Navigation Tab Highlight (Bypasses Static File Cache) -->
+    <style>
+        .app-navbar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.22) !important;
+            color: var(--white) !important;
+            font-weight: 600 !important;
+        }
+        .app-navbar .nav-link.active:hover {
+            background-color: rgba(255, 255, 255, 0.28) !important;
+        }
+    </style>
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -87,78 +99,78 @@
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('pantry.dashboard') }}">
+                        <a class="nav-link{% if request.path in ['/dashboard', '/home', '/'] %} active{% endif %}" href="{{ url_for('pantry.dashboard') }}">
                             <i class="fas fa-home"></i> Home
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('pantry.people') }}">
+                        <a class="nav-link{% if request.path == '/people' or request.path.startswith('/people/') %} active{% endif %}" href="{{ url_for('pantry.people') }}">
                             <i class="fas fa-users"></i> People
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('pantry.calendar') }}">
+                        <a class="nav-link{% if request.path == '/calendar' or request.path.startswith('/calendar/') or request.path.startswith('/special-events') %} active{% endif %}" href="{{ url_for('pantry.calendar') }}">
                             <i class="fas fa-calendar"></i> Calendar
                         </a>
                     </li>
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('pantry.menus') }}">
+                        <a class="nav-link{% if request.path == '/menus' or request.path.startswith('/menus/') %} active{% endif %}" href="{{ url_for('pantry.menus') }}">
                             <i class="fas fa-utensils"></i> Menus
                         </a>
                     </li>
                     {% endif %}
                     {% if current_user.role in ['admin', 'pantryHead', 'teaManager'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('ops.tea') }}">
+                        <a class="nav-link{% if request.path == '/tea' or request.path.startswith('/tea/') %} active{% endif %}" href="{{ url_for('ops.tea') }}">
                             <i class="fas fa-coffee"></i> Tea
                         </a>
                     </li>
                     {% endif %}
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('finance.expenses') }}">
+                        <a class="nav-link{% if request.path == '/expenses' or request.path.startswith('/expenses/') or request.path.startswith('/bills') %} active{% endif %}" href="{{ url_for('finance.expenses') }}">
                             <i class="fas fa-money-bill"></i> Expenses
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('faculty.reports_page') }}">
+                        <a class="nav-link{% if request.path == '/reports' or request.path.startswith('/reports/') %} active{% endif %}" href="{{ url_for('faculty.reports_page') }}">
                             <i class="fas fa-file-upload"></i> Reports
                         </a>
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('pantry.feedbacks') }}">
+                        <a class="nav-link{% if request.path == '/feedbacks' or request.path.startswith('/feedbacks/') or request.path.startswith('/suggestions') %} active{% endif %}" href="{{ url_for('pantry.feedbacks') }}">
                             <i class="fas fa-comment"></i> Feedbacks
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('ops.requests') }}">
+                        <a class="nav-link{% if request.path == '/requests' or request.path.startswith('/requests/') %} active{% endif %}" href="{{ url_for('ops.requests') }}">
                             <i class="fas fa-bell"></i> Requests
                         </a>
                     </li>
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('ops.procurement') }}">
+                        <a class="nav-link{% if request.path == '/procurement' or request.path.startswith('/procurement/') %} active{% endif %}" href="{{ url_for('ops.procurement') }}">
                             <i class="fas fa-shopping-cart"></i> Procurement
                         </a>
                     </li>
                     {% endif %}
                     {% if current_user.role in ['admin', 'pantryHead'] %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('finance.lend_borrow') }}">
+                        <a class="nav-link{% if request.path == '/lend-borrow' or request.path.startswith('/lend-borrow/') %} active{% endif %}" href="{{ url_for('finance.lend_borrow') }}">
                             <i class="fas fa-handshake"></i> Lend & Borrow
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin_panel.floor_admin') }}">
+                        <a class="nav-link{% if request.path == '/floor-admin' or request.path.startswith('/floor-admin/') or request.path.startswith('/teams') %} active{% endif %}" href="{{ url_for('admin_panel.floor_admin') }}">
                             <i class="fas fa-user-shield"></i> Floor Admin
                         </a>
                     </li>
                     {% endif %}
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin_panel.admin') }}">
+                        <a class="nav-link{% if request.path == '/admin' or request.path.startswith('/admin/') %} active{% endif %}" href="{{ url_for('admin_panel.admin') }}">
                             <i class="fas fa-cog"></i> Admin
                         </a>
                     </li>
