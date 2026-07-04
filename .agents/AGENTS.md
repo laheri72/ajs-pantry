@@ -92,7 +92,30 @@ The finance subsystem tracks bills, OCR imports, and calculates floor ledger bal
     *   **Dynamic Slated Badges**: If a calendar day has no scheduled menus, a dashed, interactive slated chip (e.g. `Slated: Room 2091`) is displayed. Clicking it opens the Schedule Modal pre-populated with that date and team.
     *   **Auto-populate Selection**: When the Schedule modal opens or its date input changes, the slated team for that date is automatically fetched and selected. This in turn triggers loading the team's custom champion dishes.
 
+### 3.6 Multi-Theme & UI/UX Navigation Customization
+*   **Purpose:** Allows members and pantry heads to customize their dashboard aura across 4 distinct color schemes plus the original dark mode:
+    1.  `Teal Green` (Default)
+    2.  `Navy Blue` (Ocean branding using a custom ship steering wheel SVG helm icon in the dropdown and dynamic circular selector badge).
+    3.  `Platinum Elegance` (Light, airy slate/silver expensive styling).
+    4.  `Imperial Saffron & Gold` (Traditional richness with saffron orange and metallic gold accents).
+    5.  `Dark Mode` (Kept fully intact and selectable inside the dropdown).
+*   **Persistency:** Theme preference is stored in `localStorage` under `selected-theme` (with fallback sync to `theme` for backward compatibility).
+*   **FOUC Bootloader:** A self-contained inline script block immediately follows the opening `<body>` tag in [base.html](file:///D:/My%20Sites/ajs-pantry/templates/base.html) to apply the active theme class to `<body>` prior to layout painting, avoiding page flash.
+*   **Calendar UX Enhancements:** 
+    1.  *Today Indicator:* Restyled to use an Indigo theme (solid circular date badge and background tint) to distinguish it from the teal cooking turn reminder cards.
+    2.  *Dynamic Card Hover:* Calendar day cards elevate (`translateY(-3px)`) and expand slightly on hover, applying a drop shadow and border highlights matching the selected theme.
+    3.  *Exclusion validation:* Form inputs for dish selection automatically toggle state to prevent duplicate inputs (manual text fields are disabled if a dropdown selection exists, and the dropdown is cleared if manual typing starts).
+
+### 3.7 Bulk Week Planner Refactor
+*   **Purpose:** Compact grid scheduler supporting week-shifting navigation, locked/disabled past or pre-scheduled dates, automatic pre-population of slated rooms with leaf/holiday exceptions and user-absence alerts, champion dish quick-fill chips, and inline menu estimate modal stacking.
+*   **Spam-Safe Notification:** 
+    1.  *Consolidated Client Scan:* Gathers unique assigned rooms, allowing selection of at most 3 recipients per room via checkbox limits.
+    2.  *Silent Option:* "Create Without Informing (Silent)" submits empty recipient lists, bypassing email dispatch completely.
+    3.  *Consolidated Backend Route:* Compiles a single recipient map sending exactly one email per person listing all weekly turns (bypassing Google spam limits).
+*   **Date Generation:** Uses `formatDateLocal()` instead of UTC `.toISOString()` to prevent day-shifting bugs in local timezones.
+
 ---
+
 
 ## 4. Key References from Documentation
 

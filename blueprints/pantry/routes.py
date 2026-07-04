@@ -675,16 +675,25 @@ def bulk_schedule():
     if not user or user.role not in ['admin', 'pantryHead']:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    data = request.json # List of meal objects
-    if not data or not isinstance(data, list):
+    req_data = request.json
+    if not req_data:
+        return jsonify({'error': 'Invalid data'}), 400
+        
+    if isinstance(req_data, list):
+        meals = req_data
+        notify_user_ids = None  # fallback to old behavior (everyone)
+    elif isinstance(req_data, dict):
+        meals = req_data.get('meals', [])
+        notify_user_ids = req_data.get('notify_user_ids', [])
+    else:
         return jsonify({'error': 'Invalid data format'}), 400
         
     floor = _get_active_floor(user)
     
     try:
         # Pre-cleanup: Delete existing menus for the range if we are doing a full week refresh
-        if len(data) >= 5:
-            dates = [datetime.strptime(item.get('date'), '%Y-%m-%d').date() for item in data if item.get('date')]
+        if len(meals) >= 5:
+            dates = [datetime.strptime(item.get('date'), '%Y-%m-%d').date() for item in meals if item.get('date')]
             if dates:
                 start_d, end_d = min(dates), max(dates)
                 tenant_filter(Menu.query).filter(
@@ -696,7 +705,7 @@ def bulk_schedule():
         # Assignment map for consolidated mailing: {user_id: [menu_details]}
         recipient_map = {}
 
-        for item in data:
+        for item in meals:
             # Basic validation
             menu_date = datetime.strptime(item.get('date'), '%Y-%m-%d').date()
             
@@ -782,6 +791,9 @@ def bulk_schedule():
 
             print(f"DEBUG: Found {len(recipients)} recipients for date {menu_date}")
             for rid in set(recipients):
+                # Filter by selected notify_user_ids if provided
+                if notify_user_ids is not None and rid not in notify_user_ids:
+                    continue
                 if rid not in recipient_map: recipient_map[rid] = []
                 recipient_map[rid].append({
                     'date': menu_date,
@@ -818,7 +830,6 @@ def bulk_schedule():
                 
                 if not sb_key:
                     print("WARNING: SUPABASE_SERVICE_ROLE_KEY not found in environment!")
-                    # Try to fallback to any other supabase key if available
                     sb_key = os.environ.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_KEY')
 
                 headers = {
@@ -2566,15 +2577,48 @@ def get_slated_range():
         
     slated_map = _get_slated_rooms_for_date_range(floor, start_date, end_date)
     
+    # Query existing menus in the range
+    existing_menus = tenant_filter(Menu.query).filter(
+        Menu.floor == floor,
+        Menu.date >= start_date,
+        Menu.date <= end_date
+    ).all()
+    menu_map = {m.date: m for m in existing_menus}
+    
     payload = {}
     for d, info in slated_map.items():
+        menu = menu_map.get(d)
+        
+        # Conflict check for slated team
+        conflicts = []
+        if info['team']:
+            absent = db.session.query(User.full_name).join(TeamMember, TeamMember.user_id == User.id).join(Request, Request.user_id == User.id).filter(
+                TeamMember.team_id == info['team'].id,
+                Request.status == 'approved',
+                Request.request_type == 'absence',
+                Request.start_date <= d,
+                Request.end_date >= d
+            ).all()
+            conflicts = [m[0] for m in absent]
+            
         payload[d.strftime('%Y-%m-%d')] = {
             'status': info['status'],
             'team': {
                 'id': info['team'].id,
                 'name': info['team'].name,
-                'icon': info['team'].icon or ''
-            } if info['team'] else None
+                'icon': info['team'].icon or '',
+                'conflicts': conflicts
+            } if info['team'] else None,
+            'menu': {
+                'id': menu.id,
+                'title': menu.title,
+                'dish_id': menu.dish_id,
+                'dish_name': menu.dish.name if menu.dish else menu.title,
+                'side_dish_id': menu.side_dish_id,
+                'side_dish_name': menu.side_dish.name if menu.side_dish else '',
+                'assigned_team_id': menu.assigned_team_id,
+                'assigned_team_name': menu.assigned_team.name if menu.assigned_team else ''
+            } if menu else None
         }
         
     return jsonify(payload)

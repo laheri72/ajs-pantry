@@ -194,17 +194,12 @@
         </li>
         {% if current_user.role in ['admin', 'pantryHead'] %}
         <li class="nav-item ms-2">
-            <button class="nav-link {% if is_next_week_planned %}opacity-50{% endif %}" 
+            <button class="nav-link" 
                     id="planner-tab" 
-                    {% if is_next_week_planned %}
-                        disabled 
-                        title="Upcoming week is already planned. Delete existing records to use bulk planner again."
-                    {% else %}
-                        data-bs-toggle="modal" data-bs-target="#bulkPlannerModal"
-                    {% endif %} 
+                    data-bs-toggle="modal" data-bs-target="#bulkPlannerModal"
                     type="button">
-                <i class="fas fa-magic me-1 {% if is_next_week_planned %}text-muted{% else %}text-warning{% endif %}"></i> 
-                Bulk Week Planner {% if is_next_week_planned %}(Planned){% endif %}
+                <i class="fas fa-magic me-1 text-warning"></i> 
+                Bulk Week Planner
             </button>
         </li>
         {% endif %}
@@ -1151,21 +1146,28 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
             </div>
             <div class="modal-body p-4 bg-light">
                 <form id="bulkPlannerForm" onsubmit="return false;">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <div class="col-md-6">
-                            <div class="h5 fw-bold mb-0 text-teal" id="plannerWeekDisplay">
-                                <i class="fas fa-calendar-alt me-2"></i>Loading Week...
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+                        <div>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-teal" id="btnPrevWeek">
+                                    <i class="fas fa-chevron-left me-1"></i>Prev Week
+                                </button>
+                                <div class="h5 fw-bold mb-0 text-teal px-1 d-flex align-items-center gap-2" id="plannerWeekDisplay" style="min-width: 250px; justify-content: center;">
+                                    <i class="fas fa-calendar-alt"></i> Loading Week...
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-teal" id="btnNextWeek">
+                                    Next Week<i class="fas fa-chevron-right ms-1"></i>
+                                </button>
                             </div>
-                            <div class="small text-muted">Automatically scheduled for the upcoming week.</div>
-                            <input type="hidden" id="plannerStartDate">
+                            <div class="small text-muted mt-1"><i class="fas fa-info-circle me-1"></i> Assign menu details and rooms for the selected week.</div>
                         </div>
-                        <button type="button" class="btn btn-teal" id="btnAutoFillRotation">
-                            <i class="fas fa-sync-alt me-1"></i> Auto-Suggest Rotation
+                        <button type="button" class="btn btn-outline-teal" id="btnResetToRotation">
+                            <i class="fas fa-sync-alt me-1"></i> Reset to Slated Rooms
                         </button>
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-bordered bg-white rounded-3 overflow-hidden" id="bulkPlannerTable">
+                        <table class="table table-bordered bg-white rounded-3 overflow-hidden align-middle" id="bulkPlannerTable">
                             <thead class="table-teal text-white">
                                 <tr>
                                     <th style="width: 15%;">Day / Date</th>
@@ -1175,7 +1177,7 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
                                 </tr>
                             </thead>
                             <tbody id="planner-body">
-                                <!-- JS will generate 7 rows -->
+                                <!-- JS will generate 7 rows dynamically -->
                             </tbody>
                         </table>
                     </div>
@@ -1189,11 +1191,61 @@ function acceptSuggestion(id, date, dishId, newDish, sideId, newSide, teamId, de
         </div>
     </div>
 </div>
+
+<!-- Bulk Confirm Modal -->
+<div class="modal fade" id="bulkConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1061;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-teal text-white border-0 py-3">
+                <h5 class="modal-title fw-bold"><i class="fas fa-paper-plane me-2 text-warning"></i>Bulk Notification Options</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <p class="mb-4">Select how you want to schedule these menus. You can save silently without sending any emails, or select specific members from each room to notify.</p>
+                <div class="d-grid gap-2">
+                    <button type="button" id="btnBulkScheduleWithoutNotify" class="btn btn-teal py-2">
+                        <i class="fas fa-bolt me-1 text-warning"></i>Create Without Informing (Silent)
+                    </button>
+                    <button type="button" id="btnBulkOpenRecipientPicker" class="btn btn-outline-teal py-2">
+                        <i class="fas fa-envelope-open-text me-1 text-teal"></i>Choose Recipients & Send Mails
+                    </button>
+                    <button type="button" class="btn btn-light py-2" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Recipient Picker Modal -->
+<div class="modal fade" id="bulkRecipientPickerModal" tabindex="-1" aria-hidden="true" style="z-index: 1061;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-teal text-white border-0 py-3">
+                <h5 class="modal-title fw-bold"><i class="fas fa-users me-2 text-warning"></i>Select Recipients per Room</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="alert alert-warning border-0 shadow-sm rounded-3 py-2 mb-3">
+                    <i class="fas fa-info-circle me-1"></i> To prevent Gmail spam blocks, select <strong>up to 3 members</strong> per room to receive notifications.
+                </div>
+                <div id="bulkRecipientPickerList" class="d-flex flex-column gap-3" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Dynamically populated by JS -->
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-white">
+                <button type="button" class="btn btn-light" id="btnBackToBulkConfirm">Back</button>
+                <button type="button" class="btn btn-teal" id="btnSubmitBulkWithNotifications">
+                    <i class="fas fa-paper-plane me-1 text-warning"></i>Schedule & Start Sending
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 {% if current_user.role in ['admin', 'pantryHead'] %}
 <!-- Estimate Edit Modal (for menus) -->
-<div class="modal fade" id="menuEstimateModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="menuEstimateModal" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0">
             <form method="POST" id="menuEstimateForm">
@@ -2581,188 +2633,516 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
+
     const mainDishOptions = `{% for d in main_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
     const sideDishOptions = `{% for d in side_dishes %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}`;
     const teamOptions = `{% for t in floor_teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}`;
 
+    window.bulkConfirmModal = new bootstrap.Modal(document.getElementById('bulkConfirmModal'));
+    window.bulkRecipientPickerModal = new bootstrap.Modal(document.getElementById('bulkRecipientPickerModal'));
+    
+    // Page displayed week's Monday
+    const pageWeekMondayStr = "{{ weekly_days[0].date.strftime('%Y-%m-%d') }}";
+    const parts = pageWeekMondayStr.split('-');
+    window.bulkPlannerStartDate = new Date(parts[0], parts[1]-1, parts[2]);
+
+    // Ensure we don't go before the current week
+    const currentWeekMonday = getMonday(new Date());
+
+    function getMonday(d) {
+        d = new Date(d);
+        var day = d.getDay(),
+            diff = d.getDate() - day + (day == 0 ? -6 : 1);
+        const mon = new Date(d.setDate(diff));
+        mon.setHours(0,0,0,0);
+        return mon;
+    }
+
+    function formatDateLocal(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    // Set start date to page's week when opening bulk modal, but restrict to >= currentWeekMonday
+    const bulkPlannerModalEl = document.getElementById('bulkPlannerModal');
+    if (bulkPlannerModalEl) {
+        bulkPlannerModalEl.addEventListener('show.bs.modal', function() {
+            const parts = pageWeekMondayStr.split('-');
+            let startVal = new Date(parts[0], parts[1]-1, parts[2]);
+            if (startVal < currentWeekMonday) {
+                startVal = currentWeekMonday;
+            }
+            window.bulkPlannerStartDate = startVal;
+            updatePlannerDates();
+        });
+    }
+
+    function loadRowChampions(tr, teamId) {
+        const chipsContainer = tr.querySelector('.row-champion-chips');
+        if (!chipsContainer) return;
+        chipsContainer.innerHTML = '';
+        
+        if (!teamId) return;
+        
+        fetch(`/menus/team-champions/${teamId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.champions && data.champions.length > 0) {
+                    data.champions.forEach(dish => {
+                        const chip = document.createElement('span');
+                        chip.className = 'badge bg-warning-subtle text-warning-emphasis border border-warning-subtle me-1 mb-1 px-2 py-1';
+                        chip.style.cursor = 'pointer';
+                        chip.style.fontSize = '0.68rem';
+                        chip.innerHTML = `<i class="fas fa-star text-warning me-1"></i>${dish.name}`;
+                        
+                        chip.addEventListener('click', () => {
+                            const mainSelect = tr.querySelector('.row-main-dish');
+                            if (mainSelect && mainSelect.tomselect) {
+                                mainSelect.tomselect.setValue(dish.id);
+                            } else if (mainSelect) {
+                                mainSelect.value = dish.id;
+                                mainSelect.dispatchEvent(new Event('change'));
+                            }
+                        });
+                        
+                        chipsContainer.appendChild(chip);
+                    });
+                }
+            })
+            .catch(err => console.error("Error loading team champions:", err));
+    }
+
     function updatePlannerDates() {
-        const startVal = document.getElementById('plannerStartDate').value;
-        if (!startVal) return;
-        const parts = startVal.split('-');
-        const startDate = new Date(parts[0], parts[1]-1, parts[2]);
+        const startDate = window.bulkPlannerStartDate;
+        if (!startDate) return;
         
         const tbody = document.getElementById('planner-body');
-        tbody.innerHTML = '';
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-        for (let i = 0; i < 7; i++) {
-            const current = new Date(startDate);
-            current.setDate(startDate.getDate() + i);
-            const dateStr = current.toISOString().split('T')[0];
-            const displayDate = current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-
-            const dayOfWeek = current.getDay();
-            const type = (dayOfWeek === 2 || dayOfWeek === 5) ? 'Bread' : 'Roti';
-            const typeBadge = type === 'Bread' 
-                ? `<span class="badge rounded-pill bg-primary-subtle text-primary border border-primary ms-1" style="font-size: 0.6rem;">Bread</span>`
-                : `<span class="badge rounded-pill bg-teal-subtle text-teal border border-teal ms-1" style="font-size: 0.6rem;">Roti</span>`;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="fw-bold">${days[i]}</div>
-                        ${typeBadge}
-                    </div>
-                    <div class="small text-muted">${displayDate}</div>
-                    <input type="hidden" class="row-date" value="${dateStr}">
-                </td>
-                <td>
-                    <select class="form-select form-select-sm row-main-dish mb-1">
-                        <option value="">Choose Existing...</option>
-                        ${mainDishOptions}
-                    </select>
-                    <input type="text" class="form-control form-control-sm row-new-main" placeholder="OR New Main Name">
-                    
-                    <!-- Row Insight -->
-                    <div class="row-insight mt-2 d-none" style="font-size: 0.75rem;">
-                        <div class="d-flex flex-wrap gap-1 align-items-center">
-                            <span class="badge bg-warning text-dark row-rating"></span>
-                            <span class="badge bg-success row-champion"></span>
-                        </div>
-                        <div class="text-muted row-suggestion-text italic mt-1" style="line-height: 1;"></div>
-                    </div>
-                </td>
-                <td>
-                    <select class="form-select form-select-sm row-side-dish mb-1">
-                        <option value="">Choose Existing...</option>
-                        ${sideDishOptions}
-                    </select>
-                    <input type="text" class="form-control form-control-sm row-new-side" placeholder="OR New Side Name">
-                </td>
-                <td>
-                    <select class="form-select form-select-sm row-team">
-                        <option value="">Select {{ TERM_TEAM }}...</option>
-                        ${teamOptions}
-                    </select>
-                </td>
-            `;
-            tbody.appendChild(tr);
-
-            // Initialize Tom Select on the new row selects
-            new TomSelect(tr.querySelector('.row-main-dish'), {
-                create: false,
-                sortField: { field: "text", direction: "asc" },
-                placeholder: "Search Main..."
-            });
-            new TomSelect(tr.querySelector('.row-side-dish'), {
-                create: false,
-                sortField: { field: "text", direction: "asc" },
-                placeholder: "Search Side..."
-            });
-
-            // Add listener for row insights
-            const select = tr.querySelector('.row-main-dish');
-            select.addEventListener('change', function() {
-                const dishId = this.value;
-                const row = this.closest('td');
-                const insightWrap = row.querySelector('.row-insight');
-                const ratingBadge = row.querySelector('.row-rating');
-                const suggestText = row.querySelector('.row-suggestion-text');
-
-                if (!dishId) {
-                    insightWrap.classList.add('d-none');
-                    return;
-                }
-
-                fetch(`/menus/dish-insights/${dishId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        insightWrap.classList.remove('d-none');
-                        ratingBadge.innerHTML = `${data.avg_rating || '0.0'} <i class="fas fa-star"></i>`;
-                        row.querySelector('.row-champion').innerText = `Best: ${data.champion}`;
-                        suggestText.innerText = data.suggestions.length > 0 ? `Tip: ${data.suggestions[0]}` : 'No tips.';
-                    });
-            });
-        }
-        // Update display text
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-5 text-teal"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>Loading weekly rotation and scheduled menus...</td></tr>`;
+        
+        // Compute date strings for API
+        const startStr = formatDateLocal(startDate);
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 6);
+        const endStr = formatDateLocal(endDate);
+        
+        // Update display text
         document.getElementById('plannerWeekDisplay').innerHTML = `
             <i class="fas fa-calendar-alt me-2"></i>
             ${startDate.toLocaleDateString('en-GB', {day:'2-digit', month:'short'})} - ${endDate.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})}
         `;
-    }
-
-    // Expert Logic: Set default to the UPCOMING Monday
-    function setUpcomingMonday() {
-        const d = new Date();
-        const day = d.getDay(); 
-        // If today is Sunday (0), next Monday is 1 day away.
-        // If today is Mon-Sat (1-6), next Monday is (8 - day) days away.
-        const diff = (day === 0 ? 1 : 8 - day); 
-        d.setDate(d.getDate() + diff);
         
-        // Format as YYYY-MM-DD using local time
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const date = String(d.getDate()).padStart(2, '0');
-        document.getElementById('plannerStartDate').value = `${y}-${m}-${date}`;
-        updatePlannerDates();
-    }
-    
-    setUpcomingMonday();
+        // Disable prev week button if at/before current week Monday
+        document.getElementById('btnPrevWeek').disabled = (startDate <= currentWeekMonday);
 
-    document.getElementById('btnAutoFillRotation').addEventListener('click', function() {
-        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        fetch('/menus/rotation-sequence')
+        fetch(`/menus/rotation/slated-range?start=${startStr}&end=${endStr}`)
             .then(res => res.json())
-            .then(data => {
-                const teamSelects = document.querySelectorAll('.row-team');
-                data.sequence.forEach((team, i) => {
-                    if (teamSelects[i]) {
-                        teamSelects[i].value = team.id;
+            .then(slatedRangeData => {
+                tbody.innerHTML = '';
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                const todayStr = formatDateLocal(new Date());
+
+                for (let i = 0; i < 7; i++) {
+                    const current = new Date(startDate);
+                    current.setDate(startDate.getDate() + i);
+                    const dateStr = formatDateLocal(current);
+                    const displayDate = current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+
+                    const dayOfWeek = current.getDay();
+                    const type = (dayOfWeek === 2 || dayOfWeek === 5) ? 'Bread' : 'Roti';
+                    const typeBadge = type === 'Bread' 
+                        ? `<span class="badge rounded-pill bg-primary-subtle text-primary border border-primary ms-1" style="font-size: 0.6rem;">Bread</span>`
+                        : `<span class="badge rounded-pill bg-teal-subtle text-teal border border-teal ms-1" style="font-size: 0.6rem;">Roti</span>`;
+
+                    const tr = document.createElement('tr');
+                    const isPast = dateStr < todayStr;
+                    const dayData = slatedRangeData[dateStr] || { status: 'slated', team: null, menu: null };
+                    
+                    const slatedTeamId = dayData.team ? dayData.team.id : '';
+                    const slatedTeamName = dayData.team ? dayData.team.name : '';
+                    const slatedTeamIcon = dayData.team ? dayData.team.icon : '';
+
+                    if (dayData.menu) {
+                        // Locked: already has a menu
+                        tr.className = 'table-secondary opacity-75 locked-row';
+                        tr.innerHTML = `
+                            <td class="align-middle">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold">${days[i]}</div>
+                                    ${typeBadge}
+                                </div>
+                                <div class="small text-muted">${displayDate}</div>
+                                <input type="hidden" class="row-date" value="${dateStr}">
+                            </td>
+                            <td class="align-middle">
+                                <div class="fw-bold text-dark mb-1">
+                                    <i class="fas fa-lock text-muted me-2" title="Menu already scheduled"></i>
+                                    ${dayData.menu.dish_name}
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1" style="font-size: 0.68rem;">Scheduled</span>
+                            </td>
+                            <td class="align-middle text-muted">
+                                ${dayData.menu.side_dish_name || '<span class="fst-italic text-muted">None</span>'}
+                            </td>
+                            <td class="align-middle">
+                                <span class="badge bg-secondary text-white py-1 px-2" style="font-size: 0.72rem;">
+                                    <i class="fas fa-users me-1"></i>${dayData.menu.assigned_team_name || 'Direct / Unassigned'}
+                                </span>
+                            </td>
+                        `;
+                    } else if (isPast) {
+                        // Locked: past date
+                        tr.className = 'table-light opacity-50 locked-row';
+                        tr.innerHTML = `
+                            <td class="align-middle">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold">${days[i]}</div>
+                                    ${typeBadge}
+                                </div>
+                                <div class="small text-muted">${displayDate}</div>
+                                <input type="hidden" class="row-date" value="${dateStr}">
+                            </td>
+                            <td class="align-middle text-muted fst-italic">
+                                <i class="fas fa-history me-1"></i> Past date
+                            </td>
+                            <td class="align-middle text-muted fst-italic">
+                                -
+                            </td>
+                            <td class="align-middle">
+                                <span class="badge bg-light text-muted border py-1 px-2" style="font-size: 0.72rem;">
+                                    Past Day
+                                </span>
+                            </td>
+                        `;
+                    } else {
+                        // Editable row
+                        const slatedBadge = dayData.team 
+                            ? `<span class="badge bg-soft-teal text-teal mt-1 border border-teal-subtle py-1 px-2 d-inline-block fw-normal" style="font-size: 0.68rem;">
+                                 <i class="fas fa-sync-alt me-1"></i>Slated: ${slatedTeamIcon} ${slatedTeamName}
+                               </span>` 
+                            : '';
                         
-                        // Show conflict warning if needed
-                        const tr = teamSelects[i].closest('tr');
-                        const teamTd = teamSelects[i].closest('td');
+                        const skipBadge = dayData.status === 'skip'
+                            ? `<span class="badge bg-soft-danger text-danger mt-1 border border-danger-subtle py-1 px-2 d-inline-block fw-normal" style="font-size: 0.68rem;">
+                                 <i class="fas fa-ban me-1"></i>Leave/Holiday
+                               </span>`
+                            : '';
                         
-                        // Clear old warnings
-                        const oldWarning = teamTd.querySelector('.conflict-warning');
-                        if (oldWarning) oldWarning.remove();
-                        
-                        if (team.conflicts && team.conflicts.length > 0) {
-                            const warning = document.createElement('div');
-                            warning.className = 'conflict-warning badge bg-danger-subtle text-danger mt-1 d-block text-start text-wrap fw-normal';
-                            warning.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i> Absent: ${team.conflicts.join(', ')}`;
-                            teamTd.appendChild(warning);
+                        let conflictBadge = '';
+                        if (dayData.team && dayData.team.conflicts && dayData.team.conflicts.length > 0) {
+                            conflictBadge = `<div class="conflict-warning badge bg-danger-subtle text-danger mt-1 d-block text-start text-wrap fw-normal" style="font-size: 0.68rem;">
+                                <i class="fas fa-exclamation-triangle me-1"></i> Absent: ${dayData.team.conflicts.join(', ')}
+                            </div>`;
                         }
+
+                        tr.innerHTML = `
+                            <td>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="fw-bold">${days[i]}</div>
+                                    ${typeBadge}
+                                </div>
+                                <div class="small text-muted">${displayDate}</div>
+                                <input type="hidden" class="row-date" value="${dateStr}">
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <select class="form-select form-select-sm row-main-dish" style="width: 100%;">
+                                        <option value="">Choose Existing...</option>
+                                        ${mainDishOptions}
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-link text-muted p-0 d-none row-estimate-btn" title="View/Edit Estimate" style="font-size: 0.95rem;">
+                                        <i class="fas fa-calculator"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Champion Chips Container -->
+                                <div class="row-champion-chips d-flex flex-wrap gap-1 mt-1"></div>
+
+                                <!-- Row Insight -->
+                                <div class="row-insight mt-2 d-none" style="font-size: 0.75rem;">
+                                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                                        <span class="badge bg-warning text-dark row-rating"></span>
+                                        <span class="badge bg-success row-champion"></span>
+                                    </div>
+                                    <div class="text-muted row-suggestion-text italic mt-1" style="line-height: 1;"></div>
+                                </div>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm row-side-dish mb-1">
+                                    <option value="">Choose Existing...</option>
+                                    ${sideDishOptions}
+                                </select>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm row-team mb-1">
+                                    <option value="">Select {{ TERM_TEAM }}...</option>
+                                    ${teamOptions}
+                                </select>
+                                <div class="row-status-info">
+                                    ${slatedBadge}
+                                    ${skipBadge}
+                                    ${conflictBadge}
+                                </div>
+                            </td>
+                        `;
                     }
-                });
+                    tbody.appendChild(tr);
+
+                    if (!dayData.menu && !isPast) {
+                        const mainSelect = tr.querySelector('.row-main-dish');
+                        const sideSelect = tr.querySelector('.row-side-dish');
+                        const teamSel = tr.querySelector('.row-team');
+                        
+                        // Initialize Tom Select
+                        const mainTs = new TomSelect(mainSelect, {
+                            create: false,
+                            sortField: { field: "text", direction: "asc" },
+                            placeholder: "Search Main..."
+                        });
+                        new TomSelect(sideSelect, {
+                            create: false,
+                            sortField: { field: "text", direction: "asc" },
+                            placeholder: "Search Side..."
+                        });
+
+                        // Set Slated Team value initially
+                        if (slatedTeamId && teamSel) {
+                            teamSel.value = slatedTeamId;
+                            loadRowChampions(tr, slatedTeamId);
+                        }
+
+                        // Set up team change listener to update champion chips
+                        if (teamSel) {
+                            teamSel.addEventListener('change', function() {
+                                loadRowChampions(tr, this.value);
+                            });
+                        }
+
+                        // Listen to main dish change for insights & estimate button
+                        mainSelect.addEventListener('change', function() {
+                            const dishId = this.value;
+                            const insightWrap = tr.querySelector('.row-insight');
+                            const ratingBadge = tr.querySelector('.row-rating');
+                            const suggestText = tr.querySelector('.row-suggestion-text');
+                            const estBtn = tr.querySelector('.row-estimate-btn');
+                            
+                            if (!dishId) {
+                                insightWrap?.classList.add('d-none');
+                                estBtn?.classList.add('d-none');
+                                return;
+                            }
+                            
+                            fetch(`/menus/dish-insights/${dishId}`)
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (insightWrap) {
+                                        insightWrap.classList.remove('d-none');
+                                        ratingBadge.innerHTML = `${data.avg_rating || '0.0'} <i class="fas fa-star"></i>`;
+                                        tr.querySelector('.row-champion').innerText = `Best: ${data.champion || 'N/A'}`;
+                                        suggestText.innerText = data.suggestions.length > 0 ? `Tip: ${data.suggestions[0]}` : 'No tips.';
+                                    }
+                                    
+                                    if (estBtn) {
+                                        estBtn.classList.remove('d-none');
+                                        if (data.estimate && data.estimate.available) {
+                                            estBtn.classList.replace('text-muted', 'text-teal');
+                                            estBtn.innerHTML = '<i class="fas fa-calculator text-teal"></i>';
+                                            estBtn.title = "View/Edit Estimate";
+                                        } else {
+                                            estBtn.classList.replace('text-teal', 'text-muted');
+                                            estBtn.innerHTML = '<i class="fas fa-calculator opacity-50 text-muted"></i>';
+                                            estBtn.title = "Add Estimate";
+                                        }
+                                        
+                                        // Click handler for estimate button
+                                        const newEstBtn = estBtn.cloneNode(true);
+                                        estBtn.parentNode.replaceChild(newEstBtn, estBtn);
+                                        newEstBtn.addEventListener('click', (e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            
+                                            window.currentEstimateDishId = dishId;
+                                            const opt = mainSelect.options[mainSelect.selectedIndex];
+                                            window.currentEstimateDishName = opt ? opt.text : 'Estimate';
+                                            window.populateMenuEstimateModal(data.estimate || {}, dishId);
+                                            
+                                            const estModal = new bootstrap.Modal(document.getElementById('menuEstimateModal'));
+                                            estModal.show();
+                                        });
+                                    }
+                                })
+                                .catch(err => console.error("Error loading insights:", err));
+                        });
+                    }
+                }
             })
-            .finally(() => {
-                this.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Auto-Suggest Rotation';
+            .catch(err => {
+                console.error("Error fetching slated range:", err);
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-5 text-danger"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><br>Error loading rotation settings.</td></tr>`;
             });
+    }
+
+    // Modal scroll fix and backdrop stacking for double modals (estimate modal on top of bulk planner modal)
+    const menuEstimateModalEl = document.getElementById('menuEstimateModal');
+    if (menuEstimateModalEl) {
+        menuEstimateModalEl.addEventListener('show.bs.modal', function () {
+            if (document.getElementById('bulkPlannerModal').classList.contains('show')) {
+                setTimeout(() => {
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    if (backdrops.length > 1) {
+                        backdrops[backdrops.length - 1].style.zIndex = '1064';
+                    }
+                }, 50);
+            }
+        });
+        menuEstimateModalEl.addEventListener('hidden.bs.modal', function () {
+            if (document.getElementById('bulkPlannerModal').classList.contains('show')) {
+                document.body.classList.add('modal-open');
+                document.body.style.overflow = 'hidden';
+            }
+        });
+    }
+
+    document.getElementById('btnPrevWeek').addEventListener('click', function() {
+        window.bulkPlannerStartDate.setDate(window.bulkPlannerStartDate.getDate() - 7);
+        updatePlannerDates();
     });
+
+    document.getElementById('btnNextWeek').addEventListener('click', function() {
+        window.bulkPlannerStartDate.setDate(window.bulkPlannerStartDate.getDate() + 7);
+        updatePlannerDates();
+    });
+
+    document.getElementById('btnResetToRotation').addEventListener('click', function() {
+        if (confirm("Reset all editable rows back to their rotation slated rooms?")) {
+            updatePlannerDates();
+        }
+    });
+
+    // Enforce max 3 recipients per room
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('bulk-recipient-checkbox')) {
+            const teamId = e.target.getAttribute('data-team-id');
+            const checkedForTeam = document.querySelectorAll(`.bulk-recipient-checkbox[data-team-id="${teamId}"]:checked`);
+            if (checkedForTeam.length > 3) {
+                e.target.checked = false;
+                alert("You can select a maximum of 3 members per room to receive notifications. This helps prevent Gmail spam blocks.");
+            } else {
+                const badge = document.getElementById(`count-badge-${teamId}`);
+                if (badge) {
+                    badge.textContent = `${checkedForTeam.length} / 3 selected`;
+                }
+            }
+        }
+    });
+
+    function renderBulkRecipientPicker() {
+        const listWrap = document.getElementById('bulkRecipientPickerList');
+        if (!listWrap) return;
+        listWrap.innerHTML = '';
+        
+        const teamsList = window.pendingBulkTeams;
+        if (!teamsList || teamsList.length === 0) {
+            listWrap.innerHTML = '<div class="text-muted italic small text-center py-3">No rooms assigned in the new menus. Mails will not be sent.</div>';
+            return;
+        }
+        
+        teamsList.forEach(teamId => {
+            let teamName = `Room ${teamId}`;
+            // Find team name in dropdown options
+            const teamOpt = document.querySelector(`.row-team option[value="${teamId}"]`);
+            if (teamOpt) {
+                teamName = teamOpt.text;
+            }
+            
+            const card = document.createElement('div');
+            card.className = 'card border shadow-sm rounded-3';
+            
+            const cardHeader = document.createElement('div');
+            cardHeader.className = 'card-header bg-light py-2 fw-bold text-teal d-flex justify-content-between align-items-center';
+            cardHeader.innerHTML = `<span><i class="fas fa-users me-1 text-teal"></i>${teamName}</span><span class="badge bg-secondary-subtle text-secondary small select-count-badge" id="count-badge-${teamId}">0 / 3 selected</span>`;
+            card.appendChild(cardHeader);
+            
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body p-2 list-group list-group-flush';
+            
+            const memberIds = teamMembersByTeamId[teamId] || [];
+            if (memberIds.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'text-muted small p-2 italic text-center';
+                empty.textContent = 'No members in this room.';
+                cardBody.appendChild(empty);
+            } else {
+                memberIds.forEach(memberId => {
+                    const user = userDirectory[memberId];
+                    if (!user) return;
+                    const hasEmail = !!user.email;
+                    
+                    const label = document.createElement('label');
+                    label.className = 'list-group-item d-flex justify-content-between align-items-center py-2 px-3 border-0 rounded-2';
+                    label.style.cursor = hasEmail ? 'pointer' : 'default';
+                    label.innerHTML = `
+                        <div class="d-flex align-items-center gap-2">
+                            <input class="form-check-input mt-0 bulk-recipient-checkbox" type="checkbox" value="${user.id}" data-team-id="${teamId}" ${hasEmail ? '' : 'disabled'}>
+                            <div>
+                                <div class="fw-medium small">${user.label}</div>
+                                <div class="text-muted" style="font-size: 0.72rem;">${hasEmail ? user.email : 'No email configured'}</div>
+                            </div>
+                        </div>
+                        <span class="badge ${hasEmail ? 'bg-success-subtle text-success border border-success' : 'bg-warning-subtle text-warning border border-warning'}" style="font-size: 0.65rem;">${hasEmail ? 'Ready' : 'No Email'}</span>
+                    `;
+                    cardBody.appendChild(label);
+                });
+            }
+            
+            card.appendChild(cardBody);
+            listWrap.appendChild(card);
+            
+            // Pre-check up to 3 members with emails
+            let preCheckedCount = 0;
+            const checkboxes = cardBody.querySelectorAll('.bulk-recipient-checkbox:not(:disabled)');
+            checkboxes.forEach(cb => {
+                if (preCheckedCount < 3) {
+                    cb.checked = true;
+                    preCheckedCount++;
+                }
+            });
+            
+            const badge = document.getElementById(`count-badge-${teamId}`);
+            if (badge) {
+                badge.textContent = `${preCheckedCount} / 3 selected`;
+            }
+        });
+    }
 
     document.getElementById('btnSaveBulk').addEventListener('click', function() {
         const rows = document.querySelectorAll('#planner-body tr');
         const payload = [];
+        const uniqueTeams = new Set();
+
         rows.forEach(row => {
-            const dishId = row.querySelector('.row-main-dish').value;
-            const newMain = row.querySelector('.row-new-main').value.trim();
-            const sideId = row.querySelector('.row-side-dish').value;
-            const newSide = row.querySelector('.row-new-side').value.trim();
+            if (row.classList.contains('locked-row')) {
+                return;
+            }
+            
+            const mainSelect = row.querySelector('.row-main-dish');
+            const sideSelect = row.querySelector('.row-side-dish');
+            const teamSel = row.querySelector('.row-team');
+            
+            const dishId = mainSelect ? mainSelect.value : '';
+            const newMain = row.querySelector('.row-new-main') ? row.querySelector('.row-new-main').value.trim() : '';
+            const sideId = sideSelect ? sideSelect.value : '';
+            const newSide = row.querySelector('.row-new-side') ? row.querySelector('.row-new-side').value.trim() : '';
+            const teamId = teamSel ? teamSel.value : '';
+
             if (dishId || newMain) {
                 let mainDishText = newMain;
-                if (!newMain) {
-                    const mainDishSel = row.querySelector('.row-main-dish');
-                    if (mainDishSel.tomselect && mainDishSel.tomselect.options[dishId]) {
-                        mainDishText = mainDishSel.tomselect.options[dishId].text;
-                    } else if (mainDishSel.selectedIndex >= 0) {
-                        mainDishText = mainDishSel.options[mainDishSel.selectedIndex].text;
-                    } else {
-                        mainDishText = '';
+                if (!newMain && mainSelect) {
+                    if (mainSelect.tomselect && mainSelect.tomselect.options[dishId]) {
+                        mainDishText = mainSelect.tomselect.options[dishId].text;
+                    } else if (mainSelect.selectedIndex >= 0) {
+                        mainDishText = mainSelect.options[mainSelect.selectedIndex].text;
                     }
                 }
                 
@@ -2772,25 +3152,43 @@ document.addEventListener('DOMContentLoaded', function () {
                     new_dish_name: newMain || null,
                     side_dish_id: sideId || null,
                     new_side_dish_name: newSide || null,
-                    assigned_team_id: row.querySelector('.row-team').value || null,
-                    title: mainDishText
+                    assigned_team_id: teamId || null,
+                    title: mainDishText || 'Bulk Scheduled'
                 });
+
+                if (teamId) {
+                    uniqueTeams.add(Number(teamId));
+                }
             }
         });
 
         if (payload.length === 0) {
-            alert("Please select at least one dish.");
+            alert("Please select at least one main dish to schedule.");
             return;
         }
 
-        if (!confirm('Save weekly schedule now?')) {
-            return;
-        }
+        window.pendingBulkPayload = payload;
+        window.pendingBulkTeams = Array.from(uniqueTeams);
+
+        // Hide bulk planner and show confirm modal
+        bootstrap.Modal.getInstance(document.getElementById('bulkPlannerModal')).hide();
+        window.bulkConfirmModal.show();
+    });
+
+    document.getElementById('btnBulkScheduleWithoutNotify').addEventListener('click', function() {
+        if (!window.pendingBulkPayload || window.pendingBulkPayload.length === 0) return;
+        
+        const btn = document.getElementById('btnBulkScheduleWithoutNotify');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving silently...';
 
         fetch('/menus/bulk-schedule', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                meals: window.pendingBulkPayload,
+                notify_user_ids: [] // Empty = create silently without notifications
+            })
         })
         .then(res => res.json())
         .then(data => {
@@ -2798,7 +3196,62 @@ document.addEventListener('DOMContentLoaded', function () {
                 location.reload();
             } else {
                 alert("Error: " + data.error);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-bolt me-1"></i>Create Without Informing (Silent)';
             }
+        })
+        .catch(err => {
+            alert("Connection error: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-bolt me-1"></i>Create Without Informing (Silent)';
+        });
+    });
+
+    document.getElementById('btnBulkOpenRecipientPicker').addEventListener('click', function() {
+        window.bulkConfirmModal.hide();
+        renderBulkRecipientPicker();
+        window.bulkRecipientPickerModal.show();
+    });
+
+    document.getElementById('btnBackToBulkConfirm').addEventListener('click', function() {
+        window.bulkRecipientPickerModal.hide();
+        window.bulkConfirmModal.show();
+    });
+
+    document.getElementById('btnSubmitBulkWithNotifications').addEventListener('click', function() {
+        if (!window.pendingBulkPayload || window.pendingBulkPayload.length === 0) return;
+
+        const selectedUserIds = [];
+        document.querySelectorAll('.bulk-recipient-checkbox:checked').forEach(cb => {
+            selectedUserIds.push(Number(cb.value));
+        });
+
+        const btn = document.getElementById('btnSubmitBulkWithNotifications');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Scheduling & Sending...';
+
+        fetch('/menus/bulk-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                meals: window.pendingBulkPayload,
+                notify_user_ids: selectedUserIds
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert("Error: " + data.error);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Schedule & Start Sending';
+            }
+        })
+        .catch(err => {
+            alert("Connection error: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Schedule & Start Sending';
         });
     });
     // ==========================================

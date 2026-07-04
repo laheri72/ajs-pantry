@@ -393,7 +393,21 @@ bdd4590fc68f  initial migration
   → c6d7e8f9a0b1  user soft delete + tenant audit log
 ```
 
+### 5N. UI Multi-Theme & Interactive Calendar Engine (July 2026)
+*   **Theme Selection System:** Introduces four light-mode themes and preserves the original dark mode for members and pantry heads. Selected themes are persisted in local storage (`selected-theme`) and synced backward to `theme` for device consistency.
+    1.  *Teal Green (Default)*
+    2.  *Navy Blue:* Ocean branding theme using a ship steering wheel SVG helm icon in the selector dropdown.
+    3.  *Platinum Elegance:* Light, airy slate/silver expensive styling.
+    4.  *Imperial Saffron & Gold:* Saffron orange color scheme accented with gold.
+*   **FOUC Prevention:** Inside `base.html`, an inline self-contained JavaScript block runs immediately post-`<body>` parsing to load the theme from local storage and add the target theme classes to the document body prior to render/layout paint.
+*   **Circular Badge Header Trigger:** To maintain high visibility across themes, the theme selector dropdown is triggered by a circular white/light-grey badge (`.app-theme-button`) in the navbar. Dropdown elements synchronize active selections with a checkmark symbol and theme-colored highlight states.
+*   **Calendar Highlights & Interactions:**
+    1.  *Current Day separation:* Today is styled with a distinct Indigo theme (solid circular date badge and background tint) to prevent visual clashes with the teal cooking rotation turns.
+    2.  *Card elevation transition:* Calendar day cards scale and elevate on hover (`translateY(-3px)`), casting drop shadows and border outlines matching the active theme's colors.
+    3.  *Input collision prevention:* Suggestion forms dynamically toggle text fields and dropdowns on selection change to prevent duplicate entries and database crashes.
+
 ---
+
 
 ## 6. Next Development Priorities
 
