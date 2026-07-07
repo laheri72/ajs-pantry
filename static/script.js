@@ -453,7 +453,7 @@ function setupCookingAlerts() {
     // Check for cooking assignments 2 days in advance
     if ('serviceWorker' in navigator && 'Notification' in window) {
         // This would be handled by the service worker
-        console.log('Cooking alerts initialized');
+        console.log('Service worker notification system checked');
     }
 }
 

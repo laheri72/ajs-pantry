@@ -1275,8 +1275,9 @@ def calendar():
         for s in menu_suggestions_db
     ]
 
-    main_dishes = _active_dish_query().filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
-    side_dishes = _active_dish_query().filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    all_dishes = _active_dish_query().order_by(func.lower(Dish.name).asc()).all()
+    main_dishes = [d for d in all_dishes if d.category in ('main', 'both')]
+    side_dishes = [d for d in all_dishes if d.category in ('side', 'both')]
     floor_teams = tenant_filter(Team.query).filter_by(floor=floor).order_by(Team.name.asc()).all()
     user_team_ids = [m.team_id for m in tenant_filter(TeamMember.query).filter_by(user_id=user.id).all()]
 
@@ -1487,9 +1488,10 @@ def menus():
         team_members_by_team_id.setdefault(membership.team_id, []).append(membership.user_id)
     
     # Dishes are global platform catalog entries; floor data remains tenant scoped.
-    main_dishes = _active_dish_query().filter(Dish.category.in_(['main', 'both'])).order_by(func.lower(Dish.name).asc()).all()
-    side_dishes = _active_dish_query().filter(Dish.category.in_(['side', 'both'])).order_by(func.lower(Dish.name).asc()).all()
+    # Optimized: Query all active dishes once to save 2 sequential round-trips
     all_dishes = _active_dish_query().order_by(func.lower(Dish.name).asc()).all()
+    main_dishes = [d for d in all_dishes if d.category in ('main', 'both')]
+    side_dishes = [d for d in all_dishes if d.category in ('side', 'both')]
 
     if request.method == 'POST' and user.role in ['admin', 'pantryHead']:
         expects_json = 'application/json' in (request.headers.get('Accept') or '').lower()
@@ -1684,14 +1686,6 @@ def menus():
     start_of_week = target_date - timedelta(days=target_date.weekday())
     end_of_week = start_of_week + timedelta(days=7)
 
-    # Fetch suggestions for indicators
-    all_suggestions = tenant_filter(MenuSuggestion.query).filter_by(floor=floor).all()
-    suggestions_by_date = {}
-    for sug in all_suggestions:
-        if sug.date:
-            date_str = sug.date.strftime('%Y-%m-%d')
-            suggestions_by_date.setdefault(date_str, []).append(sug)
-    
     # Fetch menus for target week
     weekly_menus = (
         tenant_filter(Menu.query)
@@ -2279,7 +2273,7 @@ def _get_slated_rooms_for_date_range(floor, start_date, end_date):
     if not settings:
         return {}
         
-    order_records = RoomRotationOrder.query.filter_by(rotation_settings_id=settings.id).order_by(RoomRotationOrder.position.asc()).all()
+    order_records = RoomRotationOrder.query.options(joinedload(RoomRotationOrder.team)).filter_by(rotation_settings_id=settings.id).order_by(RoomRotationOrder.position.asc()).all()
     if not order_records:
         return {}
         
@@ -2287,7 +2281,7 @@ def _get_slated_rooms_for_date_range(floor, start_date, end_date):
     if not ordered_teams:
         return {}
         
-    exceptions = tenant_filter(RoomRotationException.query).filter(
+    exceptions = tenant_filter(RoomRotationException.query).options(joinedload(RoomRotationException.override_team)).filter(
         RoomRotationException.floor == floor,
         RoomRotationException.exception_date <= end_date
     ).all()
@@ -2354,7 +2348,7 @@ def get_rotation_settings():
             'exceptions': []
         })
         
-    order_records = RoomRotationOrder.query.filter_by(rotation_settings_id=settings.id).order_by(RoomRotationOrder.position.asc()).all()
+    order_records = RoomRotationOrder.query.options(joinedload(RoomRotationOrder.team)).filter_by(rotation_settings_id=settings.id).order_by(RoomRotationOrder.position.asc()).all()
     
     sequence = []
     added_team_ids = set()
