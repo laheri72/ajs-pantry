@@ -196,7 +196,7 @@ from blueprints.utils import (
 
 @app.before_request
 def enforce_tenancy():
-    # Public routes and Platform Admin portal
+    # Public routes and Platform Admin portal.
     public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login', 'faculty.login', 'send_email']
     if request.endpoint in public_endpoints or (request.endpoint and request.endpoint.startswith('static')) or request.path.startswith('/platform-admin'):
         return
