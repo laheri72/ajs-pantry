@@ -327,16 +327,48 @@
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
         border-color: var(--teal-light) !important;
     }
-    .day-number {
-        font-size: 0.9rem;
-        color: var(--gray);
+    @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+    .day-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        margin-bottom: 0.25rem;
+    }
+    .hijri-day-number {
+        font-family: 'Amiri', serif;
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--text-primary, #1e293b);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 24px;
-        height: 24px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
-        margin-bottom: 0.25rem;
+        line-height: 1;
+        padding-top: 2px;
+    }
+    .gregorian-day-number {
+        font-size: 0.72rem;
+        color: var(--text-secondary, #64748b);
+        font-weight: 500;
+        background-color: rgba(0, 0, 0, 0.03);
+        padding: 2px 6px;
+        border-radius: 6px;
+    }
+    .hijri-modal-date {
+        font-family: 'Amiri', serif;
+        font-size: 1.45rem;
+        line-height: 1.2;
+    }
+    .dark-theme .hijri-day-number {
+        color: #f1f5f9;
+    }
+    .dark-theme .gregorian-day-number {
+        color: #94a3b8;
+        background-color: rgba(255, 255, 255, 0.05);
     }
     /* Google/Microsoft Inspired Professional Today Highlight */
     .calendar-body .calendar-day.today {
@@ -345,7 +377,7 @@
         box-shadow: 0 3px 10px rgba(79, 70, 229, 0.1) !important;
         z-index: 2;
     }
-    .calendar-body .calendar-day.today .day-number {
+    .calendar-body .calendar-day.today .hijri-day-number {
         background-color: #4f46e5 !important;
         color: #ffffff !important;
         font-weight: 700;
@@ -418,16 +450,300 @@
 </style>
 
 <script>
+// Hijri Tabular (Misri) Calendar Logic
+const HijriDate = (function () {
+  "use strict";
+
+  const KABISA_YEAR_REMAINDERS = [2, 5, 8, 10, 13, 16, 19, 21, 24, 27, 29];
+  const DAYS_IN_YEAR = [30, 59, 89, 118, 148, 177, 207, 236, 266, 295, 325];
+  const DAYS_IN_30_YEARS = [
+     354,  708, 1063, 1417, 1771, 2126, 2480, 2834,  3189,  3543,
+    3898, 4252, 4606, 4961, 5315, 5669, 6024, 6378,  6732,  7087,
+    7441, 7796, 8150, 8504, 8859, 9213, 9567, 9922, 10276, 10631
+  ];
+
+  const hijriDate = function (year, month, day) {
+    this.year = year;
+    this.month = month;
+    this.day = day;
+  };
+
+  hijriDate.prototype.getYear = function () { return this.year; };
+  hijriDate.prototype.getMonth = function () { return this.month; };
+  hijriDate.prototype.getDate = function () { return this.day; };
+
+  hijriDate.isJulian = function (date) {
+    const y = date.getFullYear();
+    if (y < 1582) return true;
+    if (y === 1582) {
+      if (date.getMonth() < 9) return true;
+      if (date.getMonth() === 9 && date.getDate() < 5) return true;
+    }
+    return false;
+  };
+
+  hijriDate.gregorianToAJD = function (date) {
+    let a, b,
+        year = date.getFullYear(),
+        month = date.getMonth() + 1,
+        day = date.getDate()
+            + date.getHours()/24
+            + date.getMinutes()/1440
+            + date.getSeconds()/86400
+            + date.getMilliseconds()/86400000;
+    if (month < 3) {
+      year--;
+      month += 12;
+    }
+    if (hijriDate.isJulian(date)) {
+      b = 0;
+    } else {
+      a = Math.floor(year / 100);
+      b = 2 - a + Math.floor(a / 4);
+    }
+    return Math.floor(365.25*(year + 4716)) + Math.floor(30.6001*(month + 1)) + day + b - 1524.5;
+  };
+
+  hijriDate.ajdToGregorian = function (ajd) {
+    let a, b, c, d, e, f, z, alpha, year, month, day, hrs, min, sec, msc;
+    z = Math.floor(ajd + 0.5);
+    f = (ajd + 0.5 - z);
+    if (z < 2299161) {
+      a = z;
+    } else {
+      alpha = Math.floor((z - 1867216.25) / 36524.25);
+      a = z + 1 + alpha - Math.floor(0.25*alpha);
+    }
+    b = a + 1524;
+    c = Math.floor((b - 122.1) / 365.25);
+    d = Math.floor(365.25*c);
+    e = Math.floor((b - d) / 30.6001);
+
+    day = b - d - Math.floor(30.6001*e) + f;
+    hrs = (day - Math.floor(day))*24;
+    min = (hrs - Math.floor(hrs))*60;
+    sec = (min - Math.floor(min))*60;
+    msc = (sec - Math.floor(sec))*1000;
+    month = (e < 14) ? (e - 2) : (e - 14);
+    year = (month < 2) ? (c - 4715) : (c - 4716);
+    return new Date(year, month, Math.round(day), Math.round(hrs), Math.round(min), Math.round(sec), Math.round(msc));
+  };
+
+  hijriDate.isKabisa = function (year) {
+    return KABISA_YEAR_REMAINDERS.includes(year % 30);
+  };
+
+  hijriDate.daysInMonth = function (year, month) {
+    return ((month === 11) && (hijriDate.isKabisa(year)) || (month % 2 === 0)) ? 30 : 29;
+  };
+
+  hijriDate.prototype.dayOfYear = function () {
+    return (this.month === 0) ? this.day : (DAYS_IN_YEAR[this.month - 1] + this.day);
+  };
+
+  hijriDate.fromAJD = function (ajd) {
+    let year, month, date, i = 0,
+        left = Math.floor(ajd - 1948083.5),
+        y30 = Math.floor(left / 10631.0);
+
+    left -= y30*10631;
+    while (left > DAYS_IN_30_YEARS[i]) {
+      i += 1;
+    }
+
+    year = Math.round(y30*30.0 + i);
+    if (i > 0) {
+      left -= DAYS_IN_30_YEARS[i - 1];
+    }
+    i = 0;
+    while (left > DAYS_IN_YEAR[i]) {
+      i += 1;
+    }
+    month = Math.round(i);
+    date = (i > 0) ? Math.round(left - DAYS_IN_YEAR[i - 1]) : Math.round(left);
+
+    return new hijriDate(year, month, date);
+  };
+
+  hijriDate.prototype.toAJD = function () {
+    const y30 = Math.floor(this.year / 30.0);
+    let ajd = 1948083.5 + y30*10631 + this.dayOfYear();
+    if (this.year % 30 !== 0) {
+      ajd += DAYS_IN_30_YEARS[this.year - y30*30 - 1];
+    }
+    return ajd;
+  };
+
+  hijriDate.fromGregorian = function (date) {
+    return hijriDate.fromAJD(hijriDate.gregorianToAJD(date));
+  };
+
+  hijriDate.prototype.toGregorian = function () {
+    return hijriDate.ajdToGregorian(this.toAJD());
+  };
+
+  return hijriDate;
+})();
+
+const HijriCalendar = (function () {
+  "use strict";
+
+  const MIN_CALENDAR_YEAR = 1000,
+        MAX_CALENDAR_YEAR = 3000;
+
+  const hijriCalendar = function (year, month) {
+    this.year = year;
+    this.month = month;
+  };
+
+  hijriCalendar.prototype.getYear = function () { return this.year; };
+  hijriCalendar.prototype.getMonth = function () { return this.month; };
+
+  hijriCalendar.prototype.dayOfWeek = function (date) {
+    const hDate = new HijriDate(this.year, this.month, date);
+    return Math.floor(hDate.toAJD() + 1.5) % 7;
+  };
+
+  hijriCalendar.prototype.days = function () {
+    const self = this;
+    const count = HijriDate.daysInMonth(this.year, this.month);
+    const arr = [];
+    for (let day = 0; day < count; day++) {
+      const hDate = new HijriDate(self.year, self.month, day + 1);
+      arr.push(dayHash(hDate, hDate.toGregorian()));
+    }
+    return arr;
+  };
+
+  hijriCalendar.prototype.previousDays = function () {
+    const previousMonth = this.previousMonth();
+    const daysInPreviousMonth = HijriDate.daysInMonth(previousMonth.getYear(), previousMonth.getMonth());
+    const dayAtStartOfMonth = this.dayOfWeek(1);
+
+    if (this.month === 0 && this.year === MIN_CALENDAR_YEAR) {
+      const arr = [];
+      for (let i = 0; i < dayAtStartOfMonth; i++) arr.push(null);
+      return arr;
+    }
+
+    const arr = [];
+    for (let day = 0; day < dayAtStartOfMonth; day++) {
+      const hDate = new HijriDate(
+        previousMonth.getYear(),
+        previousMonth.getMonth(),
+        daysInPreviousMonth - dayAtStartOfMonth + day + 1
+      );
+      arr.push(dayHash(hDate, hDate.toGregorian(), true));
+    }
+    return arr;
+  };
+
+  hijriCalendar.prototype.nextDays = function () {
+    const nextMonth = this.nextMonth();
+    const daysInMonth = HijriDate.daysInMonth(this.year, this.month);
+    const dayAtEndOfMonth = this.dayOfWeek(daysInMonth);
+
+    if (nextMonth.getYear() === this.year && nextMonth.getMonth() === this.month) {
+      const arr = [];
+      for (let i = 0; i < (6 - dayAtEndOfMonth); i++) arr.push(null);
+      return arr;
+    }
+
+    const arr = [];
+    const count = 6 - dayAtEndOfMonth;
+    for (let day = 0; day < count; day++) {
+      const hDate = new HijriDate(
+        nextMonth.getYear(),
+        nextMonth.getMonth(),
+        day + 1
+      );
+      arr.push(dayHash(hDate, hDate.toGregorian(), true));
+    }
+    return arr;
+  };
+
+  hijriCalendar.prototype.weeks = function () {
+    const allDays = [].concat(
+      this.previousDays(),
+      this.days(),
+      this.nextDays()
+    );
+    const chunks = [];
+    for (let i = 0; i < allDays.length; i += 7) {
+      chunks.push(allDays.slice(i, i + 7));
+    }
+    return chunks;
+  };
+
+  hijriCalendar.prototype.previousMonth = function () {
+    let year = (this.month === 0 && this.year > MIN_CALENDAR_YEAR) ? (this.year - 1) : this.year;
+    let month = (this.month === 0) ? 11 : this.month - 1;
+    return new hijriCalendar(year, month);
+  };
+
+  hijriCalendar.prototype.nextMonth = function () {
+    let year = (this.month === 11 && this.year < MAX_CALENDAR_YEAR) ? (this.year + 1) : this.year;
+    let month = (this.month === 11) ? 0 : this.month + 1;
+    return new hijriCalendar(year, month);
+  };
+
+  function dayHash (hDate, gDate, isFiller) {
+    return {
+      hijri: {
+        year: hDate.getYear(),
+        month: hDate.getMonth(),
+        date: hDate.getDate()
+      },
+      gregorian: {
+        year: gDate.getFullYear(),
+        month: gDate.getMonth(),
+        date: gDate.getDate()
+      },
+      ajd: hDate.toAJD(),
+      filler: isFiller ? true : undefined
+    };
+  }
+
+  return hijriCalendar;
+})();
+
+const ArabicNumerals = {
+  fromInteger: function (x) {
+    const utf8Codes = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    return Math.floor(x).toString().split("").map(digit => utf8Codes[parseInt(digit, 10)]).join("");
+  }
+};
+
 const calContainer = document.getElementById('calendarGridContainer');
 const currentYear = parseInt(calContainer.dataset.year);
 const currentMonth = parseInt(calContainer.dataset.month);
 const currentUserRole = calContainer.dataset.userRole;
 
-let currentDate = new Date(currentYear, currentMonth - 1, 1);
 const menus = JSON.parse(calContainer.dataset.menus);
 const teaTasks = JSON.parse(calContainer.dataset.teaTasks);
 const specialEvents = JSON.parse(calContainer.dataset.specialEvents);
 const menuSuggestions = JSON.parse(calContainer.dataset.menuSuggestions || '[]');
+
+// Parse Hijri date from URL or deduce and redirect to today's active Hijri month
+const urlParams = new URLSearchParams(window.location.search);
+let activeHijriYear = parseInt(urlParams.get('hijri_year'));
+let activeHijriMonth = parseInt(urlParams.get('hijri_month'));
+
+if (isNaN(activeHijriYear) || isNaN(activeHijriMonth)) {
+    // 1. Get today's actual Hijri date
+    const todayHDate = HijriDate.fromGregorian(new Date());
+    activeHijriYear = todayHDate.getYear();
+    activeHijriMonth = todayHDate.getMonth();
+    
+    // 2. Find the Gregorian middle (day 15) for this Hijri month
+    const targetHDate = new HijriDate(activeHijriYear, activeHijriMonth, 15);
+    const targetGDate = targetHDate.toGregorian();
+    const gYear = targetGDate.getFullYear();
+    const gMonth = targetGDate.getMonth() + 1; // 1-indexed for backend query params
+    
+    // 3. Redirect browser to the correct page
+    window.location.replace(`/calendar?year=${gYear}&month=${gMonth}&hijri_year=${activeHijriYear}&hijri_month=${activeHijriMonth}`);
+}
 
 function showEventDetail(type, data) {
     const modalElement = document.getElementById('eventDetailModal');
@@ -446,9 +762,20 @@ function showEventDetail(type, data) {
     if (deleteBtn) deleteBtn.style.display = 'none';
 
     const dateObj = new Date(data.date + 'T00:00:00');
-    date.textContent = dateObj.toLocaleDateString('en-US', { 
+    
+    // Format title with Hijri Date overlay
+    const hDetailDate = HijriDate.fromGregorian(dateObj);
+    const hijriMonthNames = [
+        "Moharram al-Haraam", "Safar al-Muzaffar", "Rabi al-Awwal", "Rabi al-Aakhar",
+        "Jumada al-Ula", "Jumada al-Ukhra", "Rajab al-Asab", "Shabaan al-Karim",
+        "Ramadaan al-Moazzam", "Shawwal al-Mukarram", "Zilqadah al-Haraam", "Zilhaj al-Haraam"
+    ];
+    const formattedHijri = `${ArabicNumerals.fromInteger(hDetailDate.getDate())} ${hijriMonthNames[hDetailDate.getMonth()]} ${ArabicNumerals.fromInteger(hDetailDate.getYear())}H`;
+    const formattedGregorian = dateObj.toLocaleDateString('en-US', { 
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
     });
+    
+    date.innerHTML = `<div class="fw-bold text-dark mb-1">${formattedHijri}</div><div class="text-muted small">${formattedGregorian}</div>`;
 
     if (type === 'menu') {
         header.classList.add('bg-teal');
@@ -621,26 +948,21 @@ function showEventDetail(type, data) {
 }
 
 function openEditModal(data) {
-    // Hide details modal first
     const detailModal = bootstrap.Modal.getInstance(document.getElementById('eventDetailModal'));
     if (detailModal) detailModal.hide();
 
-    // Fill edit modal
     document.getElementById('editEventTitle').value = data.title;
     document.getElementById('editEventDate').value = data.date;
     document.getElementById('editEventDescription').value = data.description || '';
     document.getElementById('editEventForm').action = `/special-events/${data.id}/update`;
 
-    // Show edit modal
     const editModal = new bootstrap.Modal(document.getElementById('editEventModal'));
     editModal.show();
 }
 
-function generateCalendar(year, month) {
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
+function generateCalendar(hYear, hMonth) {
+    const cal = new HijriCalendar(hYear, hMonth);
+    const weeks = cal.weeks();
 
     const calendarBody = document.getElementById('calendarBody');
     calendarBody.innerHTML = '';
@@ -648,25 +970,30 @@ function generateCalendar(year, month) {
     const realToday = new Date();
     const todayDateStr = `${realToday.getFullYear()}-${String(realToday.getMonth() + 1).padStart(2, '0')}-${String(realToday.getDate()).padStart(2, '0')}`;
 
-    for (let week = 0; week < 6; week++) {
+    for (let week = 0; week < weeks.length; week++) {
         const weekRow = document.createElement('div');
         weekRow.className = 'calendar-week';
         let isCurrentWeek = false;
 
         for (let day = 0; day < 7; day++) {
-            const currentDay = new Date(startDate);
-            currentDay.setDate(startDate.getDate() + (week * 7) + day);
+            const dayData = weeks[week][day];
+            if (!dayData) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'calendar-day other-month';
+                weekRow.appendChild(emptyCell);
+                continue;
+            }
 
             const dayCell = document.createElement('div');
             dayCell.className = 'calendar-day';
 
-            const yyyy = currentDay.getFullYear();
-            const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
-            const dd = String(currentDay.getDate()).padStart(2, '0');
-            const dateStr = `${yyyy}-${mm}-${dd}`;
+            const gy = dayData.gregorian.year;
+            const gm = String(dayData.gregorian.month + 1).padStart(2, '0');
+            const gd = String(dayData.gregorian.date).padStart(2, '0');
+            const dateStr = `${gy}-${gm}-${gd}`;
             dayCell.setAttribute('data-date', dateStr);
 
-            if (currentDay.getMonth() !== month) {
+            if (dayData.filler) {
                 dayCell.classList.add('other-month');
             }
 
@@ -675,15 +1002,30 @@ function generateCalendar(year, month) {
                 isCurrentWeek = true;
             }
 
-            const dayNumber = document.createElement('div');
-            dayNumber.className = 'day-number';
-            dayNumber.textContent = currentDay.getDate();
-            dayCell.appendChild(dayNumber);
+            // Create container for dates header
+            const headerContainer = document.createElement('div');
+            headerContainer.className = 'day-header-container';
+
+            // Hijri Date Number (Arabic numerals)
+            const hijriNumber = document.createElement('div');
+            hijriNumber.className = 'hijri-day-number';
+            hijriNumber.textContent = ArabicNumerals.fromInteger(dayData.hijri.date);
+            headerContainer.appendChild(hijriNumber);
+
+            // Gregorian Date Number (English numerals)
+            const gregorianNumber = document.createElement('div');
+            gregorianNumber.className = 'gregorian-day-number';
+            const gMonthNameShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dayData.gregorian.month];
+            gregorianNumber.textContent = `${dayData.gregorian.date} ${gMonthNameShort}`;
+            headerContainer.appendChild(gregorianNumber);
+
+            dayCell.appendChild(headerContainer);
 
             // Add Bread/Roti badge container
             const badgeContainer = document.createElement('div');
             badgeContainer.className = 'day-badge-container';
-            const dayNum = currentDay.getDay();
+            const gDateObj = new Date(dayData.gregorian.year, dayData.gregorian.month, dayData.gregorian.date);
+            const dayNum = gDateObj.getDay();
             if (dayNum === 2 || dayNum === 5) {
                 badgeContainer.innerHTML = '<span class="badge rounded-pill bg-primary-subtle text-primary border border-primary" style="font-size: 0.55rem; padding: 2px 4px;">Bread</span>';
             } else {
@@ -752,7 +1094,6 @@ function generateCalendar(year, month) {
                 dayCell.style.cursor = 'pointer';
             } else if (currentUserRole === 'member') {
                 if (dateStr >= todayDateStr) {
-                    // Check daily suggestion limit (2 per day)
                     if (daySuggestions.length >= 2) {
                         dayCell.title = "Max suggestions reached for this day";
                         dayCell.style.opacity = "0.7";
@@ -779,146 +1120,154 @@ function generateCalendar(year, month) {
         calendarBody.appendChild(weekRow);
     }
 
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                       'July', 'August', 'September', 'October', 'November', 'December'];
-    document.getElementById('currentMonth').textContent = monthNames[month] + ' ' + year;
+    const hijriMonthNames = [
+        "Moharram al-Haraam", "Safar al-Muzaffar", "Rabi al-Awwal", "Rabi al-Aakhar",
+        "Jumada al-Ula", "Jumada al-Ukhra", "Rajab al-Asab", "Shabaan al-Karim",
+        "Ramadaan al-Moazzam", "Shawwal al-Mukarram", "Zilqadah al-Haraam", "Zilhaj al-Haraam"
+    ];
+    document.getElementById('currentMonth').textContent = hijriMonthNames[hMonth] + ' ' + hYear;
 
-    // Fetch slated rotation turns for the 6-week grid range
-    const yyyyStart = startDate.getFullYear();
-    const mmStart = String(startDate.getMonth() + 1).padStart(2, '0');
-    const ddStart = String(startDate.getDate()).padStart(2, '0');
-    const startStr = `${yyyyStart}-${mmStart}-${ddStart}`;
+    // Fetch slated rotation turns for the generated weeks range
+    const firstDay = weeks[0][0];
+    const lastWeek = weeks[weeks.length - 1];
+    const lastDay = lastWeek[lastWeek.length - 1];
 
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 41);
-    const yyyyEnd = endDate.getFullYear();
-    const mmEnd = String(endDate.getMonth() + 1).padStart(2, '0');
-    const ddEnd = String(endDate.getDate()).padStart(2, '0');
-    const endStr = `${yyyyEnd}-${mmEnd}-${ddEnd}`;
+    if (firstDay && lastDay) {
+        const startStr = `${firstDay.gregorian.year}-${String(firstDay.gregorian.month + 1).padStart(2, '0')}-${String(firstDay.gregorian.date).padStart(2, '0')}`;
+        const endStr = `${lastDay.gregorian.year}-${String(lastDay.gregorian.month + 1).padStart(2, '0')}-${String(lastDay.gregorian.date).padStart(2, '0')}`;
 
-    let userTeamIds = [];
-    try {
-        userTeamIds = JSON.parse(calContainer.dataset.userTeamIds || '[]');
-    } catch(e) {
-        console.error(e);
-    }
+        let userTeamIds = [];
+        try {
+            userTeamIds = JSON.parse(calContainer.dataset.userTeamIds || '[]');
+        } catch(e) {
+            console.error(e);
+        }
 
-    fetch(`/menus/rotation/slated-range?start=${startStr}&end=${endStr}`)
-        .then(res => res.json())
-        .then(slatedMap => {
-            const roomDatesMap = {};
+        fetch(`/menus/rotation/slated-range?start=${startStr}&end=${endStr}`)
+            .then(res => res.json())
+            .then(slatedMap => {
+                const roomDatesMap = {};
 
-            for (let dateKey in slatedMap) {
-                const info = slatedMap[dateKey];
-                const dayCell = calendarBody.querySelector(`.calendar-day[data-date="${dateKey}"]`);
-                if (!dayCell) continue;
+                for (let dateKey in slatedMap) {
+                    const info = slatedMap[dateKey];
+                    const dayCell = calendarBody.querySelector(`.calendar-day[data-date="${dateKey}"]`);
+                    if (!dayCell) continue;
 
-                const hasMenu = dayCell.querySelector('.calendar-event.bg-teal');
-                
-                if (info.status === 'slated' && info.team) {
-                    const isUserTurn = userTeamIds.includes(info.team.id);
-                    if (isUserTurn) {
-                        dayCell.classList.add('rotation-user-turn');
-                        dayCell.title = `Your turn to cook (Room ${info.team.name})!`;
+                    const hasMenu = dayCell.querySelector('.calendar-event.bg-teal');
+                    
+                    if (info.status === 'slated' && info.team) {
+                        const isUserTurn = userTeamIds.includes(info.team.id);
+                        if (isUserTurn) {
+                            dayCell.classList.add('rotation-user-turn');
+                            dayCell.title = `Your turn to cook (Room ${info.team.name})!`;
 
-                        const dParts = dateKey.split('-');
-                        const dMonth = parseInt(dParts[1]) - 1;
-                        const dYear = parseInt(dParts[0]);
-
-                        if (dMonth === month && dYear === year && !hasMenu) {
                             const dateObj = new Date(dateKey + 'T00:00:00');
-                            const formatted = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                            
-                            const roomKey = info.team.name;
-                            if (!roomDatesMap[roomKey]) {
-                                roomDatesMap[roomKey] = {
-                                    icon: info.team.icon || '',
-                                    dates: [],
-                                    dateValFirst: dateObj
-                                };
-                            }
-                            roomDatesMap[roomKey].dates.push({
-                                formatted: `<strong>${formatted}</strong>`,
-                                val: dateObj
-                            });
-                        }
-                    }
+                            const hDate = HijriDate.fromGregorian(dateObj);
 
-                    if (!hasMenu) {
+                            if (hDate.getMonth() === hMonth && hDate.getYear() === hYear && !hasMenu) {
+                                const formatted = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                                
+                                const roomKey = info.team.name;
+                                if (!roomDatesMap[roomKey]) {
+                                    roomDatesMap[roomKey] = {
+                                        icon: info.team.icon || '',
+                                        dates: [],
+                                        dateValFirst: dateObj
+                                    };
+                                }
+                                roomDatesMap[roomKey].dates.push({
+                                    formatted: `<strong>${formatted}</strong>`,
+                                    val: dateObj
+                                });
+                            }
+                        }
+
+                        if (!hasMenu) {
+                            const badgeContainer = dayCell.querySelector('.day-badge-container');
+                            if (badgeContainer) {
+                                const rotationChip = document.createElement('span');
+                                rotationChip.className = 'badge rotation-slated-turn-chip';
+                                const iconStr = info.team.icon ? `${info.team.icon} ` : '';
+                                rotationChip.innerHTML = `<i class="fas fa-sync-alt me-1"></i>${iconStr}${info.team.name}`;
+                                badgeContainer.appendChild(rotationChip);
+                            }
+                        }
+                    } else if (info.status === 'skip' && !hasMenu) {
                         const badgeContainer = dayCell.querySelector('.day-badge-container');
                         if (badgeContainer) {
-                            const rotationChip = document.createElement('span');
-                            rotationChip.className = 'badge rotation-slated-turn-chip';
-                            const iconStr = info.team.icon ? `${info.team.icon} ` : '';
-                            rotationChip.innerHTML = `<i class="fas fa-sync-alt me-1"></i>${iconStr}${info.team.name}`;
-                            badgeContainer.appendChild(rotationChip);
+                            const leaveChip = document.createElement('span');
+                            leaveChip.className = 'badge bg-soft-danger text-danger border border-danger-subtle';
+                            leaveChip.style.fontSize = '0.55rem';
+                            leaveChip.style.padding = '2px 4px';
+                            leaveChip.innerHTML = `<i class="fas fa-ban me-1"></i>Leave`;
+                            badgeContainer.appendChild(leaveChip);
                         }
                     }
-                } else if (info.status === 'skip' && !hasMenu) {
-                    const badgeContainer = dayCell.querySelector('.day-badge-container');
-                    if (badgeContainer) {
-                        const leaveChip = document.createElement('span');
-                        leaveChip.className = 'badge bg-soft-danger text-danger border border-danger-subtle';
-                        leaveChip.style.fontSize = '0.55rem';
-                        leaveChip.style.padding = '2px 4px';
-                        leaveChip.innerHTML = `<i class="fas fa-ban me-1"></i>Leave`;
-                        badgeContainer.appendChild(leaveChip);
+                }
+
+                const bannerEl = document.getElementById('rotationReminderBanner');
+                const datesEl = document.getElementById('rotationReminderDates');
+                if (bannerEl && datesEl) {
+                    const roomKeys = Object.keys(roomDatesMap);
+                    if (roomKeys.length > 0) {
+                        roomKeys.sort((a, b) => roomDatesMap[a].dateValFirst - roomDatesMap[b].dateValFirst);
+                        
+                        let htmlContent = '';
+                        roomKeys.forEach(roomName => {
+                            const roomInfo = roomDatesMap[roomName];
+                            roomInfo.dates.sort((a, b) => a.val - b.val);
+                            const dateStrings = roomInfo.dates.map(d => d.formatted).join(' &bull; ');
+                            const iconStr = roomInfo.icon ? `${roomInfo.icon} ` : '';
+                            
+                            if (htmlContent) htmlContent += '<br class="my-1">';
+                            htmlContent += `<span class="badge bg-teal text-white me-2" style="font-size: 0.72rem; padding: 4px 8px;"><i class="fas fa-users me-1"></i>${iconStr}${roomName}</span> ${dateStrings}`;
+                        });
+                        
+                        datesEl.innerHTML = htmlContent;
+                        bannerEl.classList.remove('d-none');
+                    } else {
+                        bannerEl.classList.add('d-none');
                     }
                 }
-            }
-
-            const bannerEl = document.getElementById('rotationReminderBanner');
-            const datesEl = document.getElementById('rotationReminderDates');
-            if (bannerEl && datesEl) {
-                const roomKeys = Object.keys(roomDatesMap);
-                if (roomKeys.length > 0) {
-                    roomKeys.sort((a, b) => roomDatesMap[a].dateValFirst - roomDatesMap[b].dateValFirst);
-                    
-                    let htmlContent = '';
-                    roomKeys.forEach(roomName => {
-                        const roomInfo = roomDatesMap[roomName];
-                        roomInfo.dates.sort((a, b) => a.val - b.val);
-                        const dateStrings = roomInfo.dates.map(d => d.formatted).join(' &bull; ');
-                        const iconStr = roomInfo.icon ? `${roomInfo.icon} ` : '';
-                        
-                        if (htmlContent) htmlContent += '<br class="my-1">';
-                        htmlContent += `<span class="badge bg-teal text-white me-2" style="font-size: 0.72rem; padding: 4px 8px;"><i class="fas fa-users me-1"></i>${iconStr}${roomName}</span> ${dateStrings}`;
-                    });
-                    
-                    datesEl.innerHTML = htmlContent;
-                    bannerEl.classList.remove('d-none');
-                } else {
-                    bannerEl.classList.add('d-none');
-                }
-            }
-        })
-        .catch(err => console.error("Error loading rotation range:", err));
+            })
+            .catch(err => console.error("Error loading rotation range:", err));
+    }
 }
 
 function previousMonth() {
-    let month = currentMonth;
-    let year = currentYear;
+    let month = activeHijriMonth;
+    let year = activeHijriYear;
     month--;
-    if (month < 1) {
-        month = 12;
+    if (month < 0) {
+        month = 11;
         year--;
     }
-    window.location.href = `/calendar?year=${year}&month=${month}`;
+    const targetHDate = new HijriDate(year, month, 15);
+    const targetGDate = targetHDate.toGregorian();
+    const gYear = targetGDate.getFullYear();
+    const gMonth = targetGDate.getMonth() + 1;
+    
+    window.location.href = `/calendar?year=${gYear}&month=${gMonth}&hijri_year=${year}&hijri_month=${month}`;
 }
 
 function nextMonth() {
-    let month = currentMonth;
-    let year = currentYear;
+    let month = activeHijriMonth;
+    let year = activeHijriYear;
     month++;
-    if (month > 12) {
-        month = 1;
+    if (month > 11) {
+        month = 0;
         year++;
     }
-    window.location.href = `/calendar?year=${year}&month=${month}`;
+    const targetHDate = new HijriDate(year, month, 15);
+    const targetGDate = targetHDate.toGregorian();
+    const gYear = targetGDate.getFullYear();
+    const gMonth = targetGDate.getMonth() + 1;
+    
+    window.location.href = `/calendar?year=${gYear}&month=${gMonth}&hijri_year=${year}&hijri_month=${month}`;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    generateCalendar(currentDate.getFullYear(), currentDate.getMonth());
+    generateCalendar(activeHijriYear, activeHijriMonth);
 
     // Suggest Menu Form validation (Prevent entering a dish name if selected from dropdown)
     const suggestDishSelect = document.getElementById('suggestDishSelect');
