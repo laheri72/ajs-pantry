@@ -23,17 +23,17 @@
                     </div>
                     <div class="col-sm-6 col-md-3">
                         <label class="form-label fw-bold">Start Date</label>
-                        <input type="date" name="start_date" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" name="start_date" id="start_date_input" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
                     </div>
                     <div class="col-sm-6 col-md-3">
                         <label class="form-label fw-bold">End Date</label>
-                        <input type="date" name="end_date" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" name="end_date" id="end_date_input" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" onchange="syncDeadlineWithEndDate(this.value)" oninput="syncDeadlineWithEndDate(this.value)" required>
                     </div>
                 </div>
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Submission Deadline</label>
-                        <input type="date" name="submission_deadline" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <input type="date" name="submission_deadline" id="submission_deadline_input" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label fw-bold">Cycle Notes</label>
@@ -41,7 +41,31 @@
                     </div>
                 </div>
                 <div class="faculty-card bg-light p-3 mb-4">
-                    <div class="fw-bold mb-3">Floor-wise Allocations</div>
+                    <div class="fw-bold mb-3"><i class="fas fa-coins me-1 text-teal"></i> Floor-wise Allocations</div>
+
+                    <!-- Quick Master Bulk Apply Bar -->
+                    <div class="rounded-4 p-3 mb-3 shadow-sm" style="background: linear-gradient(135deg, #e0f2f1 0%, #f0fdf4 100%); border: 1.5px solid #80cbc4 !important; border-left: 5px solid #00695c !important;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-teal" style="font-size: 0.85rem;"><i class="fas fa-bolt me-1 text-warning"></i> Quick Fill (Master Controller)</span>
+                            <span class="badge bg-teal text-white small fw-semibold px-2 py-1"><i class="fas fa-magic me-1"></i> Applies to All Floors</span>
+                        </div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-sm-5 col-md-4">
+                                <label class="form-label small text-muted mb-1 fw-bold">Bulk Amount (₹)</label>
+                                <input type="number" id="bulk_amount_input" class="form-control rounded-3 bg-white" step="0.01" placeholder="e.g. 50000" oninput="applyBulkAmount(this.value)">
+                            </div>
+                            <div class="col-sm-7 col-md-6">
+                                <label class="form-label small text-muted mb-1 fw-bold">Bulk Faculty Note</label>
+                                <input type="text" id="bulk_note_input" class="form-control rounded-3 bg-white" placeholder="e.g. Approved budget allocation" oninput="applyBulkNote(this.value)">
+                            </div>
+                            <div class="col-12 col-md-2 mt-2 mt-md-0">
+                                <button type="button" class="btn btn-teal w-100 rounded-3 fw-bold" onclick="applyBulkAll()">
+                                    <i class="fas fa-check-double me-1"></i> Apply
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         {% for floor in floor_options %}
                         <div class="col-12">
@@ -50,11 +74,11 @@
                                 <div class="row g-3">
                                     <div class="col-sm-4">
                                         <label class="form-label small text-muted">Amount</label>
-                                        <input type="number" name="amount_{{ floor }}" class="form-control rounded-4" step="0.01" value="0">
+                                        <input type="number" name="amount_{{ floor }}" class="form-control rounded-4 floor-amount-input" step="0.01" value="0">
                                     </div>
                                     <div class="col-sm-8">
                                         <label class="form-label small text-muted">Faculty Note</label>
-                                        <input name="faculty_note_{{ floor }}" class="form-control rounded-4" placeholder="Why this amount was finalized">
+                                        <input name="faculty_note_{{ floor }}" class="form-control rounded-4 floor-note-input" placeholder="Why this amount was finalized">
                                     </div>
                                 </div>
                             </div>
@@ -98,4 +122,34 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function syncDeadlineWithEndDate(val) {
+        const deadlineInput = document.getElementById('submission_deadline_input');
+        if (deadlineInput && val) {
+            deadlineInput.value = val;
+        }
+    }
+
+    function applyBulkAmount(val) {
+        document.querySelectorAll('.floor-amount-input').forEach(input => {
+            input.value = val;
+        });
+    }
+
+    function applyBulkNote(val) {
+        document.querySelectorAll('.floor-note-input').forEach(input => {
+            input.value = val;
+        });
+    }
+
+    function applyBulkAll() {
+        const amt = document.getElementById('bulk_amount_input').value;
+        const note = document.getElementById('bulk_note_input').value;
+        if (amt !== '') applyBulkAmount(amt);
+        if (note !== '') applyBulkNote(note);
+    }
+</script>
 {% endblock %}

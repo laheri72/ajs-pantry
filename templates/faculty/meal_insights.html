@@ -37,9 +37,18 @@
                             <div class="small text-muted">
                                 Floor {{ menu.floor }} &bull; {{ menu.meal_type|title }} &bull; {{ menu.date.strftime('%d %b %Y') }}
                             </div>
-                            <div class="small mt-1">
-                                {{ menu.dish.name if menu.dish else 'No main dish' }}
-                                {% if menu.side_dish %} + {{ menu.side_dish.name }}{% endif %}
+                            <div class="small mt-1 d-flex align-items-center flex-wrap gap-2">
+                                <span>
+                                    {{ menu.dish.name if menu.dish else 'No main dish' }}
+                                    {% if menu.side_dish %} + {{ menu.side_dish.name }}{% endif %}
+                                </span>
+                                {% if menu.dish %}
+                                <button type="button" class="btn btn-sm btn-outline-teal rounded-pill px-2 py-0" style="font-size: 0.72rem;"
+                                        data-dish-id="{{ menu.dish.id }}" data-dish-name="{{ menu.dish.name }}"
+                                        onclick="openEstimateFromBtn(this)">
+                                    <i class="fas fa-calculator me-1"></i>Estimate
+                                </button>
+                                {% endif %}
                             </div>
                         </div>
                         <span class="badge bg-light text-dark border">{{ row.suggestion_count }} requests</span>
@@ -58,43 +67,157 @@
                 <table class="table align-middle w-100" id="mealHistoryTable">
                     <thead class="small text-uppercase text-muted">
                         <tr>
-                            <th>Date</th>
-                            <th>Floor</th>
-                            <th>Meal</th>
-                            <th>Dishes</th>
-                            <th>Rating</th>
-                            <th>Feedback</th>
-                            <th>Requests</th>
-                            <th>Votes</th>
+                            <th class="text-center">Date</th>
+                            <th class="text-center">Floor</th>
+                            <th class="text-center">Meal</th>
+                            <th class="text-center">Dishes</th>
+                            <th class="text-center">Estimate</th>
+                            <th class="text-center">Rating</th>
+                            <th class="text-center">Feedback</th>
+                            <th class="text-center">Requests</th>
+                            <th class="text-center">Votes</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in history_rows %}
                         {% set menu = row.menu %}
                         <tr>
-                            <td data-order="{{ menu.date.isoformat() }}">{{ menu.date.strftime('%d %b %Y') }}</td>
-                            <td>Floor {{ menu.floor }}</td>
-                            <td>{{ menu.meal_type|title }}</td>
-                            <td>
+                            <td class="text-center" data-order="{{ menu.date.isoformat() }}">{{ menu.date.strftime('%d %b %Y') }}</td>
+                            <td class="text-center">Floor {{ menu.floor }}</td>
+                            <td class="text-center">{{ menu.meal_type|title }}</td>
+                            <td class="text-center">
                                 <div class="fw-bold">{{ menu.dish.name if menu.dish else menu.title }}</div>
                                 {% if menu.side_dish %}
-                                <div class="small text-muted">{{ menu.side_dish.name }}</div>
+                                <div class="small text-muted">+ {{ menu.side_dish.name }}</div>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center" style="white-space: nowrap;">
+                                {% if menu.dish %}
+                                <button type="button" class="btn btn-sm btn-outline-teal rounded-pill px-2 py-1 small fw-semibold"
+                                        data-dish-id="{{ menu.dish.id }}" data-dish-name="{{ menu.dish.name }}"
+                                        onclick="openEstimateFromBtn(this)"
+                                        title="View Recipe Estimate for {{ menu.dish.name }}">
+                                    <i class="fas fa-clipboard-list me-1"></i>Estimate
+                                </button>
+                                {% elif menu.side_dish %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 small"
+                                        data-dish-id="{{ menu.side_dish.id }}" data-dish-name="{{ menu.side_dish.name }}"
+                                        onclick="openEstimateFromBtn(this)"
+                                        title="View Recipe Estimate for {{ menu.side_dish.name }}">
+                                    <i class="fas fa-utensils me-1"></i>Estimate
+                                </button>
+                                {% else %}
+                                <span class="text-muted small">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
                                 {% if row.feedback_count %}
                                 <span class="fw-bold">{{ row.avg_rating }}</span><span class="text-warning">/5</span>
                                 {% else %}
                                 <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
-                            <td>{{ row.feedback_count }}</td>
-                            <td>{{ row.suggestion_count }}</td>
-                            <td>{{ row.vote_count }}</td>
+                            <td class="text-center">{{ row.feedback_count }}</td>
+                            <td class="text-center">{{ row.suggestion_count }}</td>
+                            <td class="text-center">{{ row.vote_count }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Read-Only Dish Estimate Modal for Faculty -->
+<div class="modal fade faculty-modal" id="facultyEstimateModal" tabindex="-1" aria-labelledby="facultyEstimateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom bg-light py-3">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0 text-teal" id="facultyEstimateModalTitle">
+                        <i class="fas fa-clipboard-list me-2"></i>Dish Estimate
+                    </h5>
+                    <div class="small text-muted" id="facultyEstimateModalSubtitle">Global procurement & ingredient estimation</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Loader State -->
+                <div id="facultyEstimateLoader" class="text-center py-5">
+                    <div class="spinner-border text-teal mb-2" role="status"></div>
+                    <div class="text-muted small">Loading recipe estimate data...</div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="facultyEstimateEmpty" class="text-center py-5 d-none">
+                    <i class="fas fa-exclamation-circle text-muted fa-2x mb-2"></i>
+                    <h6 class="fw-bold text-secondary mb-1">No Estimate Available</h6>
+                    <p class="text-muted small mb-0">No global recipe estimate has been recorded for this dish yet.</p>
+                </div>
+
+                <!-- Content State -->
+                <div id="facultyEstimateContent" class="d-none">
+                    <!-- Scaling Controls & Overview Header -->
+                    <div class="card border-0 bg-light rounded-4 p-3 mb-4">
+                        <div class="row align-items-center g-3">
+                            <div class="col-md-7">
+                                <div class="small text-muted text-uppercase fw-bold">Preparation & Recipe Overview</div>
+                                <div id="facultyEstimateSummaryText" class="fw-medium text-dark mt-1" style="font-size: 0.95rem;">
+                                    Standard preparation estimate.
+                                </div>
+                            </div>
+                            <div class="col-md-5 border-start-md">
+                                <div class="bg-white rounded-3 p-2 border d-flex align-items-center justify-content-between">
+                                    <label for="facultyServingScaler" class="small fw-bold text-muted mb-0 me-2">
+                                        <i class="fas fa-users me-1 text-teal"></i>Scale for (Persons):
+                                    </label>
+                                    <input type="number" id="facultyServingScaler" class="form-control form-control-sm rounded-3 text-teal fw-bold text-center" style="width: 80px;" value="30" min="1" max="5000" oninput="renderFacultyScaledEstimate()">
+                                </div>
+                                <div class="text-end text-muted mt-1" style="font-size: 0.75rem;" id="facultyBaseServingNotice">
+                                    Base recipe benchmark: 30 persons
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ingredients Table -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-2 text-teal">
+                            <i class="fas fa-boxes me-1"></i> Itemized Ingredient Estimates
+                        </h6>
+                        <div class="table-responsive border rounded-4 overflow-hidden">
+                            <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+                                <thead class="table-light small text-uppercase">
+                                    <tr>
+                                        <th style="width: 40px;" class="text-center">#</th>
+                                        <th>Ingredient Name</th>
+                                        <th class="text-end" style="width: 130px;">Estimated Qty</th>
+                                        <th style="width: 90px;">Unit</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="facultyIngredientsTbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Chef Tips & Notes -->
+                    <div id="facultyTipsSection" class="d-none">
+                        <h6 class="fw-bold mb-2 text-teal">
+                            <i class="fas fa-lightbulb me-1 text-warning"></i> Preparation Tips & Notes
+                        </h6>
+                        <div class="card border-0 bg-light rounded-4 p-3">
+                            <ul id="facultyTipsList" class="mb-0 small text-secondary ps-3">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -110,5 +233,125 @@
         pageLength: 25,
         order: [[0, 'desc'], [1, 'asc']]
     });
+
+    let currentFacultyEstimateData = null;
+
+    window.openEstimateFromBtn = function(btn) {
+        if (!btn) return;
+        const dishId = btn.getAttribute('data-dish-id');
+        const dishName = btn.getAttribute('data-dish-name') || '';
+        if (dishId) {
+            openReadonlyEstimateModal(dishId, dishName);
+        }
+    };
+
+    async function openReadonlyEstimateModal(dishId, dishName) {
+        const modalTitle = document.getElementById('facultyEstimateModalTitle');
+        const modalSubtitle = document.getElementById('facultyEstimateModalSubtitle');
+        const loader = document.getElementById('facultyEstimateLoader');
+        const emptyState = document.getElementById('facultyEstimateEmpty');
+        const content = document.getElementById('facultyEstimateContent');
+
+        modalTitle.innerHTML = `<i class="fas fa-clipboard-list me-2"></i>Estimate: ${dishName}`;
+        modalSubtitle.innerText = `Read-only recipe & ingredient estimation for ${dishName}`;
+        
+        loader.classList.remove('d-none');
+        emptyState.classList.add('d-none');
+        content.classList.add('d-none');
+
+        const modalEl = document.getElementById('facultyEstimateModal');
+        if (modalEl && modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+        }
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        try {
+            const resp = await fetch(`/menus/dish-insights/${dishId}`);
+            const data = await resp.json();
+
+            loader.classList.add('d-none');
+
+            if (!data || !data.estimate || !data.estimate.available) {
+                emptyState.classList.remove('d-none');
+                return;
+            }
+
+            currentFacultyEstimateData = data.estimate;
+            const baseServing = data.estimate.serving_count || 30;
+
+            document.getElementById('facultyServingScaler').value = baseServing;
+            document.getElementById('facultyBaseServingNotice').innerText = `Base recipe benchmark: ${baseServing} persons`;
+            document.getElementById('facultyEstimateSummaryText').innerText = data.estimate.summary || 'No summary overview available.';
+
+            renderFacultyScaledEstimate();
+            content.classList.remove('d-none');
+
+        } catch (err) {
+            console.error(err);
+            loader.classList.add('d-none');
+            emptyState.classList.remove('d-none');
+        }
+    }
+
+    function renderFacultyScaledEstimate() {
+        if (!currentFacultyEstimateData) return;
+
+        const baseServing = parseFloat(currentFacultyEstimateData.serving_count || 30);
+        const targetServing = parseFloat(document.getElementById('facultyServingScaler').value || baseServing);
+        const scaleFactor = (targetServing > 0 && baseServing > 0) ? (targetServing / baseServing) : 1;
+
+        const tbody = document.getElementById('facultyIngredientsTbody');
+        tbody.innerHTML = '';
+
+        const rawIngredients = currentFacultyEstimateData.ingredients || [];
+        if (rawIngredients.length > 0) {
+            rawIngredients.forEach((item, index) => {
+                let name = item.name || item.item || item.ingredient || '-';
+                let rawQtyStr = (item.qty !== undefined && item.qty !== null) ? item.qty : (item.quantity || '');
+                let unit = item.unit || item.uom || '';
+
+                let numQty = parseFloat(rawQtyStr);
+                let displayQty = rawQtyStr;
+
+                if (!isNaN(numQty)) {
+                    let scaledVal = numQty * scaleFactor;
+                    displayQty = (Math.round(scaledVal * 100) / 100).toString();
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-center text-muted small">${index + 1}</td>
+                    <td class="fw-semibold text-dark">${name}</td>
+                    <td class="text-end fw-bold text-teal">${displayQty}</td>
+                    <td class="text-muted small">${unit}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted small py-3">No itemized ingredients specified</td></tr>`;
+        }
+
+        // Render tips
+        const tipsContainer = document.getElementById('facultyTipsSection');
+        const tipsList = document.getElementById('facultyTipsList');
+        tipsList.innerHTML = '';
+
+        const tips = currentFacultyEstimateData.tips || [];
+        if (tips.length > 0) {
+            tips.forEach(t => {
+                let tipText = typeof t === 'string' ? t : (t.text || t.tip || '');
+                if (tipText) {
+                    const li = document.createElement('li');
+                    li.className = 'mb-1';
+                    li.innerText = tipText;
+                    tipsList.appendChild(li);
+                }
+            });
+            tipsContainer.classList.remove('d-none');
+        } else {
+            tipsContainer.classList.add('d-none');
+        }
+    }
 </script>
 {% endblock %}

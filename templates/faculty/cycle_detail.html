@@ -121,13 +121,13 @@
                         </div>
                         <div class="col-sm-6 col-md-3">
                             <label class="form-label fw-bold">End Date</label>
-                            <input type="date" name="end_date" class="form-control rounded-4" value="{{ cycle.end_date.strftime('%Y-%m-%d') }}" required>
+                            <input type="date" name="end_date" id="edit_end_date_input" class="form-control rounded-4" value="{{ cycle.end_date.strftime('%Y-%m-%d') }}" onchange="syncEditDeadlineWithEndDate(this.value)" oninput="syncEditDeadlineWithEndDate(this.value)" required>
                         </div>
                     </div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <label class="form-label fw-bold">Submission Deadline</label>
-                            <input type="date" name="submission_deadline" class="form-control rounded-4" value="{{ cycle.submission_deadline.strftime('%Y-%m-%d') }}" required>
+                            <input type="date" name="submission_deadline" id="edit_submission_deadline_input" class="form-control rounded-4" value="{{ cycle.submission_deadline.strftime('%Y-%m-%d') }}" required>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label fw-bold">Cycle Notes</label>
@@ -135,7 +135,31 @@
                         </div>
                     </div>
                     <div class="faculty-card bg-light p-3">
-                        <div class="fw-bold mb-3">Floor-wise Allocations</div>
+                        <div class="fw-bold mb-3"><i class="fas fa-coins me-1 text-teal"></i> Floor-wise Allocations</div>
+
+                        <!-- Quick Master Bulk Apply Bar for Edit Modal -->
+                        <div class="rounded-4 p-3 mb-3 shadow-sm" style="background: linear-gradient(135deg, #e0f2f1 0%, #f0fdf4 100%); border: 1.5px solid #80cbc4 !important; border-left: 5px solid #00695c !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-teal" style="font-size: 0.85rem;"><i class="fas fa-bolt me-1 text-warning"></i> Quick Fill (Master Controller)</span>
+                                <span class="badge bg-teal text-white small fw-semibold px-2 py-1"><i class="fas fa-magic me-1"></i> Applies to All Floors</span>
+                            </div>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-5 col-md-4">
+                                    <label class="form-label small text-muted mb-1 fw-bold">Bulk Amount (₹)</label>
+                                    <input type="number" id="edit_bulk_amount_input" class="form-control rounded-3 bg-white" step="0.01" placeholder="e.g. 50000" oninput="applyEditBulkAmount(this.value)">
+                                </div>
+                                <div class="col-sm-7 col-md-6">
+                                    <label class="form-label small text-muted mb-1 fw-bold">Bulk Faculty Note</label>
+                                    <input type="text" id="edit_bulk_note_input" class="form-control rounded-3 bg-white" placeholder="e.g. Approved budget allocation" oninput="applyEditBulkNote(this.value)">
+                                </div>
+                                <div class="col-12 col-md-2 mt-2 mt-md-0">
+                                    <button type="button" class="btn btn-teal w-100 rounded-3 fw-bold" onclick="applyEditBulkAll()">
+                                        <i class="fas fa-check-double me-1"></i> Apply
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="row g-3">
                             {% for floor in editable_floors %}
                             {% set budget = budgets_by_floor.get(floor) %}
@@ -145,11 +169,11 @@
                                     <div class="row g-3">
                                         <div class="col-sm-4">
                                             <label class="form-label small text-muted">Amount</label>
-                                            <input type="number" name="amount_{{ floor }}" class="form-control rounded-4" step="0.01" value="{{ budget.amount_allocated if budget else 0 }}">
+                                            <input type="number" name="amount_{{ floor }}" class="form-control rounded-4 edit-floor-amount-input" step="0.01" value="{{ budget.amount_allocated if budget else 0 }}">
                                         </div>
                                         <div class="col-sm-8">
                                             <label class="form-label small text-muted">Faculty Note</label>
-                                            <input name="faculty_note_{{ floor }}" class="form-control rounded-4" placeholder="Why this amount was finalized" value="{{ budget.faculty_note if budget else '' }}">
+                                            <input name="faculty_note_{{ floor }}" class="form-control rounded-4 edit-floor-note-input" placeholder="Why this amount was finalized" value="{{ budget.faculty_note if budget else '' }}">
                                         </div>
                                     </div>
                                 </div>
@@ -230,5 +254,31 @@
             });
         });
     });
+
+    function syncEditDeadlineWithEndDate(val) {
+        const deadlineInput = document.getElementById('edit_submission_deadline_input');
+        if (deadlineInput && val) {
+            deadlineInput.value = val;
+        }
+    }
+
+    function applyEditBulkAmount(val) {
+        document.querySelectorAll('.edit-floor-amount-input').forEach(input => {
+            input.value = val;
+        });
+    }
+
+    function applyEditBulkNote(val) {
+        document.querySelectorAll('.edit-floor-note-input').forEach(input => {
+            input.value = val;
+        });
+    }
+
+    function applyEditBulkAll() {
+        const amt = document.getElementById('edit_bulk_amount_input').value;
+        const note = document.getElementById('edit_bulk_note_input').value;
+        if (amt !== '') applyEditBulkAmount(amt);
+        if (note !== '') applyEditBulkNote(note);
+    }
 </script>
 {% endblock %}
