@@ -692,10 +692,42 @@ def dashboard():
                 if active_cycle.submission_deadline < today:
                     cycle_summary['overdue_floors'] += 1
 
-    floor_rows = [
-        {'floor': floor, 'count': stats['floor_counts'].get(floor, 0)}
-        for floor in _get_tenant_floor_options(user)
-    ]
+    floor_options = _get_tenant_floor_options(user)
+    
+    # Query cumulative faculty budget allocations per floor to date across all cycles
+    cumulative_faculty_budgets = (
+        tenant_filter(db.session.query(
+            Budget.floor,
+            func.sum(Budget.amount_allocated)
+        ))
+        .filter(Budget.is_faculty_allocation == True, visible_budget_condition())
+        .group_by(Budget.floor)
+        .all()
+    )
+    floor_cum_map = {floor: float(total or 0) for floor, total in cumulative_faculty_budgets}
+
+    floor_active_map = {}
+    if active_cycle:
+        cycle_allocations_list = (
+            tenant_filter(Budget.query)
+            .filter(Budget.cycle_id == active_cycle.id, visible_budget_condition())
+            .all()
+        )
+        floor_active_map = {b.floor: float(b.amount_allocated or 0) for b in cycle_allocations_list}
+
+    total_cumulative_allocated = float(sum(floor_cum_map.values()))
+
+    floor_budget_rows = []
+    for floor in floor_options:
+        cum_val = floor_cum_map.get(floor, 0.0)
+        act_val = floor_active_map.get(floor, 0.0)
+        pct = (cum_val / total_cumulative_allocated * 100) if total_cumulative_allocated > 0 else 0
+        floor_budget_rows.append({
+            'floor': floor,
+            'cumulative_total': cum_val,
+            'active_total': act_val,
+            'percentage': pct,
+        })
 
     cycles = (
         tenant_filter(FacultyBudgetCycle.query)
@@ -710,7 +742,8 @@ def dashboard():
         stats=stats,
         active_cycle=active_cycle,
         cycle_summary=cycle_summary,
-        floor_rows=floor_rows,
+        floor_budget_rows=floor_budget_rows,
+        total_cumulative_allocated=total_cumulative_allocated,
         cycles=cycles,
         today=today,
     )
