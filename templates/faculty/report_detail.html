@@ -71,13 +71,13 @@
                                     <div class="col-sm-4">
                                         <div class="border rounded-4 p-3 bg-light h-100">
                                             <div class="small text-muted text-uppercase fw-bold">Allocated</div>
-                                            <div class="fw-bold">&#8377;{{ "%.2f"|format(verification_summary.allocated_budget) }}</div>
+                                            <div class="fw-bold">&#8377;{{ verification_summary.allocated_budget|inr }}</div>
                                         </div>
                                     </div>
                                     <div class="col-sm-4">
                                         <div class="border rounded-4 p-3 bg-light h-100">
                                             <div class="small text-muted text-uppercase fw-bold">Bills Total</div>
-                                            <div class="fw-bold">&#8377;{{ "%.2f"|format(verification_summary.linked_bills_total) }}</div>
+                                            <div class="fw-bold">&#8377;{{ verification_summary.linked_bills_total|inr }}</div>
                                         </div>
                                     </div>
                                     <div class="col-sm-4">
@@ -86,7 +86,7 @@
                                                 {% if verification_summary.verification_state == 'overspent' %}Overspent{% elif verification_summary.verification_state == 'remaining' %}Remaining{% else %}Difference{% endif %}
                                             </div>
                                             <div class="fw-bold {% if verification_summary.verification_state == 'overspent' %}text-danger{% elif verification_summary.verification_state == 'remaining' %}text-warning{% else %}text-success{% endif %}">
-                                                &#8377;{{ "%.2f"|format(verification_summary.difference_amount) }}
+                                                &#8377;{{ verification_summary.difference_amount|inr }}
                                             </div>
                                         </div>
                                     </div>
@@ -122,13 +122,13 @@
                 <div class="col-sm-4">
                     <div class="border rounded-4 p-3 bg-light h-100">
                         <div class="small text-muted text-uppercase fw-bold">Allocated Budget</div>
-                        <div class="h5 fw-bold mb-0">&#8377;{{ "%.2f"|format(verification_summary.allocated_budget) }}</div>
+                        <div class="h5 fw-bold mb-0">&#8377;{{ verification_summary.allocated_budget|inr }}</div>
                     </div>
                 </div>
                 <div class="col-sm-4">
                     <div class="border rounded-4 p-3 bg-light h-100">
                         <div class="small text-muted text-uppercase fw-bold">Linked Bills Total</div>
-                        <div class="h5 fw-bold mb-0">&#8377;{{ "%.2f"|format(verification_summary.linked_bills_total) }}</div>
+                        <div class="h5 fw-bold mb-0">&#8377;{{ verification_summary.linked_bills_total|inr }}</div>
                     </div>
                 </div>
                 <div class="col-sm-4">
@@ -137,7 +137,7 @@
                             {% if verification_summary.verification_state == 'overspent' %}Overspent{% elif verification_summary.verification_state == 'remaining' %}Remainder Left{% else %}Difference{% endif %}
                         </div>
                         <div class="h5 fw-bold mb-0 {% if verification_summary.verification_state == 'overspent' %}text-danger{% elif verification_summary.verification_state == 'remaining' %}text-warning{% else %}text-success{% endif %}">
-                            &#8377;{{ "%.2f"|format(verification_summary.difference_amount) }}
+                            &#8377;{{ verification_summary.difference_amount|inr }}
                         </div>
                     </div>
                 </div>
@@ -159,7 +159,7 @@
                             <td class="fw-bold" data-label="Bill No">{{ bill.bill_no }}</td>
                             <td data-label="Date">{{ bill.bill_date.strftime('%d %b %Y') }}</td>
                             <td data-label="Vendor">{{ bill.shop_name or 'N/A' }}</td>
-                            <td class="text-end" data-label="Amount">&#8377;{{ "%.2f"|format(bill.total_amount) }}</td>
+                            <td class="text-end" data-label="Amount">&#8377;{{ bill.total_amount|inr }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -170,7 +170,7 @@
                     <tfoot>
                         <tr>
                             <td colspan="3" class="fw-bold text-end">Linked Bills Total</td>
-                            <td class="text-end fw-bold">&#8377;{{ "%.2f"|format(verification_summary.linked_bills_total) }}</td>
+                            <td class="text-end fw-bold">&#8377;{{ verification_summary.linked_bills_total|inr }}</td>
                         </tr>
                     </tfoot>
                 </table>

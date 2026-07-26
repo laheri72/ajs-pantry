@@ -306,6 +306,49 @@ def inject_current_user():
         "faculty_workflow_enabled": getattr(g, 'faculty_workflow_enabled', True),
     }
 
+def format_indian_currency(val, show_decimals=True):
+    if val is None:
+        return "0.00" if show_decimals else "0"
+    try:
+        val = float(val)
+    except (ValueError, TypeError):
+        return "0.00" if show_decimals else "0"
+
+    is_negative = val < 0
+    val = abs(val)
+
+    if show_decimals:
+        s = f"{val:.2f}"
+        parts = s.split('.')
+        integer_part = parts[0]
+        decimal_part = parts[1]
+    else:
+        integer_part = f"{round(val):.0f}"
+        decimal_part = ""
+
+    if len(integer_part) <= 3:
+        formatted_int = integer_part
+    else:
+        last_three = integer_part[-3:]
+        remaining = integer_part[:-3]
+        groups = []
+        while len(remaining) > 2:
+            groups.insert(0, remaining[-2:])
+            remaining = remaining[:-2]
+        if remaining:
+            groups.insert(0, remaining)
+        formatted_int = ",".join(groups) + "," + last_three
+
+    if show_decimals:
+        res = f"{formatted_int}.{decimal_part}"
+    else:
+        res = formatted_int
+
+    return f"-{res}" if is_negative else res
+
+app.jinja_env.filters['inr'] = format_indian_currency
+app.jinja_env.filters['indian_currency'] = format_indian_currency
+
 @app.route('/favicon.ico')
 def favicon():
     from flask import send_from_directory

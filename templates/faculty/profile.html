@@ -23,11 +23,15 @@
                 </div>
 
                 <div class="row g-3 mb-4">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Username</label>
+                        <input type="text" class="form-control rounded-4" value="{{ user.username or 'N/A' }}" readonly>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Email</label>
                         <input type="text" class="form-control rounded-4" value="{{ user.email }}" readonly>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">TR Number</label>
                         <input type="text" class="form-control rounded-4" value="{{ user.tr_number or 'N/A' }}" readonly>
                     </div>

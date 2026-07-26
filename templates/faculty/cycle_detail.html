@@ -35,6 +35,79 @@
     </div>
 </div>
 
+<!-- Cycle Executive Analytics Cards -->
+<div class="row g-3 mb-4">
+    <!-- Card 1: Total Allocated Budget -->
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white" style="border-left: 4px solid #0b3d2e !important;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Total Allocated</span>
+                <span class="badge bg-teal-light text-teal rounded-pill" style="font-size: 0.7rem;">{{ analytics_stats.total_floors }} Floors</span>
+            </div>
+            <div class="h3 fw-bold text-dark mb-1">&#8377;{{ analytics_stats.total_allocated|inr }}</div>
+            <div class="small text-muted" style="font-size: 0.78rem;">
+                <i class="fas fa-coins me-1 text-teal"></i>Collective floor budget
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Total Spent / Used -->
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white" style="border-left: 4px solid #0284c7 !important;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Total Spent</span>
+                <span class="badge {% if analytics_stats.utilization_pct > 100 %}bg-danger text-white{% else %}bg-info bg-opacity-10 text-info border border-info border-opacity-25{% endif %} rounded-pill" style="font-size: 0.7rem;">
+                    {{ analytics_stats.utilization_pct }}% Used
+                </span>
+            </div>
+            <div class="h3 fw-bold text-dark mb-1">&#8377;{{ analytics_stats.total_spent|inr }}</div>
+            <div class="small text-muted" style="font-size: 0.78rem;">
+                <i class="fas fa-receipt me-1 text-info"></i>Across floor reports
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Total Remaining Balance -->
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white" style="border-left: 4px solid {% if analytics_stats.total_remaining >= 0 %}#059669{% else %}#dc2626{% endif %} !important;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Net Remaining</span>
+                {% if analytics_stats.total_remaining >= 0 %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill" style="font-size: 0.7rem;">Balanced</span>
+                {% else %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 rounded-pill" style="font-size: 0.7rem;">Overspent</span>
+                {% endif %}
+            </div>
+            <div class="h3 fw-bold {% if analytics_stats.total_remaining >= 0 %}text-success{% else %}text-danger{% endif %} mb-1">
+                &#8377;{{ analytics_stats.total_remaining|inr }}
+            </div>
+            <div class="small text-muted" style="font-size: 0.78rem;">
+                <i class="fas {% if analytics_stats.total_remaining >= 0 %}fa-vault text-success{% else %}fa-exclamation-triangle text-danger{% endif %} me-1"></i>
+                {% if analytics_stats.total_remaining >= 0 %}Unspent floor balance{% else %}Over allocated budget{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Verification Progress -->
+    <div class="col-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white" style="border-left: 4px solid #d97706 !important;">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="small text-muted fw-bold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.5px;">Verified Reports</span>
+                <span class="badge {% if analytics_stats.verified_count == analytics_stats.total_floors and analytics_stats.total_floors > 0 %}bg-success{% else %}bg-warning text-dark{% endif %} rounded-pill" style="font-size: 0.7rem;">
+                    {{ analytics_stats.verified_count }}/{{ analytics_stats.total_floors }} Verified
+                </span>
+            </div>
+            <div class="h3 fw-bold text-dark mb-1">{{ analytics_stats.verification_pct }}%</div>
+            <div class="progress rounded-pill mb-1" style="height: 6px;">
+                <div class="progress-bar bg-success rounded-pill" role="progressbar" style="width: {{ analytics_stats.verification_pct }}%;" aria-valuenow="{{ analytics_stats.verification_pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="small text-muted" style="font-size: 0.75rem;">
+                {{ analytics_stats.submitted_count }} Submitted &bull; {{ analytics_stats.total_floors - analytics_stats.submitted_count }} Pending
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="faculty-card p-4 mb-4">
     <div class="d-flex justify-content-between align-items-center gap-3 mb-3 faculty-stack-mobile">
         <h5 class="fw-bold mb-0">Floor Allocations and Submission Tracking</h5>
@@ -48,18 +121,24 @@
             <thead class="small text-uppercase text-muted">
                 <tr>
                     <th>Floor</th>
-                    <th>Budget</th>
+                    <th>Allocated</th>
+                    <th>Spent</th>
+                    <th>Remaining</th>
                     <th>Faculty Note</th>
                     <th>Report Status</th>
                     <th>Submitted</th>
-                    <th>Action</th>
+                    <th class="text-end">Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in floor_rows %}
                 <tr>
                     <td class="fw-bold" data-label="Floor">Floor {{ row.floor }}</td>
-                    <td data-label="Budget">&#8377;{{ "%.2f"|format(row.budget.amount_allocated) }}</td>
+                    <td data-label="Allocated">&#8377;{{ row.budget.amount_allocated|inr }}</td>
+                    <td data-label="Spent" class="fw-semibold text-dark">&#8377;{{ row.spent|inr }}</td>
+                    <td data-label="Remaining" class="fw-bold {% if row.remaining >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        &#8377;{{ row.remaining|inr }}
+                    </td>
                     <td class="small text-muted" data-label="Faculty Note">{{ row.budget.faculty_note or 'No note' }}</td>
                     <td data-label="Report Status">
                         {% if row.submission %}
@@ -138,22 +217,22 @@
                         <div class="fw-bold mb-3"><i class="fas fa-coins me-1 text-teal"></i> Floor-wise Allocations</div>
 
                         <!-- Quick Master Bulk Apply Bar for Edit Modal -->
-                        <div class="rounded-4 p-3 mb-3 shadow-sm" style="background: linear-gradient(135deg, #e0f2f1 0%, #f0fdf4 100%); border: 1.5px solid #80cbc4 !important; border-left: 5px solid #00695c !important;">
+                        <div class="border rounded-4 p-3 bg-white mb-3 shadow-sm">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-bold text-teal" style="font-size: 0.85rem;"><i class="fas fa-bolt me-1 text-warning"></i> Quick Fill (Master Controller)</span>
-                                <span class="badge bg-teal text-white small fw-semibold px-2 py-1"><i class="fas fa-magic me-1"></i> Applies to All Floors</span>
+                                <span class="fw-bold small text-teal"><i class="fas fa-bolt me-1"></i> Quick Fill</span>
+                                <span class="text-muted small d-none d-md-inline" style="font-size: 0.75rem;">Fills all floors below simultaneously. Individual floor edits remain enabled.</span>
                             </div>
                             <div class="row g-2 align-items-end">
                                 <div class="col-sm-5 col-md-4">
-                                    <label class="form-label small text-muted mb-1 fw-bold">Bulk Amount (₹)</label>
-                                    <input type="number" id="edit_bulk_amount_input" class="form-control rounded-3 bg-white" step="0.01" placeholder="e.g. 50000" oninput="applyEditBulkAmount(this.value)">
+                                    <label class="form-label small text-muted mb-1">Bulk Amount (₹)</label>
+                                    <input type="number" id="edit_bulk_amount_input" class="form-control rounded-3" step="0.01" placeholder="e.g. 50000" oninput="applyEditBulkAmount(this.value)">
                                 </div>
                                 <div class="col-sm-7 col-md-6">
-                                    <label class="form-label small text-muted mb-1 fw-bold">Bulk Faculty Note</label>
-                                    <input type="text" id="edit_bulk_note_input" class="form-control rounded-3 bg-white" placeholder="e.g. Approved budget allocation" oninput="applyEditBulkNote(this.value)">
+                                    <label class="form-label small text-muted mb-1">Bulk Faculty Note</label>
+                                    <input type="text" id="edit_bulk_note_input" class="form-control rounded-3" placeholder="e.g. Approved budget allocation" oninput="applyEditBulkNote(this.value)">
                                 </div>
                                 <div class="col-12 col-md-2 mt-2 mt-md-0">
-                                    <button type="button" class="btn btn-teal w-100 rounded-3 fw-bold" onclick="applyEditBulkAll()">
+                                    <button type="button" class="btn btn-teal w-100 rounded-3" onclick="applyEditBulkAll()">
                                         <i class="fas fa-check-double me-1"></i> Apply
                                     </button>
                                 </div>
