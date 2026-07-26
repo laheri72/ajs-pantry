@@ -10,6 +10,10 @@
         <div class="text-muted">{{ cycle.start_date.strftime('%d %b %Y') }} to {{ cycle.end_date.strftime('%d %b %Y') }} &bull; Deadline {{ cycle.submission_deadline.strftime('%d %b %Y') }}</div>
     </div>
     <div class="d-flex gap-2 faculty-actions-mobile">
+        <a href="{{ url_for('faculty.export_cycle_excel', cycle_id=cycle.id) }}" class="btn btn-outline-success rounded-pill px-3 d-inline-flex align-items-center gap-2" title="Export complete structured cycle data to Excel">
+            <i class="fas fa-file-excel text-success fs-6"></i>
+            <span>Export Data</span>
+        </a>
         {% if cycle.status == 'draft' %}
         <button class="btn btn-outline-secondary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#editCycleModal">Edit Cycle</button>
         {% if active_cycle %}

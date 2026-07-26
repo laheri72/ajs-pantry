@@ -17,6 +17,8 @@ from flask import (
     url_for,
 )
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from sqlalchemy import bindparam, func, text
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import Forbidden, Unauthorized
@@ -1332,6 +1334,298 @@ def cycle_detail(cycle_id):
         all_verified=all_verified,
         active_cycle=active_cycle,
         active_cycle_verified=active_cycle_verified,
+    )
+
+
+@faculty_bp.route('/faculty/cycles/<int:cycle_id>/export')
+def export_cycle_excel(cycle_id):
+    user = _require_faculty()
+    cycle = tenant_filter(FacultyBudgetCycle.query).filter_by(id=cycle_id).first_or_404()
+
+    budgets = (
+        tenant_filter(Budget.query)
+        .filter_by(cycle_id=cycle.id)
+        .order_by(Budget.floor.asc())
+        .all()
+    )
+    submissions = (
+        tenant_filter(FacultyReportSubmission.query)
+        .filter_by(cycle_id=cycle.id)
+        .all()
+    )
+    submissions_by_floor = {s.floor: s for s in submissions}
+
+    wb = Workbook()
+
+    # Styling palette
+    font_title = Font(name="Calibri", size=14, bold=True, color="FFFFFF")
+    font_section = Font(name="Calibri", size=11, bold=True, color="0B3D2E")
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    font_bold = Font(name="Calibri", size=11, bold=True)
+    font_regular = Font(name="Calibri", size=11)
+
+    fill_teal_dark = PatternFill(start_color="0B3D2E", end_color="0B3D2E", fill_type="solid")
+    fill_teal_soft = PatternFill(start_color="E6F4F1", end_color="E6F4F1", fill_type="solid")
+    fill_total = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
+
+    fill_status_verified = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
+    font_status_verified = Font(name="Calibri", size=11, bold=True, color="065F46")
+    fill_status_submitted = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+    font_status_submitted = Font(name="Calibri", size=11, bold=True, color="92400E")
+    fill_status_pending = PatternFill(start_color="F3F4F6", end_color="F3F4F6", fill_type="solid")
+    font_status_pending = Font(name="Calibri", size=11, color="4B5563")
+
+    border_thin = Border(
+        left=Side(style='thin', color='E5E7EB'),
+        right=Side(style='thin', color='E5E7EB'),
+        top=Side(style='thin', color='E5E7EB'),
+        bottom=Side(style='thin', color='E5E7EB')
+    )
+    border_total = Border(
+        top=Side(style='thin', color='0B3D2E'),
+        bottom=Side(style='double', color='0B3D2E')
+    )
+
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+    align_right = Alignment(horizontal='right', vertical='center')
+
+    num_format_currency = '₹#,##0.00'
+    num_format_pct = '0.0%'
+
+    # -------------------------------------------------------------
+    # TAB 1: EXECUTIVE SUMMARY
+    # -------------------------------------------------------------
+    ws1 = wb.active
+    ws1.title = "Executive Summary"
+    ws1.views.sheetView[0].showGridLines = True
+
+    # Title Banner
+    ws1.merge_cells("A1:D2")
+    title_cell = ws1["A1"]
+    title_cell.value = f"FACULTY BUDGET CYCLE REPORT: {cycle.title.upper()}"
+    title_cell.font = font_title
+    title_cell.fill = fill_teal_dark
+    title_cell.alignment = align_center
+
+    # Section 1: Metadata
+    ws1["A4"] = "Cycle Information"
+    ws1["A4"].font = font_section
+
+    meta_items = [
+        ("Cycle Title", cycle.title),
+        ("Duration", f"{cycle.start_date.strftime('%d %b %Y')} to {cycle.end_date.strftime('%d %b %Y')}"),
+        ("Submission Deadline", cycle.submission_deadline.strftime('%d %b %Y')),
+        ("Current Status", (cycle.status or 'draft').upper()),
+        ("Created By", cycle.created_by.full_name if cycle.created_by else "System"),
+        ("Activated At", cycle.activated_at.strftime('%Y-%m-%d %H:%M') if cycle.activated_at else "N/A"),
+        ("Closed At", cycle.closed_at.strftime('%Y-%m-%d %H:%M') if cycle.closed_at else "N/A"),
+        ("Export Generated On", datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'))
+    ]
+
+    for idx, (label, val) in enumerate(meta_items, start=5):
+        ws1.cell(row=idx, column=1, value=label).font = font_bold
+        ws1.cell(row=idx, column=1).fill = fill_teal_soft
+        ws1.cell(row=idx, column=1).border = border_thin
+        ws1.cell(row=idx, column=1).alignment = align_left
+        c_val = ws1.cell(row=idx, column=2, value=val)
+        c_val.font = font_regular
+        c_val.border = border_thin
+        c_val.alignment = align_left
+
+    # Section 2: Key Financial & Audit Metrics
+    ws1["A14"] = "Financial & Verification Analytics"
+    ws1["A14"].font = font_section
+
+    total_allocated = sum(float(b.amount_allocated or 0) for b in budgets)
+    total_spent = 0.0
+    submitted_count = 0
+    verified_count = 0
+
+    for b in budgets:
+        sub = submissions_by_floor.get(b.floor)
+        if sub:
+            if sub.status and sub.status != 'draft':
+                submitted_count += 1
+            if sub.status == 'verified':
+                verified_count += 1
+            if sub.print_report and sub.print_report.total_spent is not None:
+                total_spent += float(sub.print_report.total_spent or 0)
+            elif sub.bills:
+                total_spent += float(sum(float(bill.total_amount or 0) for bill in sub.bills))
+
+    total_remaining = total_allocated - total_spent
+    total_floors = len(budgets)
+    utilization_pct = (total_spent / total_allocated) if total_allocated > 0 else 0.0
+    verification_pct = (verified_count / total_floors) if total_floors > 0 else 0.0
+
+    kpis = [
+        ("Total Allocated Budget", total_allocated, num_format_currency),
+        ("Total Spent Across Floors", total_spent, num_format_currency),
+        ("Net Remaining Balance", total_remaining, num_format_currency),
+        ("Overall Budget Utilization", utilization_pct, num_format_pct),
+        ("Total Participating Floors", total_floors, None),
+        ("Reports Submitted", submitted_count, None),
+        ("Reports Verified", verified_count, None),
+        ("Verification Completion Rate", verification_pct, num_format_pct)
+    ]
+
+    for idx, (label, val, fmt) in enumerate(kpis, start=15):
+        ws1.cell(row=idx, column=1, value=label).font = font_bold
+        ws1.cell(row=idx, column=1).fill = fill_teal_soft
+        ws1.cell(row=idx, column=1).border = border_thin
+        ws1.cell(row=idx, column=1).alignment = align_left
+        c_val = ws1.cell(row=idx, column=2, value=val)
+        c_val.font = font_bold if fmt else font_regular
+        c_val.border = border_thin
+        if fmt:
+            c_val.number_format = fmt
+            c_val.alignment = align_right
+        else:
+            c_val.alignment = align_left
+
+    ws1.column_dimensions['A'].width = 32
+    ws1.column_dimensions['B'].width = 38
+
+    # -------------------------------------------------------------
+    # TAB 2: FLOOR ALLOCATIONS & SUBMISSIONS
+    # -------------------------------------------------------------
+    ws2 = wb.create_sheet(title="Floor Allocations")
+    ws2.views.sheetView[0].showGridLines = True
+
+    headers_ws2 = [
+        "Floor", "Allocated Budget", "Total Spent", "Remaining Balance",
+        "Utilization %", "Status", "Report Title", "Submitted By",
+        "Submitted Date", "Verified By", "Verified Date", "Remarks / Notes"
+    ]
+
+    for col_num, h_text in enumerate(headers_ws2, 1):
+        cell = ws2.cell(row=1, column=col_num, value=h_text)
+        cell.font = font_header
+        cell.fill = fill_teal_dark
+        cell.alignment = align_center
+
+    row_idx = 2
+    for b in budgets:
+        floor_num = b.floor
+        sub = submissions_by_floor.get(floor_num)
+        allocated = float(b.amount_allocated or 0)
+
+        floor_spent = 0.0
+        if sub:
+            if sub.print_report and sub.print_report.total_spent is not None:
+                floor_spent = float(sub.print_report.total_spent or 0)
+            elif sub.bills:
+                floor_spent = float(sum(float(bill.total_amount or 0) for bill in sub.bills))
+
+        remaining = allocated - floor_spent
+        util = (floor_spent / allocated) if allocated > 0 else 0.0
+
+        status_label = "Pending Submission"
+        if sub:
+            if sub.status == 'verified':
+                status_label = "Verified"
+            elif sub.status == 'submitted':
+                status_label = "Submitted"
+            elif sub.status == 'rejected':
+                status_label = "Revision Requested"
+            else:
+                status_label = sub.status.capitalize()
+
+        ws2.cell(row=row_idx, column=1, value=f"Floor {floor_num}").alignment = align_center
+        
+        c_alloc = ws2.cell(row=row_idx, column=2, value=allocated)
+        c_alloc.number_format = num_format_currency
+        c_alloc.alignment = align_right
+
+        c_spent = ws2.cell(row=row_idx, column=3, value=floor_spent)
+        c_spent.number_format = num_format_currency
+        c_spent.alignment = align_right
+
+        c_rem = ws2.cell(row=row_idx, column=4, value=remaining)
+        c_rem.number_format = num_format_currency
+        c_rem.alignment = align_right
+
+        c_util = ws2.cell(row=row_idx, column=5, value=util)
+        c_util.number_format = num_format_pct
+        c_util.alignment = align_right
+
+        c_status = ws2.cell(row=row_idx, column=6, value=status_label)
+        c_status.alignment = align_center
+        if status_label == "Verified":
+            c_status.fill = fill_status_verified
+            c_status.font = font_status_verified
+        elif status_label in ("Submitted", "Pending Submission"):
+            c_status.fill = fill_status_submitted
+            c_status.font = font_status_submitted
+        else:
+            c_status.fill = fill_status_pending
+            c_status.font = font_status_pending
+
+        ws2.cell(row=row_idx, column=7, value=sub.report_title if sub else "-").alignment = align_left
+        ws2.cell(row=row_idx, column=8, value=sub.uploaded_by.full_name if (sub and sub.uploaded_by) else "-").alignment = align_left
+        ws2.cell(row=row_idx, column=9, value=sub.submitted_at.strftime('%Y-%m-%d %H:%M') if (sub and sub.submitted_at) else "-").alignment = align_center
+        ws2.cell(row=row_idx, column=10, value=sub.verified_by.full_name if (sub and sub.verified_by) else "-").alignment = align_left
+        ws2.cell(row=row_idx, column=11, value=sub.verified_at.strftime('%Y-%m-%d %H:%M') if (sub and sub.verified_at) else "-").alignment = align_center
+        notes_val = (sub.review_notes or sub.submission_notes or b.notes or "-") if sub else (b.notes or "-")
+        ws2.cell(row=row_idx, column=12, value=notes_val).alignment = align_left
+
+        for col in range(1, 13):
+            cell = ws2.cell(row=row_idx, column=col)
+            cell.border = border_thin
+            if col != 6 and not cell.font.bold:
+                cell.font = font_regular
+
+        row_idx += 1
+
+    # Total Summary Row for Tab 2
+    ws2.cell(row=row_idx, column=1, value="Total Summary").font = font_bold
+    ws2.cell(row=row_idx, column=1).alignment = align_center
+
+    c_tot_alloc = ws2.cell(row=row_idx, column=2, value=f"=SUM(B2:B{row_idx-1})")
+    c_tot_alloc.number_format = num_format_currency
+    c_tot_alloc.font = font_bold
+    c_tot_alloc.alignment = align_right
+
+    c_tot_spent = ws2.cell(row=row_idx, column=3, value=f"=SUM(C2:C{row_idx-1})")
+    c_tot_spent.number_format = num_format_currency
+    c_tot_spent.font = font_bold
+    c_tot_spent.alignment = align_right
+
+    c_tot_rem = ws2.cell(row=row_idx, column=4, value=f"=SUM(D2:D{row_idx-1})")
+    c_tot_rem.number_format = num_format_currency
+    c_tot_rem.font = font_bold
+    c_tot_rem.alignment = align_right
+
+    c_tot_util = ws2.cell(row=row_idx, column=5, value=f"=IF(B{row_idx}>0, C{row_idx}/B{row_idx}, 0)")
+    c_tot_util.number_format = num_format_pct
+    c_tot_util.font = font_bold
+    c_tot_util.alignment = align_right
+
+    for col in range(1, 13):
+        cell = ws2.cell(row=row_idx, column=col)
+        cell.border = border_total
+        cell.fill = fill_total
+
+    ws2.freeze_panes = "A2"
+
+    for col in ws2.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws2.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    safe_title = "".join(c for c in cycle.title if c.isalnum() or c in (' ', '_', '-')).strip()
+    filename = f"Faculty_Cycle_{cycle.id}_{safe_title.replace(' ', '_')}_Export.xlsx"
+
+    return send_file(
+        output,
+        download_name=filename,
+        as_attachment=True,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
 
