@@ -630,13 +630,15 @@ def _get_faculty_dashboard_stats(tenant_id):
 @limiter.limit("30 per hour", key_func=faculty_login_identifier_key, methods=["POST"])
 def login():
     if request.method == 'POST':
-        email = (request.form.get('email') or '').strip()
+        username = (request.form.get('username') or request.form.get('email') or '').strip()
         password = (request.form.get('password') or '').strip()
 
-        if email and '@' not in email:
-            email = f"{email}@jameasaifiyah.edu"
+        # Direct username lookup (non-email), or fallback to email for legacy accounts
+        user = User.query.filter(func.lower(User.username) == username.lower(), User.role == 'faculty').first()
+        if not user:
+            email_candidate = username if '@' in username else f"{username}@jameasaifiyah.edu"
+            user = User.query.filter_by(email=email_candidate, role='faculty').first()
 
-        user = User.query.filter_by(email=email, role='faculty').first()
         if not user or not getattr(user, 'is_active', True) or not user.password_hash or not check_password_hash(user.password_hash, password):
             flash('Invalid Faculty credentials', 'error')
             return render_template('faculty/login.html')
@@ -1261,12 +1263,55 @@ def cycle_detail(cycle_id):
     )
     submissions_by_floor = {s.floor: s for s in submissions}
     floor_rows = []
+
+    total_allocated = 0.0
+    total_spent = 0.0
+    submitted_count = 0
+    verified_count = 0
+
     for budget in budgets:
+        floor_num = budget.floor
+        allocated = float(budget.amount_allocated or 0)
+        total_allocated += allocated
+
+        sub = submissions_by_floor.get(floor_num)
+        floor_spent = 0.0
+        if sub:
+            if sub.status and sub.status != 'draft':
+                submitted_count += 1
+            if sub.status == 'verified':
+                verified_count += 1
+
+            if sub.print_report and sub.print_report.total_spent is not None:
+                floor_spent = float(sub.print_report.total_spent or 0)
+            elif sub.bills:
+                floor_spent = float(sum(float(b.total_amount or 0) for b in sub.bills))
+
+        total_spent += floor_spent
+
         floor_rows.append({
             'floor': budget.floor,
             'budget': budget,
-            'submission': submissions_by_floor.get(budget.floor),
+            'submission': sub,
+            'spent': floor_spent,
+            'remaining': allocated - floor_spent
         })
+
+    total_remaining = total_allocated - total_spent
+    total_floors = len(budgets)
+    utilization_pct = round((total_spent / total_allocated * 100), 1) if total_allocated > 0 else 0.0
+    verification_pct = round((verified_count / total_floors * 100), 1) if total_floors > 0 else 0.0
+
+    analytics_stats = {
+        'total_allocated': total_allocated,
+        'total_spent': total_spent,
+        'total_remaining': total_remaining,
+        'total_floors': total_floors,
+        'submitted_count': submitted_count,
+        'verified_count': verified_count,
+        'utilization_pct': utilization_pct,
+        'verification_pct': verification_pct,
+    }
 
     editable_floors = _cycle_form_floor_options(user, cycle)
     budgets_by_floor = {budget.floor: budget for budget in budgets}
@@ -1280,6 +1325,7 @@ def cycle_detail(cycle_id):
         current_user=user,
         cycle=cycle,
         floor_rows=floor_rows,
+        analytics_stats=analytics_stats,
         editable_floors=editable_floors,
         budgets_by_floor=budgets_by_floor,
         today=date.today(),

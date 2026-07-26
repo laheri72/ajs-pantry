@@ -565,7 +565,33 @@ def tenants_list():
 def tenant_detail(tenant_id):
     require_super_admin()
     tenant = Tenant.query.get_or_404(tenant_id)
-    users = User.query.filter_by(tenant_id=tenant_id).order_by(User.role.asc()).all()
+
+    user_page = request.args.get('user_page', 1, type=int)
+    user_search = (request.args.get('user_q') or '').strip()
+    role_filter = (request.args.get('role') or 'all').strip()
+
+    users_query = User.query.filter_by(tenant_id=tenant_id)
+
+    if user_search:
+        like = f"%{user_search.lower()}%"
+        users_query = users_query.filter(
+            or_(
+                func.lower(User.username).like(like),
+                func.lower(User.email).like(like),
+                func.lower(User.full_name).like(like),
+                func.lower(User.tr_number).like(like)
+            )
+        )
+
+    if role_filter != 'all':
+        users_query = users_query.filter(User.role == role_filter)
+
+    users_pagination = users_query.order_by(User.role.asc(), User.id.asc()).paginate(
+        page=user_page, per_page=20, error_out=False
+    )
+    users = users_pagination.items
+    total_tenant_users = User.query.filter_by(tenant_id=tenant_id).count()
+
     faculty_users = User.query.filter_by(tenant_id=tenant_id, role='faculty').order_by(User.created_at.asc()).all()
     
     floor_stats = []
@@ -574,7 +600,17 @@ def tenant_detail(tenant_id):
         m_count = Menu.query.filter_by(tenant_id=tenant_id, floor=f).count()
         floor_stats.append({'floor': f, 'users': u_count, 'menus': m_count})
         
-    return render_template('super_admin/tenant_view.html', tenant=tenant, users=users, floor_stats=floor_stats, faculty_users=faculty_users)
+    return render_template(
+        'super_admin/tenant_view.html',
+        tenant=tenant,
+        users=users,
+        users_pagination=users_pagination,
+        total_tenant_users=total_tenant_users,
+        user_search=user_search,
+        role_filter=role_filter,
+        floor_stats=floor_stats,
+        faculty_users=faculty_users
+    )
 
 @super_admin_bp.route('/platform-admin/tenants/provision', methods=['POST'])
 def provision_tenant():
@@ -660,6 +696,7 @@ def manage_faculty(tenant_id):
         except (TypeError, ValueError):
             faculty_user = None
 
+    faculty_username = (request.form.get('faculty_username') or '').strip()
     email = (request.form.get('faculty_email') or '').strip()
     if email and '@' not in email:
         email = f"{email}@jameasaifiyah.edu"
@@ -667,18 +704,49 @@ def manage_faculty(tenant_id):
     full_name = (request.form.get('faculty_name') or '').strip() or None
     tr_number = (request.form.get('faculty_tr_number') or '').strip() or None
 
-    if action == 'provision':
-        if not email or not password:
-            flash('Faculty email and password are required.', 'error')
+    existing_faculty_count = User.query.filter_by(tenant_id=tenant_id, role='faculty').count()
+
+    if action == 'delete':
+        if not faculty_user:
+            flash('Faculty user not found.', 'error')
             return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+        del_name = faculty_user.username or faculty_user.email
+        db.session.delete(faculty_user)
+        db.session.commit()
+        log_platform_action('delete_faculty', f'Deleted Faculty account "{del_name}" for tenant "{tenant.name}".')
+        flash('Faculty account removed successfully.', 'success')
+        return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+    if action == 'provision':
+        if existing_faculty_count >= 3:
+            flash('Maximum limit of 3 Faculty accounts per tenant reached.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+        if not faculty_username or not password:
+            flash('Faculty username and password are required.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+        if '@' in faculty_username:
+            flash('Faculty username must not be an email address (e.g. use "husain.parta" or "abdulqadir53").', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+        if User.query.filter(func.lower(User.username) == faculty_username.lower()).first():
+            flash('That Faculty username is already in use.', 'error')
+            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
+        if not email:
+            email = f"{faculty_username.lower()}@faculty.local"
+
         if User.query.filter(User.email == email).first():
             flash('That Faculty email is already in use.', 'error')
             return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+
         if tr_number and User.query.filter(User.tr_number == tr_number).first():
             flash('That Faculty TR number is already in use.', 'error')
             return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 
         faculty_user = User(
+            username=faculty_username,
             email=email,
             password_hash=generate_password_hash(password),
             role='faculty',
@@ -691,7 +759,7 @@ def manage_faculty(tenant_id):
         )
         db.session.add(faculty_user)
         db.session.commit()
-        log_platform_action('provision_faculty', f'Provisioned Faculty account "{email}" for tenant "{tenant.name}".')
+        log_platform_action('provision_faculty', f'Provisioned Faculty account "{faculty_username}" for tenant "{tenant.name}".')
         flash('Faculty account provisioned successfully.', 'success')
         return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 
@@ -699,26 +767,36 @@ def manage_faculty(tenant_id):
         if not faculty_user:
             flash('No Faculty account exists for this tenant yet.', 'error')
             return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
-        if not password:
-            flash('Please provide a new Faculty password.', 'error')
-            return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 
-        faculty_user.password_hash = generate_password_hash(password)
-        faculty_user.is_first_login = True
+        if faculty_username and faculty_username.lower() != (faculty_user.username or '').lower():
+            if '@' in faculty_username:
+                flash('Faculty username must not be an email address.', 'error')
+                return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+            if User.query.filter(func.lower(User.username) == faculty_username.lower(), User.id != faculty_user.id).first():
+                flash('That Faculty username is already in use.', 'error')
+                return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
+            faculty_user.username = faculty_username
+
+        if password:
+            faculty_user.password_hash = generate_password_hash(password)
+            faculty_user.is_first_login = True
+
         if email and email != faculty_user.email:
             if User.query.filter(User.email == email, User.id != faculty_user.id).first():
                 flash('That Faculty email is already in use.', 'error')
                 return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
             faculty_user.email = email
+
         if tr_number and tr_number != faculty_user.tr_number:
             if User.query.filter(User.tr_number == tr_number, User.id != faculty_user.id).first():
                 flash('That Faculty TR number is already in use.', 'error')
                 return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
             faculty_user.tr_number = tr_number
+
         faculty_user.full_name = full_name or faculty_user.full_name
         db.session.commit()
-        log_platform_action('reset_faculty_password', f'Reset Faculty password for tenant "{tenant.name}".')
-        flash('Faculty password reset successfully.', 'success')
+        log_platform_action('reset_faculty_password', f'Updated Faculty account "{faculty_user.username}" for tenant "{tenant.name}".')
+        flash('Faculty account updated successfully.', 'success')
         return redirect(url_for('super_admin.tenant_detail', tenant_id=tenant_id))
 
     flash('Invalid Faculty action.', 'error')

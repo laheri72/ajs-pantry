@@ -35,7 +35,7 @@ def staff_login_identifier_key():
 
 
 def faculty_login_identifier_key():
-    identifier = _normalize_identifier(request.form.get("email"), append_jamea_domain=True)
+    identifier = _normalize_identifier(request.form.get("username") or request.form.get("email"))
     return f"{_endpoint_key()}:faculty:{identifier}"
 
 

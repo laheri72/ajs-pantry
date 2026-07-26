@@ -79,7 +79,7 @@
                     <div class="text-muted small">Cumulative faculty budget allocated to date per floor at a glance.</div>
                 </div>
                 <span class="badge bg-teal text-white px-3 py-2 rounded-pill fw-bold" style="font-size: 0.85rem;">
-                    Total: &#8377;{{ "%.0f"|format(total_cumulative_allocated) }}
+                    Total: &#8377;{{ total_cumulative_allocated|inr }}
                 </span>
             </div>
             <div class="table-responsive faculty-table-mobile">
@@ -100,13 +100,13 @@
                             </td>
                             <td class="text-center" data-label="Active Cycle">
                                 {% if active_cycle %}
-                                <span class="fw-semibold text-dark">&#8377;{{ "%.0f"|format(row.active_total) }}</span>
+                                <span class="fw-semibold text-dark">&#8377;{{ row.active_total|inr }}</span>
                                 {% else %}
                                 <span class="text-muted small">-</span>
                                 {% endif %}
                             </td>
                             <td class="text-end fw-bold text-teal fs-6" data-label="Total Given">
-                                &#8377;{{ "%.2f"|format(row.cumulative_total) }}
+                                &#8377;{{ row.cumulative_total|inr }}
                             </td>
                             <td data-label="Share">
                                 <div class="d-flex align-items-center gap-2">
@@ -137,7 +137,7 @@
                 <div class="col-6">
                     <div class="border rounded-4 p-3 bg-light">
                         <div class="small text-muted fw-bold text-uppercase">Allocated</div>
-                        <div class="fw-bold">&#8377;{{ "%.0f"|format(cycle_summary.cycle_total_allocated) }}</div>
+                        <div class="fw-bold">&#8377;{{ cycle_summary.cycle_total_allocated|inr }}</div>
                     </div>
                 </div>
                 <div class="col-6">
