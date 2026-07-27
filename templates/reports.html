@@ -186,37 +186,70 @@
                         <textarea name="submission_notes" class="form-control rounded-4" rows="3" placeholder="Optional note for Faculty">{{ submission.submission_notes if submission and submission.status == 'rejected' else '' }}</textarea>
                     </div>
 
-                    <div class="border rounded-4 p-3 mb-4">
-                        <div class="fw-bold mb-2">Which print report's bills to include here</div>
-                        <div class="small text-muted mb-3">These saved reports come from the Print Report flow in Expenses. Choose one saved report title and its bill set will be linked to this upload.</div>
-                        {% for report in saved_print_reports %}
-                        <label class="d-block border rounded-4 p-3 mb-3">
-                            <div class="d-flex gap-3">
-                                <input type="radio" name="print_report_id" value="{{ report.id }}" class="mt-1" 
-                                       data-has-pdf="{{ 'true' if report.storage_path else 'false' }}"
-                                       data-filename="{{ report.original_filename or report.stored_filename or '' }}"
-                                       {% if (submission and submission.print_report_id == report.id) or (not submission and loop.first) %}checked{% endif %}>
-                                <div class="flex-grow-1">
-                                    <div class="fw-bold">{{ report.report_title }}</div>
-                                    <div class="small text-muted">Saved {{ report.created_at.strftime('%d %b %Y %H:%M') }} • Budget &#8377;{{ "%.2f"|format(report.report_budget) }} • Spent &#8377;{{ "%.2f"|format(report.total_spent) }}</div>
-                                    <div class="small text-muted mt-2">Bills in this print:</div>
-                                    <div class="mt-1">
-                                        {% for link in report.bill_links %}
-                                        <div class="small d-flex justify-content-between border rounded-3 px-2 py-1 mb-1 bg-light">
-                                            <span>#{{ link.bill.bill_no }}{% if link.include_as_voucher and not link.include_in_summary %} <span class="text-muted">(voucher)</span>{% endif %}</span>
-                                            <span class="fw-bold">&#8377;{{ "%.2f"|format(link.bill.total_amount) }}</span>
-                                        </div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-                        </label>
-                        {% else %}
-                        <div class="alert alert-light border rounded-4 mb-0">
-                            No saved print reports were found yet. Open Expenses, use Print Report, and generate a report first so it gets stored here.
+                {% if latest_print_report %}
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-light py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-teal"><i class="fas fa-receipt me-2"></i>Bills Included in Active Cycle Report</h6>
+                            <div class="small text-muted mt-1">Generated from Expenses Print Report tool on {{ latest_print_report.created_at.strftime('%d %b %Y %H:%M') }}</div>
                         </div>
-                        {% endfor %}
+                        <a href="{{ url_for('finance.expenses') }}" class="btn btn-sm btn-outline-teal rounded-pill px-3">
+                            <i class="fas fa-redo me-1"></i> Update in Expenses
+                        </a>
                     </div>
+                    <div class="card-body p-4">
+                        <div class="d-flex flex-wrap gap-4 mb-3 p-3 bg-light rounded-3">
+                            <div><span class="small text-muted d-block">Report Title:</span> <strong>{{ latest_print_report.report_title }}</strong></div>
+                            <div><span class="small text-muted d-block">Allocated Budget:</span> <strong>&#8377;{{ latest_print_report.report_budget|inr }}</strong></div>
+                            <div><span class="small text-muted d-block">Total Spent:</span> <strong class="text-danger">&#8377;{{ latest_print_report.total_spent|inr }}</strong></div>
+                            <div><span class="small text-muted d-block">Remaining Balance:</span> <strong class="text-teal">&#8377;{{ latest_print_report.remaining_balance|inr }}</strong></div>
+                            <div><span class="small text-muted d-block">Attached Bills:</span> <span class="badge bg-teal fs-6">{{ latest_print_report.bill_links|length }}</span></div>
+                        </div>
+
+                        <div class="fw-bold small text-muted text-uppercase mb-2">Itemized Bills Summary</div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle mb-0 border">
+                                <thead class="table-light">
+                                    <tr class="small text-muted">
+                                        <th class="ps-3">Bill Number</th>
+                                        <th>Date</th>
+                                        <th>Shop / Vendor</th>
+                                        <th class="text-end pe-3">Amount (&#8377;)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for link in latest_print_report.bill_links %}
+                                    <tr>
+                                        <td class="ps-3 fw-bold text-teal">#{{ link.bill.bill_no }}{% if link.include_as_voucher and not link.include_in_summary %} <span class="text-muted small fw-normal">(voucher)</span>{% endif %}</td>
+                                        <td>{{ link.bill.bill_date.strftime('%b %d, %Y') }}</td>
+                                        <td class="small text-muted">{{ link.bill.shop_name or 'N/A' }}</td>
+                                        <td class="text-end pe-3 fw-bold">&#8377;{{ link.bill.total_amount|inr }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if not latest_print_report.bill_links %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-3 text-muted">No bills attached to this report.</td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-warning border rounded-4 p-4 mb-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1">No Print Report Found for Active Cycle</h6>
+                            <p class="mb-2 text-muted small">You haven't generated a print report for this active cycle yet. Please open the Expenses page and click <strong>Print Report</strong> to compile your bills for this cycle.</p>
+                            <a href="{{ url_for('finance.expenses') }}" class="btn btn-sm btn-teal rounded-pill px-3 mt-1">
+                                <i class="fas fa-print me-1"></i> Open Expenses & Print Report
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                     <div class="mt-4 d-flex justify-content-end">
                         <button class="btn btn-teal rounded-pill px-4">
@@ -315,69 +348,50 @@
         });
 
         // Dynamic PDF requirement logic
-        const radios = document.querySelectorAll('input[name="print_report_id"]');
         const pdfInput = document.getElementById('reportPdfInput');
         const pdfAlert = document.getElementById('pdfAlreadyUploadedAlert');
         const pdfContainer = document.getElementById('pdfUploadInputContainer');
         const filenameSpan = document.getElementById('uploadedPdfFilename');
         const helpText = document.getElementById('pdfUploadHelpText');
 
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
+        const hasPreUploadedPdf = {% if latest_print_report and latest_print_report.storage_path %}true{% else %}false{% endif %};
+        const preUploadedFilename = "{{ (latest_print_report.original_filename or latest_print_report.stored_filename or '') if latest_print_report else '' }}";
 
         window.showPdfUploadField = function() {
-            pdfAlert.classList.add('d-none');
-            pdfContainer.classList.remove('d-none');
-            pdfInput.setAttribute('required', 'required');
-            pdfInput.click(); // Trigger file dialog automatically
+            if (pdfAlert) pdfAlert.classList.add('d-none');
+            if (pdfContainer) pdfContainer.classList.remove('d-none');
+            if (pdfInput) {
+                pdfInput.setAttribute('required', 'required');
+                pdfInput.click();
+            }
         };
 
         window.showResubmissionForm = function() {
-            document.getElementById('waitingForReviewCard').classList.add('d-none');
-            document.getElementById('submissionFormContainer').classList.remove('d-none');
+            var waitingCard = document.getElementById('waitingForReviewCard');
+            var formContainer = document.getElementById('submissionFormContainer');
+            if (waitingCard) waitingCard.classList.add('d-none');
+            if (formContainer) formContainer.classList.remove('d-none');
         };
 
         function updatePdfRequirement() {
             if (!pdfInput) return;
-            const checkedRadio = document.querySelector('input[name="print_report_id"]:checked');
-            if (!checkedRadio) {
+            if (hasPreUploadedPdf) {
                 pdfInput.removeAttribute('required');
-                pdfAlert.classList.add('d-none');
-                pdfContainer.classList.remove('d-none');
-                if (helpText) helpText.innerHTML = '';
-                return;
-            }
-            const hasPdf = checkedRadio.getAttribute('data-has-pdf') === 'true';
-            const filename = checkedRadio.getAttribute('data-filename');
-            
-            if (hasPdf) {
-                pdfInput.removeAttribute('required');
-                pdfInput.value = ''; // Reset file input
-                pdfAlert.classList.remove('d-none');
-                pdfContainer.classList.add('d-none');
-                if (filenameSpan) filenameSpan.textContent = filename;
+                pdfInput.value = '';
+                if (pdfAlert) pdfAlert.classList.remove('d-none');
+                if (pdfContainer) pdfContainer.classList.add('d-none');
+                if (filenameSpan) filenameSpan.textContent = preUploadedFilename;
             } else {
                 pdfInput.setAttribute('required', 'required');
-                pdfAlert.classList.add('d-none');
-                pdfContainer.classList.remove('d-none');
+                if (pdfAlert) pdfAlert.classList.add('d-none');
+                if (pdfContainer) pdfContainer.classList.remove('d-none');
                 if (helpText) {
-                    helpText.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i> This report does not have an uploaded PDF on the server. You <strong>must</strong> select the PDF file here.</span>`;
+                    helpText.innerHTML = `<span class="text-muted"><i class="fas fa-info-circle me-1"></i> Upload the combined PDF report file generated from Expenses.</span>`;
                 }
             }
         }
 
-        if (radios.length > 0) {
-            radios.forEach(radio => {
-                radio.addEventListener('change', updatePdfRequirement);
-            });
-            updatePdfRequirement(); // Run initial check
-        }
+        updatePdfRequirement();
     });
 </script>
 {% endblock %} 
