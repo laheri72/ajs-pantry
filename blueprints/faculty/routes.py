@@ -29,6 +29,7 @@ from models import (
     Bill,
     Budget,
     ExpensePrintReport,
+    ExpensePrintReportBill,
     FacultyBudgetCycle,
     FacultyMessage,
     FacultyMessageFloor,
@@ -1717,8 +1718,7 @@ def reports_page():
     faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
     active_cycle = _current_active_cycle()
     allocation = _cycle_for_floor(active_cycle.id, floor) if active_cycle else None
-    submission = None
-    saved_print_reports = []
+    latest_print_report = None
 
     if faculty_workflow_enabled and active_cycle:
         submission = tenant_filter(FacultyReportSubmission.query).filter_by(
@@ -1730,6 +1730,25 @@ def reports_page():
             faculty_workflow_enabled=faculty_workflow_enabled,
         )
         current_available_budget = floor_budget_ledger['current_available_budget']
+
+        # Fetch and deduplicate print reports for the active cycle
+        cycle_print_reports = tenant_filter(ExpensePrintReport.query).filter_by(
+            cycle_id=active_cycle.id,
+            floor=floor
+        ).order_by(ExpensePrintReport.created_at.desc()).all()
+
+        if cycle_print_reports:
+            latest_print_report = cycle_print_reports[0]
+            # Clean up leftover duplicate print reports for this active cycle
+            if len(cycle_print_reports) > 1:
+                for dup in cycle_print_reports[1:]:
+                    if submission and submission.print_report_id == dup.id:
+                        submission.print_report_id = latest_print_report.id
+                    tenant_filter(ExpensePrintReportBill.query).filter_by(print_report_id=dup.id).delete()
+                    if dup.storage_path and dup.storage_path != latest_print_report.storage_path:
+                        _safe_remove_file(dup.storage_path)
+                    db.session.delete(dup)
+                db.session.commit()
 
         if request.method == 'POST':
             if not allocation:
@@ -1746,24 +1765,10 @@ def reports_page():
 
             upload = request.files.get('report_pdf')
             submission_notes = (request.form.get('submission_notes') or '').strip()
-            try:
-                print_report_id = int(request.form.get('print_report_id') or 0)
-            except (TypeError, ValueError):
-                print_report_id = 0
 
-            if not print_report_id:
-                flash('Please choose a saved print report from Expenses first.', 'error')
-                return redirect(url_for('faculty.reports_page'))
-
-            selected_print_report = tenant_filter(ExpensePrintReport.query).filter_by(
-                id=print_report_id,
-                floor=floor,
-            ).first()
+            selected_print_report = latest_print_report
             if not selected_print_report:
-                flash('The selected print report was not found for this floor.', 'error')
-                return redirect(url_for('faculty.reports_page'))
-            if selected_print_report.cycle_id and selected_print_report.cycle_id != active_cycle.id:
-                flash('Please choose a print report created for the current active cycle.', 'error')
+                flash('No print report has been generated for this cycle yet. Please open Expenses and click Print Report first.', 'error')
                 return redirect(url_for('faculty.reports_page'))
 
             # Check if we have a PDF source: either a newly uploaded one or the pre-uploaded one
@@ -1778,7 +1783,7 @@ def reports_page():
                     selected_bills.append(link.bill)
 
             if not selected_bills:
-                flash('The selected print report does not contain any bills.', 'error')
+                flash('The active cycle print report does not contain any bills.', 'error')
                 return redirect(url_for('faculty.reports_page'))
 
             for bill in selected_bills:
@@ -1851,8 +1856,6 @@ def reports_page():
             flash('Report submitted to Faculty successfully.', 'success')
             return redirect(url_for('faculty.reports_page'))
 
-        saved_print_reports = _saved_print_reports_for_floor(floor, active_cycle.id)
-
     # Fetch Ad-hoc / irregular saved reports for this floor
     adhoc_reports = tenant_filter(ExpensePrintReport.query).filter(
         ExpensePrintReport.floor == floor,
@@ -1868,7 +1871,7 @@ def reports_page():
         active_cycle=active_cycle,
         allocation=allocation,
         submission=submission,
-        saved_print_reports=saved_print_reports,
+        latest_print_report=latest_print_report,
         adhoc_reports=adhoc_reports,
         today=date.today(),
     )

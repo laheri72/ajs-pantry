@@ -21,42 +21,71 @@ def _tenant_scoped_query(query, tenant_id=None):
 
 
 def _sum_period_bills(floor, start_date, end_date=None, cycle_id=None, tenant_id=None, faculty_workflow_enabled=False, is_current=False):
-    query = _tenant_scoped_query(db.session.query(func.sum(Bill.total_amount)), tenant_id).filter(
-        Bill.floor == floor
-    )
-    
-    conditions = []
-    
-    # If this period is tied to a Faculty cycle, resolve the submission ID
-    submission_id = None
-    if cycle_id:
-        from models import FacultyReportSubmission
-        sub = _tenant_scoped_query(FacultyReportSubmission.query, tenant_id).filter_by(
-            cycle_id=cycle_id,
-            floor=floor
-        ).first()
-        if sub:
-            submission_id = sub.id
-            
-    if submission_id:
-        conditions.append(Bill.report_submission_id == submission_id)
-        
     if faculty_workflow_enabled:
-        if is_current:
-            # For the current active/fallback period, count all unlinked bills regardless of their date
-            conditions.append(Bill.report_submission_id.is_(None))
+        submission_id = None
+        target_cycle_id = cycle_id
+
+        if not target_cycle_id and is_current:
+            from models import FacultyBudgetCycle
+            active_cycle = _tenant_scoped_query(FacultyBudgetCycle.query, tenant_id).filter_by(status='active').first()
+            if active_cycle:
+                target_cycle_id = active_cycle.id
+
+        if target_cycle_id:
+            from models import FacultyReportSubmission
+            sub = _tenant_scoped_query(FacultyReportSubmission.query, tenant_id).filter_by(
+                cycle_id=target_cycle_id,
+                floor=floor
+            ).first()
+            if sub and sub.status in ['submitted', 'verified']:
+                submission_id = sub.id
+
+        if submission_id:
+            # Submitted to Faculty: count bills linked to submission
+            query = _tenant_scoped_query(db.session.query(func.sum(Bill.total_amount)), tenant_id).filter(
+                Bill.floor == floor,
+                Bill.report_submission_id == submission_id
+            )
+            return _coerce_float(query.scalar())
+        else:
+            # Active / unsubmitted cycle in Faculty Mode:
+            # Spent amount is strictly synced to the floor's latest compiled Print Report!
+            from models import ExpensePrintReport, ExpensePrintReportBill
+
+            print_report = None
+            if target_cycle_id:
+                print_report = _tenant_scoped_query(ExpensePrintReport.query, tenant_id).filter_by(
+                    cycle_id=target_cycle_id,
+                    floor=floor
+                ).order_by(ExpensePrintReport.created_at.desc()).first()
+
+            if not print_report:
+                print_report = _tenant_scoped_query(ExpensePrintReport.query, tenant_id).filter_by(
+                    floor=floor
+                ).order_by(ExpensePrintReport.created_at.desc()).first()
+
+            if print_report:
+                linked_sum = _tenant_scoped_query(
+                    db.session.query(func.sum(Bill.total_amount))
+                    .join(ExpensePrintReportBill, ExpensePrintReportBill.bill_id == Bill.id),
+                    tenant_id
+                ).filter(ExpensePrintReportBill.print_report_id == print_report.id).scalar()
+
+                if linked_sum is not None:
+                    return _coerce_float(linked_sum)
+                return float(print_report.total_spent or 0.0)
+
+            return 0.0
     else:
         # Non-faculty tenant: count unlinked bills in this period's date range
-        date_condition = (Bill.bill_date >= start_date)
+        query = _tenant_scoped_query(db.session.query(func.sum(Bill.total_amount)), tenant_id).filter(
+            Bill.floor == floor,
+            Bill.report_submission_id.is_(None),
+            Bill.bill_date >= start_date
+        )
         if end_date is not None:
-            date_condition = and_(date_condition, Bill.bill_date <= end_date)
-        conditions.append(and_(Bill.report_submission_id.is_(None), date_condition))
-    
-    if not conditions:
-        return 0.0
-        
-    query = query.filter(or_(*conditions))
-    return _coerce_float(query.scalar())
+            query = query.filter(Bill.bill_date <= end_date)
+        return _coerce_float(query.scalar())
 
 
 def _sum_period_legacy_expenses(floor, start_date, end_date=None, tenant_id=None):
@@ -169,7 +198,8 @@ def build_floor_budget_ledger(floor, tenant_id=None, faculty_workflow_enabled=Tr
             faculty_workflow_enabled=faculty_workflow_enabled,
             is_current=is_current_period
         )
-        spent_amount += _sum_period_legacy_expenses(floor, period['start_date'], effective_end, tenant_id=tenant_id)
+        if not (faculty_workflow_enabled and (period['cycle_id'] or is_current_period)):
+            spent_amount += _sum_period_legacy_expenses(floor, period['start_date'], effective_end, tenant_id=tenant_id)
 
         opening_balance = running_balance
         available_budget = opening_balance + period['allocated_amount']

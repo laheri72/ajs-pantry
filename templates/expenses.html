@@ -311,7 +311,7 @@
             </div>
             <div class="text-lg-end">
                 <div class="small text-muted">Carry-forward Into Cycle</div>
-                <div class="small fw-bold">&#8377;{{ "%.2f"|format(current_budget_period.opening_balance if current_budget_period else carryforward_balance) }}</div>
+                <div class="small fw-bold">&#8377;{{ (current_budget_period.opening_balance if current_budget_period else carryforward_balance)|inr }}</div>
                 <div class="small text-muted mt-2">Faculty Note</div>
                 <div class="small">{{ active_cycle_allocation.faculty_note if active_cycle_allocation and active_cycle_allocation.faculty_note else 'No floor note added by Faculty.' }}</div>
             </div>
@@ -325,9 +325,9 @@
             <div class="stat-card bg-primary h-100">
                 <div class="stat-content">
                     <p class="text-uppercase small fw-bold mb-1 opacity-75">Current Allocation</p>
-                    <h3 class="fw-bold mb-0">&#8377;{{ "%.2f"|format(total_budget) }}</h3>
+                    <h3 class="fw-bold mb-0">&#8377;{{ total_budget|inr }}</h3>
                     <div class="small opacity-75 mt-2">
-                        Opening balance: &#8377;{{ "%.2f"|format(current_budget_period.opening_balance if current_budget_period else carryforward_balance) }}
+                        Opening balance: &#8377;{{ (current_budget_period.opening_balance if current_budget_period else carryforward_balance)|inr }}
                     </div>
                 </div>
             </div>
@@ -336,7 +336,24 @@
             <div class="stat-card bg-danger h-100">
                 <div class="stat-content">
                     <p class="text-uppercase small fw-bold mb-1 opacity-75">Current Period Spent</p>
-                    <h3 class="fw-bold mb-0">&#8377;{{ "%.2f"|format(total_spent) }}</h3>
+                    <h3 class="fw-bold mb-0">&#8377;{{ total_spent|inr }}</h3>
+                    <div class="small opacity-75 mt-2">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        {% if current_budget_period and current_budget_period.start_date %}
+                            {% set start_val = current_budget_period.start_date %}
+                            {% set end_val = current_budget_period.effective_end_date or current_budget_period.end_date %}
+                            Range: {{ start_val.strftime('%b %d, %Y') if start_val.strftime is defined else start_val }}
+                            {% if end_val %}
+                                &ndash; {{ end_val.strftime('%b %d, %Y') if end_val.strftime is defined else end_val }}
+                            {% else %}
+                                &ndash; Present
+                            {% endif %}
+                        {% elif faculty_workflow_enabled and active_cycle %}
+                            Range: {{ active_cycle.start_date.strftime('%b %d, %Y') }} &ndash; {{ active_cycle.end_date.strftime('%b %d, %Y') }}
+                        {% else %}
+                            Range: All Time / Ongoing
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -345,7 +362,10 @@
                 class="stat-card {% if remaining_balance < 0 %}bg-danger{% else %}bg-success{% endif %} h-100 position-relative">
                 <div class="stat-content">
                     <p class="text-uppercase small fw-bold mb-1 opacity-75">Remaining Balance</p>
-                    <h3 class="fw-bold mb-0">&#8377;{{ "%.2f"|format(remaining_balance) }}</h3>
+                    <h3 class="fw-bold mb-0">&#8377;{{ remaining_balance|inr }}</h3>
+                    <div class="small opacity-75 mt-2">
+                        Available: &#8377;{{ current_available_budget|inr }}
+                    </div>
                 </div>
                 {% if remaining_balance < 0 %} <div class="position-absolute top-0 end-0 p-2">
                     <i class="fas fa-exclamation-triangle text-white animate-pulse"></i>
@@ -365,12 +385,12 @@
                 <div class="d-flex align-items-center gap-3">
                     <ul class="nav nav-pills nav-sm" id="ledgerTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active py-1" id="pending-tab" data-bs-toggle="tab"
+                            <button class="nav-link py-1" id="pending-tab" data-bs-toggle="tab"
                                 data-bs-target="#pending-pane" type="button" role="tab">Pending Costs</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link py-1" id="recorded-tab" data-bs-toggle="tab"
-                                data-bs-target="#recorded-pane" type="button" role="tab">Current Bills</button>
+                            <button class="nav-link active py-1" id="recorded-tab" data-bs-toggle="tab"
+                                data-bs-target="#recorded-pane" type="button" role="tab" aria-selected="true">Current Bills</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link py-1" id="old-tab" data-bs-toggle="tab"
@@ -382,7 +402,7 @@
             <div class="card-body p-0">
                 <div class="tab-content">
                     <!-- Pending Costs Tab -->
-                    <div class="tab-pane fade show active" id="pending-pane" role="tabpanel">
+                    <div class="tab-pane fade" id="pending-pane" role="tabpanel">
                         <div class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center">
                             <div class="small text-muted"><span id="selected-count">0</span> items selected</div>
                             {% if is_manager %}
@@ -445,11 +465,37 @@
                     </div>
 
                     <!-- Recorded Bills Tab -->
-                    <div class="tab-pane fade" id="recorded-pane" role="tabpanel">
+                    <div class="tab-pane fade show active" id="recorded-pane" role="tabpanel">
+                        <div class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-3">
+                                {% if is_manager and bills %}
+                                <div class="form-check mb-0">
+                                    <input type="checkbox" class="form-check-input" id="select-all-bills" onclick="toggleAllBills(this)">
+                                    <label class="form-check-label small fw-bold text-muted" for="select-all-bills">Select All</label>
+                                </div>
+                                {% endif %}
+                                <div class="small text-muted"><span id="selected-bills-count">0</span> bills selected</div>
+                            </div>
+                            {% if is_manager %}
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="bulk-archive-bills-btn" disabled onclick="openBulkBillsModal('archive')">
+                                    <i class="fas fa-archive me-1"></i> Archive Selected
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="bulk-delete-bills-btn" disabled onclick="openBulkBillsModal('delete')">
+                                    <i class="fas fa-trash-alt me-1"></i> Permanent Delete Selected
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
                         <div class="accordion accordion-flush" id="billsAccordion">
                             {% for bill in bills %}
                             <div class="accordion-item border-bottom">
-                                <h2 class="accordion-header">
+                                <h2 class="accordion-header d-flex align-items-center">
+                                    {% if is_manager %}
+                                    <div class="ps-3 pe-1" onclick="event.stopPropagation();">
+                                        <input type="checkbox" class="form-check-input bill-check" data-id="{{ bill.id }}" onclick="updateSelectedBillsCount()">
+                                    </div>
+                                    {% endif %}
                                     <button class="accordion-button collapsed py-3" type="button"
                                         data-bs-toggle="collapse" data-bs-target="#bill-{{ bill.id }}">
                                         <div class="d-flex justify-content-between w-100 align-items-center me-3">
@@ -465,7 +511,7 @@
                                                 <span class="badge bg-secondary ms-2">Archived</span>
                                                 {% endif %}
                                             </div>
-                                            <div class="fw-bold">&#8377;{{ "%.2f"|format(bill.total_amount) }}</div>
+                                            <div class="fw-bold">&#8377;{{ bill.total_amount|inr }}</div>
                                         </div>
                                         </button>
                                         </h2>
@@ -486,7 +532,7 @@
                                                     <td class="ps-4">{{ item.item_name }}</td>
                                                     <td>{{ item.quantity }}</td>
                                                     <td class="text-end pe-4 fw-bold text-teal">
-                                                        &#8377;{{ "%.2f"|format(item.actual_cost or 0) }}
+                                                        &#8377;{{ (item.actual_cost or 0)|inr }}
                                                         {% if is_manager %}
                                                         <button class="btn btn-sm btn-link p-0 ms-1 text-muted"
                                                             data-item-id="{{ item.id }}"
@@ -588,7 +634,7 @@
                                                 {% endif %}
                                                 <span class="badge bg-secondary ms-2">Old</span>
                                             </div>
-                                            <div class="fw-bold text-muted">&#8377;{{ "%.2f"|format(bill.total_amount) }}</div>
+                                            <div class="fw-bold text-muted">&#8377;{{ bill.total_amount|inr }}</div>
                                         </div>
                                     </button>
                                 </h2>
@@ -609,7 +655,7 @@
                                                     <td class="ps-4">{{ item.item_name }}</td>
                                                     <td>{{ item.quantity }}</td>
                                                     <td class="text-end pe-4 fw-bold text-teal">
-                                                        &#8377;{{ "%.2f"|format(item.actual_cost or 0) }}
+                                                        &#8377;{{ (item.actual_cost or 0)|inr }}
                                                     </td>
                                                 </tr>
                                                 {% endfor %}
@@ -687,8 +733,8 @@
             <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
                 <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-teal"></i>Budget Timeline</h5>
                 <div class="floor-insight-mini" title="All-time totals for this floor">
-                    <span>Bgt <strong>&#8377;{{ "%.2f"|format(floor_total_budget) }}</strong></span>
-                    <span>Spent <strong>&#8377;{{ "%.2f"|format(floor_total_spent) }}</strong></span>
+                    <span>Bgt <strong>&#8377;{{ floor_total_budget|inr }}</strong></span>
+                    <span>Spent <strong>&#8377;{{ floor_total_spent|inr }}</strong></span>
                 </div>
             </div>
             <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
@@ -730,11 +776,11 @@
                             to {{ period.effective_end_date.strftime('%b %d, %Y') }}
                             {% endif %}
                         </div>
-                        <div class="small text-muted mt-2">Opening balance: &#8377;{{ "%.2f"|format(period.opening_balance) }}</div>
-                        <div class="small text-success">Allocated: +&#8377;{{ "%.2f"|format(period.allocated_amount) }}</div>
-                        <div class="small text-danger">Spent: -&#8377;{{ "%.2f"|format(period.spent_amount) }}</div>
+                        <div class="small text-muted mt-2">Opening balance: &#8377;{{ period.opening_balance|inr }}</div>
+                        <div class="small text-success">Allocated: +&#8377;{{ period.allocated_amount|inr }}</div>
+                        <div class="small text-danger">Spent: -&#8377;{{ period.spent_amount|inr }}</div>
                         <div class="small fw-bold {% if period.closing_balance < 0 %}text-danger{% else %}text-teal{% endif %}">
-                            Closing balance: &#8377;{{ "%.2f"|format(period.closing_balance) }}
+                            Closing balance: &#8377;{{ period.closing_balance|inr }}
                         </div>
                         {% if period.faculty_note %}
                         <div class="small text-muted mt-1"><strong>Faculty note:</strong> {{ period.faculty_note }}</div>
@@ -1488,6 +1534,28 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Custom Bulk Bills Action Confirmation Modal -->
+<div class="modal fade" id="bulkBillsConfirmModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 py-3" id="bulkBillsModalHeader">
+                <h5 class="modal-title fw-bold text-white" id="bulkBillsModalTitle"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Action</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="mb-3" id="bulkBillsModalIcon">
+                    <i class="fas fa-archive fa-3x text-secondary"></i>
+                </div>
+                <h5 class="fw-bold mb-2" id="bulkBillsModalHeading">Are you sure?</h5>
+                <p class="text-muted mb-0" id="bulkBillsModalBody">This action will affect the selected bills.</p>
+            </div>
+            <div class="modal-footer border-0 p-3 justify-content-center">
+                <button type="button" class="btn btn-outline-secondary px-4 me-2" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn px-4 fw-bold" id="bulkBillsConfirmBtn" onclick="executeBulkBillsAction()">Confirm</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1573,6 +1641,114 @@
 
 {% block extra_scripts %}
 <script>
+    let activeBulkBillsAction = null;
+    const bulkArchiveUrl = "{{ url_for('finance.bulk_archive_bills') }}";
+    const bulkDeletePermanentUrl = "{{ url_for('finance.bulk_delete_permanent_bills') }}";
+
+    function toggleAllBills(master) {
+        var cbs = document.querySelectorAll('.bill-check');
+        for (var i = 0; i < cbs.length; i++) {
+            cbs[i].checked = master.checked;
+        }
+        updateSelectedBillsCount();
+    }
+
+    function updateSelectedBillsCount() {
+        var checked = document.querySelectorAll('.bill-check:checked');
+        var total = document.querySelectorAll('.bill-check').length;
+        var countSpan = document.getElementById('selected-bills-count');
+        var archiveBtn = document.getElementById('bulk-archive-bills-btn');
+        var deleteBtn = document.getElementById('bulk-delete-bills-btn');
+        var selectAll = document.getElementById('select-all-bills');
+
+        if (countSpan) countSpan.innerText = checked.length;
+        if (archiveBtn) archiveBtn.disabled = (checked.length === 0);
+        if (deleteBtn) deleteBtn.disabled = (checked.length === 0);
+        if (selectAll && total > 0) {
+            selectAll.checked = (checked.length === total);
+            selectAll.indeterminate = (checked.length > 0 && checked.length < total);
+        }
+    }
+
+    function openBulkBillsModal(action) {
+        var checked = document.querySelectorAll('.bill-check:checked');
+        var count = checked.length;
+        if (count === 0) return;
+
+        activeBulkBillsAction = action;
+
+        var header = document.getElementById('bulkBillsModalHeader');
+        var title = document.getElementById('bulkBillsModalTitle');
+        var icon = document.getElementById('bulkBillsModalIcon');
+        var heading = document.getElementById('bulkBillsModalHeading');
+        var body = document.getElementById('bulkBillsModalBody');
+        var confirmBtn = document.getElementById('bulkBillsConfirmBtn');
+
+        if (action === 'archive') {
+            header.className = 'modal-header bg-teal text-white border-0 py-3';
+            title.innerHTML = '<i class="fas fa-archive me-2"></i>Archive Selected Bills';
+            icon.innerHTML = '<i class="fas fa-archive fa-3x text-teal"></i>';
+            heading.innerText = 'Archive ' + count + ' Selected Bill' + (count > 1 ? 's' : '') + '?';
+            body.innerText = 'These ' + count + ' bill record' + (count > 1 ? 's' : '') + ' will be moved to the Old Bills archive. You can restore them anytime.';
+            confirmBtn.className = 'btn btn-teal px-4 fw-bold';
+            confirmBtn.innerText = 'Yes, Archive All';
+        } else if (action === 'delete') {
+            header.className = 'modal-header bg-danger text-white border-0 py-3';
+            title.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Permanent Delete Warning';
+            icon.innerHTML = '<i class="fas fa-trash-alt fa-3x text-danger"></i>';
+            heading.innerText = 'PERMANENTLY DELETE ' + count + ' Bill' + (count > 1 ? 's' : '') + '?';
+            body.innerText = 'WARNING: This will permanently delete ' + count + ' bill record' + (count > 1 ? 's' : '') + ' AND all associated procurement items from the database! This action CANNOT be undone.';
+            confirmBtn.className = 'btn btn-danger px-4 fw-bold';
+            confirmBtn.innerText = 'Yes, Permanently Delete All';
+        }
+
+        var modalEl = document.getElementById('bulkBillsConfirmModal');
+        var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    function executeBulkBillsAction() {
+        var checked = document.querySelectorAll('.bill-check:checked');
+        var billIds = [];
+        for (var i = 0; i < checked.length; i++) {
+            billIds.push(parseInt(checked[i].getAttribute('data-id')));
+        }
+        if (billIds.length === 0 || !activeBulkBillsAction) return;
+
+        var endpoint = (activeBulkBillsAction === 'archive') ? bulkArchiveUrl : bulkDeletePermanentUrl;
+        var confirmBtn = document.getElementById('bulkBillsConfirmBtn');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...';
+        }
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bill_ids: billIds })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to process request'));
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerText = 'Confirm';
+                }
+            }
+        })
+        .catch(function(err) {
+            console.error(err);
+            alert('Network or server error occurred.');
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerText = 'Confirm';
+            }
+        });
+    }
+
     function toggleAllPending(master) {
         var cbs = document.querySelectorAll('.pending-check');
         for (var i = 0; i < cbs.length; i++) {
@@ -2381,6 +2557,7 @@
 
         newSkipBtn.addEventListener('click', function() {
             modal.hide();
+            window.location.reload();
         });
 
         confirmBtn.addEventListener('click', async function() {
@@ -2426,7 +2603,10 @@
     }
 
     async function handlePostPrintArchival(checkedGroups) {
-        if (!checkedGroups || checkedGroups.length === 0) return;
+        if (!checkedGroups || checkedGroups.length === 0) {
+            window.location.reload();
+            return;
+        }
         const billIds = Array.from(checkedGroups).map(cb => cb.getAttribute('data-bill-id'));
 
         // First Confirmation Modal
@@ -2464,7 +2644,11 @@
 
             if (finalAction === 'archive') {
                 await bulkArchiveBills(billIds);
+            } else {
+                window.location.reload();
             }
+        } else {
+            window.location.reload();
         }
     }
 

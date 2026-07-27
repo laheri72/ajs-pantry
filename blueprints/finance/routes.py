@@ -308,6 +308,11 @@ def save_print_report():
     if len(bills) != len(all_bill_ids):
         return jsonify({'error': 'One or more bills were invalid for this floor.'}), 400
 
+    # Calculate actual spent sum directly from database Bill objects
+    actual_total_spent = sum(float(b.total_amount or 0.0) for b in bills)
+    if actual_total_spent > 0 or not total_spent:
+        total_spent = actual_total_spent
+
     faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
     budget_ledger = build_floor_budget_ledger(
         floor=floor,
@@ -319,22 +324,56 @@ def save_print_report():
     report_budget = budget_ledger['current_allocated_amount'] if active_cycle else requested_report_budget
     remaining_balance = report_budget - total_spent
 
-    print_report = ExpensePrintReport(
-        cycle_id=active_cycle.id if active_cycle else None,
-        floor=floor,
-        report_title=report_title,
-        report_budget=report_budget,
-        total_spent=total_spent,
-        remaining_balance=remaining_balance,
-        created_by_id=user.id,
-        tenant_id=getattr(g, 'tenant_id', None)
-    )
-    db.session.add(print_report)
-    db.session.flush()
+    if active_cycle:
+        # Fetch any existing print report records for this active cycle and floor
+        existing_reports = tenant_filter(ExpensePrintReport.query).filter_by(
+            cycle_id=active_cycle.id,
+            floor=floor
+        ).order_by(ExpensePrintReport.created_at.desc()).all()
 
-# Bill links are only consumed by the Faculty submission flow.
-    # For Faculty-off tenants, skip the write entirely — the rows are never read
-    # and accumulate as dead weight (1,652 orphaned rows were cleaned up 2025-05).
+        if existing_reports:
+            print_report = existing_reports[0]
+            print_report.report_title = report_title
+            print_report.report_budget = report_budget
+            print_report.total_spent = total_spent
+            print_report.remaining_balance = remaining_balance
+            print_report.created_at = datetime.utcnow()
+            print_report.created_by_id = user.id
+
+            # Clear previous bill links for this report
+            tenant_filter(ExpensePrintReportBill.query).filter_by(print_report_id=print_report.id).delete()
+
+            # Clean up any leftover duplicate print reports for this cycle
+            for dup in existing_reports[1:]:
+                tenant_filter(ExpensePrintReportBill.query).filter_by(print_report_id=dup.id).delete()
+                db.session.delete(dup)
+        else:
+            print_report = ExpensePrintReport(
+                cycle_id=active_cycle.id,
+                floor=floor,
+                report_title=report_title,
+                report_budget=report_budget,
+                total_spent=total_spent,
+                remaining_balance=remaining_balance,
+                created_by_id=user.id,
+                tenant_id=getattr(g, 'tenant_id', None)
+            )
+            db.session.add(print_report)
+            db.session.flush()
+    else:
+        print_report = ExpensePrintReport(
+            cycle_id=None,
+            floor=floor,
+            report_title=report_title,
+            report_budget=report_budget,
+            total_spent=total_spent,
+            remaining_balance=remaining_balance,
+            created_by_id=user.id,
+            tenant_id=getattr(g, 'tenant_id', None)
+        )
+        db.session.add(print_report)
+        db.session.flush()
+
     if faculty_workflow_enabled:
         summary_set = set(summary_bill_ids)
         voucher_set = set(voucher_bill_ids)
@@ -352,6 +391,7 @@ def save_print_report():
             ))
 
     db.session.commit()
+    _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
     return jsonify({
         'success': True,
         'print_report_id': print_report.id,
@@ -459,7 +499,39 @@ def bulk_archive_bills():
                 archived_count += 1
         
         db.session.commit()
+        if archived_count > 0:
+            _clear_dashboard_cache(getattr(g, 'tenant_id', None), user.floor if user.role != 'admin' else None)
         return jsonify({'success': True, 'count': archived_count})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@finance_bp.route('/bills/bulk-delete-permanent', methods=['POST'])
+def bulk_delete_permanent_bills():
+    user = _require_user()
+    if not user or user.role not in ['admin', 'pantryHead']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json
+    bill_ids = data.get('bill_ids', [])
+    
+    if not bill_ids:
+        return jsonify({'error': 'No bill IDs provided'}), 400
+
+    try:
+        bills = tenant_filter(Bill.query).filter(Bill.id.in_(bill_ids)).all()
+        deleted_count = 0
+        for bill in bills:
+            if user.role == 'admin' or bill.floor == user.floor:
+                for item in bill.items:
+                    db.session.delete(item)
+                db.session.delete(bill)
+                deleted_count += 1
+        
+        db.session.commit()
+        if deleted_count > 0:
+            _clear_dashboard_cache(getattr(g, 'tenant_id', None), user.floor if user.role != 'admin' else None)
+        return jsonify({'success': True, 'count': deleted_count})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

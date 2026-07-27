@@ -114,6 +114,13 @@ The finance subsystem tracks bills, OCR imports, and calculates floor ledger bal
     3.  *Consolidated Backend Route:* Compiles a single recipient map sending exactly one email per person listing all weekly turns (bypassing Google spam limits).
 *   **Date Generation:** Uses `formatDateLocal()` instead of UTC `.toISOString()` to prevent day-shifting bugs in local timezones.
 
+### 3.8 Single Print Report Upsert & Active Cycle Spent Parity Refactor
+*   **Purpose:** Enforces a single canonical `ExpensePrintReport` per floor per active cycle, eliminating orphaned duplicate records, and synchronizing dashboard spent metrics with the compiled print report.
+*   **Bulk Procurement Features:** Set "Current Bills" as the default active tab in [expenses.html](file:///D:/My%20Sites/ajs-pantry/templates/expenses.html), added master select-all with `.bill-check` isolation, and added confirmation modals for Bulk Archive and Bulk Permanent Delete.
+*   **Indian Currency Formatting:** Standardized `|inr` currency formatting across all summary cards, bill rows, and timeline elements.
+*   **Single Upsert Logic:** `save_print_report` in [finance/routes.py](file:///D:/My%20Sites/ajs-pantry/blueprints/finance/routes.py) upserts existing `ExpensePrintReport` rows for `(floor, cycle_id)` and purges duplicate rows and old bill links.
+*   **Real-time Spent Parity:** `_sum_period_bills` in [budgeting.py](file:///D:/My%20Sites/ajs-pantry/blueprints/budgeting.py) sums exact DB bill totals joined via `ExpensePrintReportBill` for the active cycle, allowing draft/revision spent updates in real time.
+
 ---
 
 
