@@ -349,6 +349,55 @@ def format_indian_currency(val, show_decimals=True):
 app.jinja_env.filters['inr'] = format_indian_currency
 app.jinja_env.filters['indian_currency'] = format_indian_currency
 
+
+def format_hijri_date(dt):
+    if not dt:
+        return ""
+    if hasattr(dt, 'date') and callable(getattr(dt, 'date')):
+        dt = dt.date()
+    year = dt.year
+    month = dt.month
+    day = dt.day
+    if month < 3:
+        year -= 1
+        month += 12
+    if (dt.year < 1582) or (dt.year == 1582 and (dt.month < 10 or (dt.month == 10 and dt.day < 5))):
+        b = 0
+    else:
+        a = year // 100
+        b = 2 - a + (a // 4)
+    ajd = int(365.25 * (year + 4716)) + int(30.6001 * (month + 1)) + day + b - 1524.5
+    left = int(ajd - 1948083.5)
+    y30 = int(left / 10631.0)
+    left -= y30 * 10631
+    i = 0
+    days_in_30_years = [
+        354, 708, 1063, 1417, 1771, 2126, 2480, 2834, 3189, 3543,
+        3898, 4252, 4606, 4961, 5315, 5669, 6024, 6378, 6732, 7087,
+        7441, 7796, 8150, 8504, 8859, 9213, 9567, 9922, 10276, 10631
+    ]
+    days_in_year = [30, 59, 89, 118, 148, 177, 207, 236, 266, 295, 325]
+    hijri_month_names = [
+        "Moharram al-Haraam", "Safar al-Muzaffar", "Rabi al-Awwal", "Rabi al-Aakhar",
+        "Jumada al-Ula", "Jumada al-Ukhra", "Rajab al-Asab", "Shabaan al-Karim",
+        "Ramadaan al-Moazzam", "Shawwal al-Mukarram", "Zilqadah al-Haraam", "Zilhaj al-Haraam"
+    ]
+    while i < len(days_in_30_years) and left > days_in_30_years[i]:
+        i += 1
+    h_year = int(round(y30 * 30.0 + i))
+    if i > 0:
+        left -= days_in_30_years[i - 1]
+    i = 0
+    while i < len(days_in_year) and left > days_in_year[i]:
+        i += 1
+    h_month = int(round(i))
+    h_date = int(round(left - days_in_year[i - 1])) if i > 0 else int(round(left))
+    m_name = hijri_month_names[h_month] if 0 <= h_month < 12 else ""
+    return f"{h_date} {m_name} {h_year}H"
+
+
+app.jinja_env.filters['hijri'] = format_hijri_date
+
 @app.route('/favicon.ico')
 def favicon():
     from flask import send_from_directory

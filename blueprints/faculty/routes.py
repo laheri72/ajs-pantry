@@ -28,6 +28,7 @@ from app import cache, db, limiter
 from models import (
     Bill,
     Budget,
+    Dish,
     ExpensePrintReport,
     ExpensePrintReportBill,
     FacultyBudgetCycle,
@@ -564,15 +565,7 @@ def _validate_import_rows(rows):
 
 @cache.memoize(timeout=300)
 def _get_faculty_dashboard_stats(tenant_id):
-    today = date.today()
-    week_end = today + timedelta(days=6)
-    first_of_month = date(today.year, today.month, 1)
-    if today.month == 12:
-        first_of_next_month = date(today.year + 1, 1, 1)
-    else:
-        first_of_next_month = date(today.year, today.month + 1, 1)
-
-    population_roles = ['member', 'pantryHead', 'teaManager']
+    population_roles = ['member', 'pantryHead']
     user_filters = [
         User.tenant_id == tenant_id,
         User.is_active.is_(True),
@@ -589,11 +582,6 @@ def _get_faculty_dashboard_stats(tenant_id):
         User.is_active.is_(True),
         User.role == 'pantryHead',
     ).scalar() or 0
-    tea_managers = db.session.query(func.count(User.id)).filter(
-        User.tenant_id == tenant_id,
-        User.is_active.is_(True),
-        User.role == 'teaManager',
-    ).scalar() or 0
     floor_counts = {
         int(floor): int(count)
         for floor, count in db.session.query(User.floor, func.count(User.id))
@@ -602,13 +590,6 @@ def _get_faculty_dashboard_stats(tenant_id):
         .order_by(User.floor.asc())
         .all()
     }
-    planned_today = Menu.query.filter(Menu.tenant_id == tenant_id, Menu.date == today).count()
-    planned_week = Menu.query.filter(Menu.tenant_id == tenant_id, Menu.date >= today, Menu.date <= week_end).count()
-    planned_month = Menu.query.filter(
-        Menu.tenant_id == tenant_id,
-        Menu.date >= first_of_month,
-        Menu.date < first_of_next_month,
-    ).count()
     avg_rating = db.session.query(func.avg(Feedback.rating)).filter(
         Feedback.tenant_id == tenant_id,
         Feedback.menu_id.isnot(None),
@@ -617,11 +598,7 @@ def _get_faculty_dashboard_stats(tenant_id):
     return {
         'active_members': int(active_members),
         'pantry_heads': int(pantry_heads),
-        'tea_managers': int(tea_managers),
         'floor_counts': floor_counts,
-        'planned_today': int(planned_today),
-        'planned_week': int(planned_week),
-        'planned_month': int(planned_month),
         'avg_rating': round(float(avg_rating), 1),
     }
 
@@ -741,6 +718,96 @@ def dashboard():
         .all()
     )
 
+    # 1. Build Upcoming Kitchen Horizon (Next 3 Days across all tenant floors)
+    horizon_days = [today + timedelta(days=i) for i in range(3)]
+    horizon_menus = (
+        tenant_filter(Menu.query)
+        .filter(Menu.date >= today, Menu.date <= today + timedelta(days=2))
+        .all()
+    )
+    menus_by_date_floor = {}
+    for m in horizon_menus:
+        key = (m.date, m.floor)
+        if key not in menus_by_date_floor:
+            menus_by_date_floor[key] = []
+        menus_by_date_floor[key].append(m)
+
+    upcoming_horizon = []
+    for d in horizon_days:
+        scheduled_floors = []
+        unscheduled_floors = []
+        for fl in floor_options:
+            m_list = menus_by_date_floor.get((d, fl), [])
+            if m_list:
+                main_menu = m_list[0]
+                scheduled_floors.append({
+                    'floor': fl,
+                    'meal_type': main_menu.meal_type.title() if main_menu.meal_type else 'Meal',
+                    'dish_name': main_menu.dish.name if main_menu.dish else (main_menu.title or 'Custom Meal'),
+                    'side_dish_name': main_menu.side_dish.name if main_menu.side_dish else None,
+                    'team_name': main_menu.assigned_team.name if main_menu.assigned_team else None,
+                })
+            else:
+                unscheduled_floors.append(fl)
+        
+        day_label = 'Today' if d == today else ('Tomorrow' if d == today + timedelta(days=1) else d.strftime('%a, %d %b'))
+        upcoming_horizon.append({
+            'date': d,
+            'day_label': day_label,
+            'scheduled_floors': scheduled_floors,
+            'unscheduled_floors': unscheduled_floors,
+            'scheduled_count': len(scheduled_floors),
+            'total_floors': len(floor_options),
+        })
+
+    # 2. Floor Planning Velocity (% of upcoming 7 days planned per floor)
+    week_end_date = today + timedelta(days=6)
+    week_menus = (
+        tenant_filter(Menu.query)
+        .filter(Menu.date >= today, Menu.date <= week_end_date)
+        .all()
+    )
+    scheduled_days_map = {}
+    for m in week_menus:
+        scheduled_days_map.setdefault(m.floor, set()).add(m.date)
+
+    floor_planning_velocity = []
+    for fl in floor_options:
+        count = len(scheduled_days_map.get(fl, set()))
+        pct = round((count / 7.0) * 100)
+        floor_planning_velocity.append({
+            'floor': fl,
+            'planned_days': count,
+            'percentage': pct,
+        })
+
+    # 3. Top Rated Dishes Across Tenant
+    top_dishes_query = (
+        db.session.query(
+            Dish.name,
+            Dish.category,
+            func.avg(Feedback.rating).label('avg_score'),
+            func.count(Feedback.id).label('review_count')
+        )
+        .join(Menu, Feedback.menu_id == Menu.id)
+        .join(Dish, Menu.dish_id == Dish.id)
+        .filter(Feedback.tenant_id == tenant_id)
+        .group_by(Dish.id, Dish.name, Dish.category)
+        .having(func.count(Feedback.id) >= 1)
+        .order_by(text('avg_score DESC'), text('review_count DESC'))
+        .limit(3)
+        .all()
+    )
+    top_rated_dishes = [
+        {
+            'name': row.name,
+            'category': row.category or 'Main',
+            'rating': round(float(row.avg_score or 0), 1),
+            'reviews': row.review_count,
+        }
+        for row in top_dishes_query
+    ]
+
     return render_template(
         'faculty/dashboard.html',
         current_user=user,
@@ -751,6 +818,9 @@ def dashboard():
         total_cumulative_allocated=total_cumulative_allocated,
         cycles=cycles,
         today=today,
+        upcoming_horizon=upcoming_horizon,
+        floor_planning_velocity=floor_planning_velocity,
+        top_rated_dishes=top_rated_dishes,
     )
 
 
