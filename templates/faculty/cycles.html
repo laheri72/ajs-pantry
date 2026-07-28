@@ -19,21 +19,33 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Cycle Title</label>
-                        <input name="title" class="form-control rounded-4" placeholder="e.g. Shawwal Term 1" required>
+                        <input name="title" id="cycle_title_input" class="form-control rounded-4" placeholder="e.g. Safar 1448H Term" required>
                     </div>
                     <div class="col-sm-6 col-md-3">
-                        <label class="form-label fw-bold">Start Date</label>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label class="form-label fw-bold mb-1">Start Date</label>
+                            <button type="button" class="btn btn-link p-0 text-success text-decoration-none small fw-semibold" onclick="openMisriPickerModal('start')" style="font-size: 0.72rem;">Pick Hijri</button>
+                        </div>
                         <input type="date" name="start_date" id="start_date_input" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <div class="small text-success mt-1 fw-semibold" id="start_date_hijri" style="font-size: 0.76rem;"></div>
                     </div>
                     <div class="col-sm-6 col-md-3">
-                        <label class="form-label fw-bold">End Date</label>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label class="form-label fw-bold mb-1">End Date</label>
+                            <button type="button" class="btn btn-link p-0 text-success text-decoration-none small fw-semibold" onclick="openMisriPickerModal('end')" style="font-size: 0.72rem;">Pick Hijri</button>
+                        </div>
                         <input type="date" name="end_date" id="end_date_input" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" onchange="syncDeadlineWithEndDate(this.value)" oninput="syncDeadlineWithEndDate(this.value)" required>
+                        <div class="small text-success mt-1 fw-semibold" id="end_date_hijri" style="font-size: 0.76rem;"></div>
                     </div>
                 </div>
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
-                        <label class="form-label fw-bold">Submission Deadline</label>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label class="form-label fw-bold mb-1">Submission Deadline</label>
+                            <button type="button" class="btn btn-link p-0 text-success text-decoration-none small fw-semibold" onclick="openMisriPickerModal('deadline')" style="font-size: 0.72rem;">Pick Hijri</button>
+                        </div>
                         <input type="date" name="submission_deadline" id="submission_deadline_input" class="form-control rounded-4" value="{{ today.strftime('%Y-%m-%d') }}" required>
+                        <div class="small text-success mt-1 fw-semibold" id="submission_deadline_hijri" style="font-size: 0.76rem;"></div>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label fw-bold">Cycle Notes</label>
@@ -108,7 +120,8 @@
                         <div>
                             <div class="fw-bold">{{ cycle.title }}</div>
                             <div class="small text-muted">{{ cycle.start_date.strftime('%d %b %Y') }} to {{ cycle.end_date.strftime('%d %b %Y') }}</div>
-                            <div class="small text-muted">Deadline: {{ cycle.submission_deadline.strftime('%d %b %Y') }}</div>
+                            <div class="small text-success fw-medium mb-1" style="font-size: 0.76rem;">{{ cycle.start_date|hijri }} – {{ cycle.end_date|hijri }}</div>
+                            <div class="small text-muted">Deadline: {{ cycle.submission_deadline.strftime('%d %b %Y') }} <span class="text-success font-mono">({{ cycle.submission_deadline|hijri }})</span></div>
                         </div>
                         <span class="badge {% if cycle.status == 'active' %}bg-success{% elif cycle.status == 'draft' %}bg-secondary{% else %}bg-dark{% endif %}">
                             {{ cycle.status|title }}
@@ -122,15 +135,372 @@
         </div>
     </div>
 </div>
+
+<!-- Custom Misri Date Picker Modal -->
+<div class="modal fade" id="misriPickerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold text-dark"><i class="fas fa-calendar-day text-success me-2"></i>Select Misri Date</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="misriTargetField" value="start">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-muted mb-1">Misri Month</label>
+                    <select id="misriMonthSelect" class="form-select rounded-3" onchange="updateMisriModalPreview()"></select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted mb-1">Misri Day</label>
+                        <select id="misriDaySelect" class="form-select rounded-3" onchange="updateMisriModalPreview()"></select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted mb-1">Misri Year</label>
+                        <input type="number" id="misriYearInput" class="form-control rounded-3" value="1448" oninput="updateMisriModalPreview()">
+                    </div>
+                </div>
+                <div class="p-2 border rounded-3 bg-light text-center mb-3">
+                    <div class="small text-muted" style="font-size: 0.72rem;">Gregorian Equivalent</div>
+                    <div class="fw-bold text-success" id="misriGregorianPreview">---</div>
+                </div>
+                <button type="button" class="btn btn-success rounded-pill w-100 fw-bold py-2" onclick="confirmMisriPickerSelection()">
+                    Apply Date
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    // Hijri Tabular (Misri) Calendar Converter
+    const HijriDate = (function () {
+      "use strict";
+      const KABISA_YEAR_REMAINDERS = [2, 5, 8, 10, 13, 16, 19, 21, 24, 27, 29];
+      const DAYS_IN_YEAR = [30, 59, 89, 118, 148, 177, 207, 236, 266, 295, 325];
+      const DAYS_IN_30_YEARS = [
+         354,  708, 1063, 1417, 1771, 2126, 2480, 2834,  3189,  3543,
+        3898, 4252, 4606, 4961, 5315, 5669, 6024, 6378,  6732,  7087,
+        7441, 7796, 8150, 8504, 8859, 9213, 9567, 9922, 10276, 10631
+      ];
+
+      const hijriDate = function (year, month, day) {
+        this.year = year;
+        this.month = month;
+        this.day = day;
+      };
+
+      hijriDate.prototype.getYear = function () { return this.year; };
+      hijriDate.prototype.getMonth = function () { return this.month; };
+      hijriDate.prototype.getDate = function () { return this.day; };
+
+      hijriDate.isJulian = function (date) {
+        const y = date.getFullYear();
+        if (y < 1582) return true;
+        if (y === 1582) {
+          if (date.getMonth() < 9) return true;
+          if (date.getMonth() === 9 && date.getDate() < 5) return true;
+        }
+        return false;
+      };
+
+      hijriDate.gregorianToAJD = function (date) {
+        let a, b,
+            year = date.getFullYear(),
+            month = date.getMonth() + 1,
+            day = date.getDate()
+                + date.getHours()/24
+                + date.getMinutes()/1440
+                + date.getSeconds()/86400
+                + date.getMilliseconds()/86400000;
+        if (month < 3) {
+          year--;
+          month += 12;
+        }
+        if (hijriDate.isJulian(date)) {
+          b = 0;
+        } else {
+          a = Math.floor(year / 100);
+          b = 2 - a + Math.floor(a / 4);
+        }
+        return Math.floor(365.25*(year + 4716)) + Math.floor(30.6001*(month + 1)) + day + b - 1524.5;
+      };
+
+      hijriDate.ajdToGregorian = function (ajd) {
+        let a, b, c, d, e, f, z, alpha, year, month, day, hrs, min, sec, msc;
+        z = Math.floor(ajd + 0.5);
+        f = (ajd + 0.5 - z);
+        if (z < 2299161) {
+          a = z;
+        } else {
+          alpha = Math.floor((z - 1867216.25) / 36524.25);
+          a = z + 1 + alpha - Math.floor(0.25*alpha);
+        }
+        b = a + 1524;
+        c = Math.floor((b - 122.1) / 365.25);
+        d = Math.floor(365.25*c);
+        e = Math.floor((b - d) / 30.6001);
+        day = b - d - Math.floor(30.6001*e) + f;
+        hrs = (day - Math.floor(day))*24;
+        min = (hrs - Math.floor(hrs))*60;
+        sec = (min - Math.floor(min))*60;
+        msc = (sec - Math.floor(sec))*1000;
+        month = (e < 14) ? (e - 2) : (e - 14);
+        year = (month < 2) ? (c - 4715) : (c - 4716);
+        return new Date(year, month, Math.round(day), Math.round(hrs), Math.round(min), Math.round(sec), Math.round(msc));
+      };
+
+      hijriDate.prototype.dayOfYear = function () {
+        return (this.month === 0) ? this.day : (DAYS_IN_YEAR[this.month - 1] + this.day);
+      };
+
+      hijriDate.fromAJD = function (ajd) {
+        let year, month, date, i = 0,
+            left = Math.floor(ajd - 1948083.5),
+            y30 = Math.floor(left / 10631.0);
+
+        left -= y30*10631;
+        while (left > DAYS_IN_30_YEARS[i]) {
+          i += 1;
+        }
+
+        year = Math.round(y30*30.0 + i);
+        if (i > 0) {
+          left -= DAYS_IN_30_YEARS[i - 1];
+        }
+        i = 0;
+        while (left > DAYS_IN_YEAR[i]) {
+          i += 1;
+        }
+        month = Math.round(i);
+        date = (i > 0) ? Math.round(left - DAYS_IN_YEAR[i - 1]) : Math.round(left);
+
+        return new hijriDate(year, month, date);
+      };
+
+      hijriDate.prototype.toAJD = function () {
+        const y30 = Math.floor(this.year / 30.0);
+        let ajd = 1948083.5 + y30*10631 + this.dayOfYear();
+        if (this.year % 30 !== 0) {
+          ajd += DAYS_IN_30_YEARS[this.year - y30*30 - 1];
+        }
+        return ajd;
+      };
+
+      hijriDate.fromGregorian = function (date) {
+        return hijriDate.fromAJD(hijriDate.gregorianToAJD(date));
+      };
+
+      hijriDate.prototype.toGregorian = function () {
+        return hijriDate.ajdToGregorian(this.toAJD());
+      };
+
+      hijriDate.isKabisa = function (year) {
+        return KABISA_YEAR_REMAINDERS.includes(year % 30);
+      };
+
+      hijriDate.daysInMonth = function (year, month) {
+        return ((month === 11) && (hijriDate.isKabisa(year)) || (month % 2 === 0)) ? 30 : 29;
+      };
+
+      return hijriDate;
+    })();
+
+    const HIJRI_MONTH_NAMES = [
+        "Moharram al-Haraam", "Safar al-Muzaffar", "Rabi al-Awwal", "Rabi al-Aakhar",
+        "Jumada al-Ula", "Jumada al-Ukhra", "Rajab al-Asab", "Shabaan al-Karim",
+        "Ramadaan al-Moazzam", "Shawwal al-Mukarram", "Zilqadah al-Haraam", "Zilhaj al-Haraam"
+    ];
+
+    function formatISODate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function formatHijriLabel(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return '';
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        if (isNaN(year) || isNaN(month) || isNaN(day)) return '';
+        const gDate = new Date(year, month, day, 12, 0, 0);
+        const hDate = HijriDate.fromGregorian(gDate);
+        const mName = HIJRI_MONTH_NAMES[hDate.getMonth()] || '';
+        return `${hDate.getDate()} ${mName} ${hDate.getYear()}H`;
+    }
+
+    function updateHijriLabels() {
+        const startVal = document.getElementById('start_date_input')?.value;
+        const endVal = document.getElementById('end_date_input')?.value;
+        const deadlineVal = document.getElementById('submission_deadline_input')?.value;
+
+        const startHijri = document.getElementById('start_date_hijri');
+        const endHijri = document.getElementById('end_date_hijri');
+        const deadlineHijri = document.getElementById('submission_deadline_hijri');
+
+        if (startHijri) startHijri.innerHTML = startVal ? `<span class="badge bg-success bg-opacity-10 text-success border border-success-subtle fw-medium me-1" style="font-size:0.68rem;">Hijri</span>${formatHijriLabel(startVal)}` : '';
+        if (endHijri) endHijri.innerHTML = endVal ? `<span class="badge bg-success bg-opacity-10 text-success border border-success-subtle fw-medium me-1" style="font-size:0.68rem;">Hijri</span>${formatHijriLabel(endVal)}` : '';
+        if (deadlineHijri) deadlineHijri.innerHTML = deadlineVal ? `<span class="badge bg-success bg-opacity-10 text-success border border-success-subtle fw-medium me-1" style="font-size:0.68rem;">Hijri</span>${formatHijriLabel(deadlineVal)}` : '';
+    }
+
     function syncDeadlineWithEndDate(val) {
         const deadlineInput = document.getElementById('submission_deadline_input');
         if (deadlineInput && val) {
             deadlineInput.value = val;
         }
+        updateHijriLabels();
+    }
+
+    function initMisriPresets() {
+        const todayH = HijriDate.fromGregorian(new Date());
+        const currMonth = todayH.getMonth();
+        const currYear = todayH.getYear();
+
+        let nextMonth = currMonth + 1;
+        let nextYear = currYear;
+        if (nextMonth > 11) {
+            nextMonth = 0;
+            nextYear++;
+        }
+
+        const currLabel = document.getElementById('preset_curr_month_label');
+        const nextLabel = document.getElementById('preset_next_month_label');
+
+        if (currLabel) currLabel.textContent = `${HIJRI_MONTH_NAMES[currMonth]} ${currYear}H`;
+        if (nextLabel) nextLabel.textContent = `${HIJRI_MONTH_NAMES[nextMonth]} ${nextYear}H`;
+    }
+
+    function applyCurrentMisriMonthPreset() {
+        const todayH = HijriDate.fromGregorian(new Date());
+        applyMisriMonthRange(todayH.getYear(), todayH.getMonth());
+    }
+
+    function applyNextMisriMonthPreset() {
+        const todayH = HijriDate.fromGregorian(new Date());
+        let nextMonth = todayH.getMonth() + 1;
+        let nextYear = todayH.getYear();
+        if (nextMonth > 11) {
+            nextMonth = 0;
+            nextYear++;
+        }
+        applyMisriMonthRange(nextYear, nextMonth);
+    }
+
+    function applyMisriMonthRange(hYear, hMonth) {
+        const startH = new HijriDate(hYear, hMonth, 1);
+        const startG = startH.toGregorian();
+        
+        const lastDay = HijriDate.daysInMonth(hYear, hMonth);
+        const endH = new HijriDate(hYear, hMonth, lastDay);
+        const endG = endH.toGregorian();
+
+        const startInput = document.getElementById('start_date_input');
+        const endInput = document.getElementById('end_date_input');
+        const deadlineInput = document.getElementById('submission_deadline_input');
+        const titleInput = document.getElementById('cycle_title_input');
+
+        if (startInput) startInput.value = formatISODate(startG);
+        if (endInput) endInput.value = formatISODate(endG);
+        if (deadlineInput) deadlineInput.value = formatISODate(endG);
+        if (titleInput) titleInput.value = `${HIJRI_MONTH_NAMES[hMonth]} ${hYear}H Term`;
+
+        updateHijriLabels();
+    }
+
+    function openMisriPickerModal(targetField) {
+        document.getElementById('misriTargetField').value = targetField;
+
+        const monthSel = document.getElementById('misriMonthSelect');
+        const daySel = document.getElementById('misriDaySelect');
+        const yearInp = document.getElementById('misriYearInput');
+
+        if (monthSel.options.length === 0) {
+            HIJRI_MONTH_NAMES.forEach((name, idx) => {
+                monthSel.add(new Option(name, idx));
+            });
+        }
+
+        if (daySel.options.length === 0) {
+            for (let d = 1; d <= 30; d++) {
+                daySel.add(new Option(d, d));
+            }
+        }
+
+        let dateToUse = new Date();
+        if (targetField === 'start') {
+            const val = document.getElementById('start_date_input')?.value;
+            if (val) dateToUse = new Date(val + 'T12:00:00');
+        } else if (targetField === 'end') {
+            const val = document.getElementById('end_date_input')?.value;
+            if (val) dateToUse = new Date(val + 'T12:00:00');
+        } else if (targetField === 'deadline') {
+            const val = document.getElementById('submission_deadline_input')?.value;
+            if (val) dateToUse = new Date(val + 'T12:00:00');
+        }
+
+        const hDate = HijriDate.fromGregorian(dateToUse);
+        monthSel.value = hDate.getMonth();
+        daySel.value = hDate.getDate();
+        yearInp.value = hDate.getYear();
+
+        updateMisriModalPreview();
+
+        const modal = new bootstrap.Modal(document.getElementById('misriPickerModal'));
+        modal.show();
+    }
+
+    function updateMisriModalPreview() {
+        const hYear = parseInt(document.getElementById('misriYearInput').value, 10);
+        const hMonth = parseInt(document.getElementById('misriMonthSelect').value, 10);
+        const hDay = parseInt(document.getElementById('misriDaySelect').value, 10);
+
+        const prevEl = document.getElementById('misriGregorianPreview');
+        if (isNaN(hYear) || isNaN(hMonth) || isNaN(hDay)) {
+            if (prevEl) prevEl.textContent = 'Invalid date';
+            return;
+        }
+
+        const hDate = new HijriDate(hYear, hMonth, hDay);
+        const gDate = hDate.toGregorian();
+        const dateStr = gDate.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+        if (prevEl) prevEl.textContent = `${dateStr} (${formatISODate(gDate)})`;
+    }
+
+    function confirmMisriPickerSelection() {
+        const targetField = document.getElementById('misriTargetField').value;
+        const hYear = parseInt(document.getElementById('misriYearInput').value, 10);
+        const hMonth = parseInt(document.getElementById('misriMonthSelect').value, 10);
+        const hDay = parseInt(document.getElementById('misriDaySelect').value, 10);
+
+        const hDate = new HijriDate(hYear, hMonth, hDay);
+        const gDate = hDate.toGregorian();
+        const isoStr = formatISODate(gDate);
+
+        if (targetField === 'all') {
+            applyMisriMonthRange(hYear, hMonth);
+        } else if (targetField === 'start') {
+            const input = document.getElementById('start_date_input');
+            if (input) input.value = isoStr;
+        } else if (targetField === 'end') {
+            const input = document.getElementById('end_date_input');
+            if (input) input.value = isoStr;
+            syncDeadlineWithEndDate(isoStr);
+        } else if (targetField === 'deadline') {
+            const input = document.getElementById('submission_deadline_input');
+            if (input) input.value = isoStr;
+        }
+
+        updateHijriLabels();
+
+        const modalEl = document.getElementById('misriPickerModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
     }
 
     function applyBulkAmount(val) {
@@ -151,5 +521,17 @@
         if (amt !== '') applyBulkAmount(amt);
         if (note !== '') applyBulkNote(note);
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initMisriPresets();
+        updateHijriLabels();
+        ['start_date_input', 'end_date_input', 'submission_deadline_input'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', updateHijriLabels);
+                el.addEventListener('change', updateHijriLabels);
+            }
+        });
+    });
 </script>
 {% endblock %}

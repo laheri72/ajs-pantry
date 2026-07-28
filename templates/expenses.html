@@ -306,8 +306,8 @@
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 <div class="fw-bold text-teal">{{ active_cycle.title }}</div>
-                <div class="small text-muted">Current Faculty term: {{ active_cycle.start_date.strftime('%d %b %Y') }} to {{ active_cycle.end_date.strftime('%d %b %Y') }}</div>
-                <div class="small text-muted">Submission deadline: {{ active_cycle.submission_deadline.strftime('%d %b %Y') }}</div>
+                <div class="small text-muted">Current Faculty term: {{ active_cycle.start_date.strftime('%d %b %Y') }} to {{ active_cycle.end_date.strftime('%d %b %Y') }} <span class="badge bg-light text-teal border ms-1 font-mono fw-normal">{{ active_cycle.start_date|hijri }} – {{ active_cycle.end_date|hijri }}</span></div>
+                <div class="small text-muted">Submission deadline: {{ active_cycle.submission_deadline.strftime('%d %b %Y') }} <span class="text-teal font-mono">({{ active_cycle.submission_deadline|hijri }})</span></div>
             </div>
             <div class="text-lg-end">
                 <div class="small text-muted">Carry-forward Into Cycle</div>
