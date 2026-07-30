@@ -475,9 +475,31 @@
                 invalid_count: data.skipped_count || 0,
                 total_count: (data.imported_count || 0) + (data.skipped_count || 0)
             });
-            setStatus('Import complete', `${data.imported_count} users created. ${data.skipped_count} rows skipped.`);
-            setTimeout(() => window.location.reload(), 1200);
+
+            if ((data.credentials || []).length) {
+                downloadCredentialsCsv(data.credentials);
+                setStatus('Import complete', `${data.imported_count} users created. ${data.skipped_count} rows skipped. A CSV with each member's one-time temporary password has been downloaded — distribute it securely and delete it afterwards.`);
+                setTimeout(() => window.location.reload(), 8000);
+            } else {
+                setStatus('Import complete', `${data.imported_count} users created. ${data.skipped_count} rows skipped.`);
+                setTimeout(() => window.location.reload(), 1200);
+            }
         });
+
+        function downloadCredentialsCsv(credentials) {
+            const lines = [['TR', 'Name', 'Floor', 'Temporary Password']];
+            credentials.forEach((row) => {
+                lines.push([row.tr || '', row.name || '', row.floor || '', row.temporary_password || '']);
+            });
+            const csv = lines.map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'faculty_import_temporary_passwords.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+        }
 
         btnDownloadErrors.addEventListener('click', () => {
             if (!invalidRows.length) return;

@@ -1,9 +1,10 @@
+import logging
 from flask import render_template, request, redirect, url_for, session, flash, abort, g, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
 from app import db, limiter
 from models import User, Tenant, Dish, DishEstimate, DishAuditLog, Menu, TeaTask, ProcurementItem, Feedback, Expense, PlatformAudit, Budget, FloorLendBorrow, Suggestion, normalize_dish_name, TenantAuditLog
 from . import super_admin_bp
-from ..queue_health import get_queue_health
+from ..queue_health import get_queue_health, get_all_queues_health
 from ..rate_limit_keys import client_ip_key, platform_admin_login_identifier_key
 from ..utils import require_super_admin, visible_budget_condition
 from sqlalchemy import func, or_
@@ -28,6 +29,50 @@ def queue_health():
     health = get_queue_health()
     status_code = 200 if health.get("healthy") else 503
     return jsonify(health), status_code
+
+
+def _database_health():
+    import time
+    from sqlalchemy import text
+
+    started = time.monotonic()
+    try:
+        db.session.execute(text("SELECT 1")).fetchone()
+        return {
+            "connected": True,
+            "latency_ms": round((time.monotonic() - started) * 1000, 1),
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "connected": False,
+            "latency_ms": None,
+            "error": str(exc),
+        }
+
+
+@super_admin_bp.route('/platform-admin/system-health')
+def system_health():
+    require_super_admin()
+    queues = get_all_queues_health()
+    database = _database_health()
+    overall_healthy = database["connected"] and all(q["healthy"] for q in queues.values())
+    return render_template(
+        'super_admin/system_health.html',
+        queues=queues,
+        database=database,
+        overall_healthy=overall_healthy,
+    )
+
+
+@super_admin_bp.route('/platform-admin/system-health.json')
+def system_health_json():
+    require_super_admin()
+    queues = get_all_queues_health()
+    database = _database_health()
+    overall_healthy = database["connected"] and all(q["healthy"] for q in queues.values())
+    status_code = 200 if overall_healthy else 503
+    return jsonify({"database": database, "queues": queues, "healthy": overall_healthy}), status_code
 
 def _log_dish_audit(action, description, dish=None, details=None, target_dish=None):
     user = _super_admin_user()
@@ -641,10 +686,11 @@ def provision_tenant():
         db.session.commit()
         log_platform_action('provision_tenant', f'Provisioned tenant "{name}" with admin "{admin_username}".')
         flash(f'Successfully provisioned {name}', 'success')
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        flash(f'Provisioning Error: {str(e)}', 'error')
-        
+        logging.exception("Tenant provisioning error for tenant %s", name)
+        flash('Provisioning failed. Please check the details and try again.', 'error')
+
     return redirect(url_for('super_admin.dashboard'))
 
 @super_admin_bp.route('/platform-admin/tenants/<uuid:tenant_id>/config', methods=['POST'])

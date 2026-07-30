@@ -17,6 +17,13 @@ except Exception:  # pragma: no cover - lets app boot without RQ installed
 
 QUEUE_NAME = "ajs_pantry_tasks"
 
+# App attribute name -> friendly label, for the multi-queue health view.
+KNOWN_QUEUES = {
+    "task_queue": "OCR / Receipt Import",
+    "notification_queue": "Push Notifications",
+    "email_queue": "Emails",
+}
+
 
 def _utcnow():
     return datetime.now(timezone.utc)
@@ -37,8 +44,8 @@ def _age_seconds(value):
     return max(0, int((_utcnow() - value).total_seconds()))
 
 
-def _redis_connection():
-    queue = getattr(current_app, "task_queue", None)
+def _redis_connection(queue=None):
+    queue = queue or getattr(current_app, "task_queue", None)
     if queue and getattr(queue, "connection", None):
         return queue.connection
 
@@ -135,10 +142,10 @@ def _serialize_worker(worker):
     }
 
 
-def get_queue_health():
-    """Return operational health for the app's RQ queue."""
+def get_queue_health(queue_attr="task_queue"):
+    """Return operational health for one of the app's RQ queues."""
     redis_url_configured = bool(os.environ.get("REDIS_URL"))
-    queue = getattr(current_app, "task_queue", None)
+    queue = getattr(current_app, queue_attr, None)
 
     health = {
         "healthy": False,
@@ -158,7 +165,7 @@ def get_queue_health():
     }
 
     if not queue:
-        health["error"] = "RQ queue is not configured for this Flask process."
+        health["error"] = f"RQ queue '{queue_attr}' is not configured for this Flask process."
         return health
 
     if Worker is None:
@@ -166,7 +173,7 @@ def get_queue_health():
         return health
 
     try:
-        connection = _redis_connection()
+        connection = _redis_connection(queue)
         if not connection:
             health["error"] = "REDIS_URL is not configured."
             return health
@@ -192,11 +199,19 @@ def get_queue_health():
 
         health["healthy"] = health["redis_connected"] and health["worker_count"] > 0
         if not health["healthy"]:
-            health["error"] = "No active RQ workers are registered for ajs_pantry_tasks."
+            health["error"] = f"No active RQ workers are registered for {health['queue_name']}."
     except Exception as exc:
         health["error"] = str(exc)
 
     return health
+
+
+def get_all_queues_health():
+    """Return health for every named queue (OCR, notifications, emails)."""
+    return {
+        label: get_queue_health(queue_attr=attr)
+        for attr, label in KNOWN_QUEUES.items()
+    }
 
 
 def active_worker_count():

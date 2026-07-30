@@ -1,5 +1,5 @@
 from config.terms import TERMS
-from flask import render_template, request, redirect, url_for, flash, jsonify, abort, session, g
+from flask import render_template, request, redirect, url_for, flash, jsonify, abort, session, g, current_app
 from werkzeug.security import generate_password_hash
 from app import db
 from models import User, Team, TeamMember, Announcement, Garamat, Budget, ProcurementItem, Expense, Feedback, Menu, TeaTask, Request, Suggestion, Bill, FloorLendBorrow, Dish
@@ -10,6 +10,8 @@ from . import admin_bp
 from ..budgeting import build_floor_budget_ledger
 from ..utils import (
     current_tenant_faculty_workflow_enabled,
+    generate_temp_password,
+    log_tenant_audit,
     _require_user,
     _get_active_floor,
     _require_team_access,
@@ -79,19 +81,30 @@ def admin():
                 flash('A user with this TR number/email already exists', 'error')
                 return redirect(url_for('admin_panel.admin'))
             
+            temp_password = generate_temp_password()
             new_user = User()
             new_user.role = role
             new_user.floor = floor
-            new_user.password_hash = generate_password_hash('maskan1447')
+            new_user.password_hash = generate_password_hash(temp_password)
             new_user.is_verified = True
             new_user.is_first_login = True
             new_user.tr_number = tr_number
             new_user.email = email
             new_user.tenant_id = getattr(g, 'tenant_id', None)
-                
+
             db.session.add(new_user)
+            db.session.flush()
+            log_tenant_audit(
+                'admin_add_user',
+                target_type='user',
+                target_id=new_user.id,
+                description=f'Added member TR {tr_number} to Floor {floor}.',
+                details={'floor': floor, 'tr_number': tr_number},
+                actor_user=user,
+            )
             db.session.commit()
-            flash('Member added successfully', 'success')
+            session['new_member_credentials'] = [{'tr': tr_number, 'password': temp_password}]
+            flash('Member added successfully. Their one-time temporary password is shown below — share it securely.', 'success')
             return redirect(url_for('admin_panel.admin'))
 
         if action == 'bulk_add_users':
@@ -112,30 +125,43 @@ def admin():
 
                 added_count = 0
                 skipped_count = 0
-                
+                new_credentials = []
+
                 for tr in tr_numbers:
                     email = f"{tr}@jameasaifiyah.edu"
                     if tenant_filter(User.query).filter(or_(User.email == email, User.tr_number == tr)).first():
                         skipped_count += 1
                         continue
-                    
+
+                    temp_password = generate_temp_password()
                     new_user = User()
                     new_user.role = 'member'
                     new_user.floor = floor
                     new_user.tr_number = tr
                     new_user.email = email
-                    new_user.password_hash = generate_password_hash('maskan1447')
+                    new_user.password_hash = generate_password_hash(temp_password)
                     new_user.is_verified = True
                     new_user.is_first_login = True
                     new_user.tenant_id = getattr(g, 'tenant_id', None)
                     db.session.add(new_user)
                     added_count += 1
-                
+                    new_credentials.append({'tr': tr, 'password': temp_password})
+
+                log_tenant_audit(
+                    'admin_bulk_add_users',
+                    target_type='floor',
+                    target_id=floor,
+                    description=f'Bulk added {added_count} members to Floor {floor} ({skipped_count} skipped).',
+                    details={'floor': floor, 'added_count': added_count, 'skipped_count': skipped_count},
+                    actor_user=user,
+                )
                 db.session.commit()
-                flash(f'Successfully added {added_count} members to Floor {floor}. {skipped_count} skipped (already exist).', 'success')
-            except Exception as e:
+                session['new_member_credentials'] = new_credentials
+                flash(f'Successfully added {added_count} members to Floor {floor}. {skipped_count} skipped (already exist). Their one-time temporary passwords are shown below — share them securely.', 'success')
+            except Exception:
                 db.session.rollback()
-                flash(f'Error during bulk add: {str(e)}', 'error')
+                current_app.logger.exception('Error during bulk member add for floor %s', request.form.get('floor'))
+                flash('Error during bulk add. Please check the TR numbers and try again.', 'error')
             return redirect(url_for('admin_panel.admin'))
 
         if action == 'assign_role':
@@ -181,7 +207,16 @@ def admin():
                 flash('Only members can be assigned to staff roles.', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
+            previous_role = target.role
             target.role = role
+            log_tenant_audit(
+                'admin_assign_role',
+                target_type='user',
+                target_id=target.id,
+                description=f'Changed role of {target.full_name or target.username or target.email} from {previous_role} to {role}.',
+                details={'floor': floor, 'previous_role': previous_role, 'new_role': role},
+                actor_user=user,
+            )
             db.session.commit()
             flash('Role assigned successfully', 'success')
             return redirect(url_for('admin_panel.admin'))
@@ -226,11 +261,20 @@ def admin():
                     )
                     updates += count
                 
+                log_tenant_audit(
+                    'admin_bulk_reassign',
+                    target_type='user',
+                    target_id=to_user.id,
+                    description=f'Reassigned {updates} items from {from_user.full_name or from_user.email} to {to_user.full_name or to_user.email}.',
+                    details={'from_user_id': from_user_id, 'to_user_id': to_user_id, 'reassign_types': reassign_types, 'updates': updates},
+                    actor_user=user,
+                )
                 db.session.commit()
                 flash(f'Successfully reassigned {updates} items from {from_user.full_name or from_user.email} to {to_user.full_name or to_user.email}.', 'success')
-            except Exception as e:
+            except Exception:
                 db.session.rollback()
-                flash(f'Error during reassignment: {str(e)}', 'error')
+                current_app.logger.exception('Error during bulk reassignment')
+                flash('Error during reassignment. Please try again.', 'error')
             return redirect(url_for('admin_panel.admin'))
 
         if action == 'delete_user':
@@ -260,8 +304,6 @@ def admin():
             # Soft delete: deactivate the user but preserve their history
             target.is_active = False
             
-            # Optionally log the action using the audit log if desired
-            from ..utils import log_tenant_audit
             log_tenant_audit(
                 'admin_deactivate_user',
                 target_type='user',
@@ -291,12 +333,22 @@ def admin():
                 flash('Faculty accounts are managed only by Super Admin.', 'error')
                 return redirect(url_for('admin_panel.admin'))
 
-            target.password_hash = generate_password_hash('maskan1447')
-            # Optional: if you want them to be forced to change it on next login, uncomment below
-            # target.is_first_login = True 
-            db.session.commit()
+            temp_password = generate_temp_password()
+            target.password_hash = generate_password_hash(temp_password)
+            target.is_first_login = True
 
-            flash(f"Password for {target.full_name or target.email} has been reset to 'maskan1447'.", 'success')
+            log_tenant_audit(
+                'admin_reset_password',
+                target_type='user',
+                target_id=target.id,
+                description=f'Reset password for user {target.full_name or target.username or target.email}.',
+                details={'role': target.role, 'floor': target.floor, 'tr_number': target.tr_number},
+                actor_user=user,
+            )
+
+            db.session.commit()
+            session['new_member_credentials'] = [{'tr': target.tr_number or target.username or target.email, 'password': temp_password}]
+            flash(f"Password for {target.full_name or target.email} has been reset. Their one-time temporary password is shown below — share it securely.", 'success')
             return redirect(url_for('admin_panel.admin'))
             
         if action == 'reactivate_user':
@@ -320,8 +372,7 @@ def admin():
                 return redirect(url_for('admin_panel.admin'))
 
             target.is_active = True
-            
-            from ..utils import log_tenant_audit
+
             log_tenant_audit(
                 'admin_reactivate_user',
                 target_type='user',
@@ -393,10 +444,12 @@ def admin():
             'avg_rating': round(float(f_rating), 1)
         })
 
+    new_member_credentials = session.pop('new_member_credentials', None)
+
     return render_template(
-        'admin.html', 
-        user=user, 
-        all_users=all_users, 
+        'admin.html',
+        user=user,
+        all_users=all_users,
         total_users=total_users,
         total_budget_all=total_budget_all,
         total_spent_all=total_spent_all,
@@ -407,7 +460,8 @@ def admin():
         proc_items_this_month=proc_items_this_month,
         pending_lend_borrows=pending_lend_borrows,
         floor_data=floor_data,
-        current_user=user
+        current_user=user,
+        new_member_credentials=new_member_credentials,
     )
 
 @admin_bp.route('/admin/floor-members', methods=['GET'])

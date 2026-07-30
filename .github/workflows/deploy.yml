@@ -8,6 +8,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Requires a "production" environment configured in GitHub repo settings
+    # (Settings > Environments) with required reviewers, if a manual approval
+    # gate before deploying to the live Oracle VM is desired. Without that
+    # configuration this behaves exactly as before (no gate).
+    environment: production
 
     steps:
       - name: Deploy via SSH
@@ -17,7 +22,21 @@ jobs:
           username: ${{ secrets.ORACLE_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
+            set -e
             cd ~/ajs-pantry
+
+            # Best-effort pre-migration backup so a bad migration is recoverable.
+            # Requires pg_dump on the VM and DATABASE_URL/SUPABASE_DATABASE_URL in .env.
+            mkdir -p ~/ajs-pantry-backups
+            DB_URL=$(venv/bin/python -c "from dotenv import dotenv_values; v = dotenv_values('.env'); print(v.get('DATABASE_URL') or v.get('SUPABASE_DATABASE_URL') or '')" 2>/dev/null || true)
+            if [ -n "$DB_URL" ] && command -v pg_dump >/dev/null 2>&1; then
+              BACKUP_FILE=~/ajs-pantry-backups/pre_deploy_$(date +%Y%m%d_%H%M%S).dump
+              pg_dump "$DB_URL" -Fc -f "$BACKUP_FILE" && echo "Backup saved to $BACKUP_FILE" || echo "WARNING: pg_dump failed, continuing without a fresh backup."
+              ls -1t ~/ajs-pantry-backups | tail -n +11 | xargs -I{} rm -f ~/ajs-pantry-backups/{} 2>/dev/null || true
+            else
+              echo "WARNING: skipping DB backup (pg_dump missing or DATABASE_URL not found in .env)."
+            fi
+
             git fetch origin
             git reset --hard origin/main
             source venv/bin/activate
@@ -25,3 +44,9 @@ jobs:
             export FLASK_APP=app.py
             venv/bin/flask db upgrade
             sudo systemctl restart ajs-pantry
+
+            # Post-deploy smoke test.
+            # NOTE: adjust the port below to match your gunicorn bind/nginx upstream port
+            # (no web systemd unit or gunicorn config is checked into this repo to confirm it).
+            sleep 3
+            curl -sf http://127.0.0.1:5000/healthz || (echo "Health check failed after deploy" && exit 1)
