@@ -43,7 +43,7 @@ from models import (
 )
 from . import faculty_bp
 from ..budgeting import build_floor_budget_ledger
-from ..rate_limit_keys import client_ip_key, faculty_login_identifier_key
+from ..rate_limit_keys import client_ip_key, faculty_login_identifier_key, current_user_or_ip_key
 from ..utils import (
     _ensure_username_from_full_name,
     _get_active_floor,
@@ -52,6 +52,7 @@ from ..utils import (
     faculty_workflow_enabled_for_user,
     faculty_visible_users_query,
     faculty_deactivated_users_query,
+    generate_temp_password,
     log_tenant_audit,
     _require_faculty,
     _require_user,
@@ -952,6 +953,7 @@ def import_template():
 
 
 @faculty_bp.route('/faculty/import/validate', methods=['POST'])
+@limiter.limit("10 per minute; 60 per hour", key_func=current_user_or_ip_key)
 def validate_import():
     _require_faculty()
     rows, error = _rows_from_workbook_upload(request.files.get('file'))
@@ -961,6 +963,7 @@ def validate_import():
 
 
 @faculty_bp.route('/faculty/import/commit', methods=['POST'])
+@limiter.limit("10 per minute; 60 per hour", key_func=current_user_or_ip_key)
 def commit_import():
     user = _require_faculty()
     payload = request.get_json(silent=True) or {}
@@ -972,19 +975,27 @@ def commit_import():
 
     report = _validate_import_rows(rows)
     users_to_create = []
+    credentials = []
     for row in report['valid_rows']:
+        temp_password = generate_temp_password()
         users_to_create.append(User(
             role='member',
             floor=row['floor'],
             tr_number=row['tr'],
             full_name=row['name'] or None,
             email=row['email'],
-            password_hash=generate_password_hash('maskan1447'),
+            password_hash=generate_password_hash(temp_password),
             is_first_login=True,
             is_verified=True,
             is_active=True,
             tenant_id=getattr(g, 'tenant_id', None),
         ))
+        credentials.append({
+            'tr': row['tr'],
+            'name': row['name'] or '',
+            'floor': row['floor'],
+            'temporary_password': temp_password,
+        })
 
     imported_count = 0
     if users_to_create:
@@ -1012,6 +1023,7 @@ def commit_import():
         'imported_count': imported_count,
         'skipped_count': report['invalid_count'],
         'invalid_rows': report['invalid_rows'],
+        'credentials': credentials if imported_count else [],
     })
 
 
@@ -1138,6 +1150,7 @@ def profile():
 
 
 @faculty_bp.route('/faculty/messages', methods=['GET', 'POST'])
+@limiter.limit("20 per minute; 100 per hour", key_func=current_user_or_ip_key, methods=["POST"])
 def messages():
     user = _require_faculty()
     floor_options = _get_tenant_floor_options(user)
@@ -1226,18 +1239,19 @@ def messages():
 
 
 @faculty_bp.route('/faculty/messages/<int:message_id>/send_single', methods=['POST'])
+@limiter.limit("60 per minute; 300 per hour", key_func=current_user_or_ip_key)
 def send_single_message(message_id):
     from flask import jsonify
     user = _require_faculty()
     message = tenant_filter(FacultyMessage.query).filter_by(id=message_id).first_or_404()
-    
+
     data = request.get_json() or {}
     recipient_id = data.get('user_id')
-    
+
     if not recipient_id:
         return jsonify({"status": "error", "message": "user_id is required"}), 400
-        
-    recipient = User.query.get(recipient_id)
+
+    recipient = tenant_filter(User.query).filter_by(id=recipient_id, role='pantryHead').first()
     if not recipient:
         return jsonify({"status": "error", "message": "user not found"}), 404
         
@@ -1789,6 +1803,7 @@ def reports_page():
     active_cycle = _current_active_cycle()
     allocation = _cycle_for_floor(active_cycle.id, floor) if active_cycle else None
     latest_print_report = None
+    submission = None
 
     if faculty_workflow_enabled and active_cycle:
         submission = tenant_filter(FacultyReportSubmission.query).filter_by(

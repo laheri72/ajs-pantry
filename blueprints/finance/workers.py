@@ -62,14 +62,14 @@ def _process_receipt_worker(file_path, mime_type, original_filename):
                 time.monotonic() - started,
             )
             return data
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Receipt import job crashed: filename=%s mime_type=%s duration=%.2fs",
                 original_filename,
                 mime_type,
                 time.monotonic() - started,
             )
-            return {'error': str(e)}
+            return {'error': 'PROCESSING_FAILED'}
         finally:
             if os.path.exists(file_path):
                 try:

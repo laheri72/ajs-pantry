@@ -35,3 +35,8 @@ dependencies = [
     "requests",
     "openpyxl",
 ]
+
+[dependency-groups]
+dev = [
+    "playwright>=1.61.0",
+]

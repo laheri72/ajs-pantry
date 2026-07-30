@@ -856,11 +856,11 @@ def bulk_schedule():
                 print(f"ERROR: Failed to trigger bulk edge function: {e}")
 
         return jsonify({'success': True})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        import logging
+        logging.exception("Bulk menu assignment error")
+        return jsonify({'error': "Failed to assign menu."}), 500
 
 @pantry_bp.route('/home')
 def home():

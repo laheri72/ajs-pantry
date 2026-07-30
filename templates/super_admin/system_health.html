@@ -1,0 +1,110 @@
+{% extends "super_admin/base.html" %}
+
+{% block title %}System Health - CEO Portal{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">System Health</h3>
+        <div class="text-muted small">Database connectivity and RQ worker status across every job queue.</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge {% if overall_healthy %}bg-success{% else %}bg-danger{% endif %} fs-6">
+            {% if overall_healthy %}All Systems Healthy{% else %}Attention Required{% endif %}
+        </span>
+        <a href="{{ url_for('super_admin.system_health_json') }}" class="btn btn-light btn-sm">JSON</a>
+    </div>
+</div>
+
+<div class="card card-expert p-4 mb-4">
+    <h5 class="fw-bold mb-3">Database</h5>
+    <div class="row g-3">
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Connection</div>
+                <div class="fw-bold {% if database.connected %}text-success{% else %}text-danger{% endif %}">
+                    {% if database.connected %}Connected{% else %}Down{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Ping Latency</div>
+                <div class="h4 fw-bold mb-0">{{ database.latency_ms if database.latency_ms is not none else '-' }}{% if database.latency_ms is not none %}ms{% endif %}</div>
+            </div>
+        </div>
+    </div>
+    {% if database.error %}
+    <div class="alert alert-danger small mt-3 mb-0">{{ database.error }}</div>
+    {% endif %}
+</div>
+
+{% for label, health in queues.items() %}
+<div class="card card-expert p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h5 class="fw-bold mb-1">{{ label }}</h5>
+            <div class="text-muted small">Queue: <code>{{ health.queue_name }}</code></div>
+        </div>
+        <span class="badge {% if health.healthy %}bg-success{% else %}bg-danger{% endif %}">
+            {% if health.healthy %}Healthy{% else %}Attention Required{% endif %}
+        </span>
+    </div>
+    <div class="row g-3">
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Redis</div>
+                <div class="fw-bold {% if health.redis_connected %}text-success{% else %}text-danger{% endif %}">
+                    {% if health.redis_connected %}Connected{% else %}Down{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Workers</div>
+                <div class="h4 fw-bold mb-0">{{ health.worker_count }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Queue Length</div>
+                <div class="h4 fw-bold mb-0">{{ health.queue_length if health.queue_length is not none else '-' }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="bg-light rounded-3 p-3 h-100">
+                <div class="text-muted small">Failed Jobs</div>
+                <div class="h4 fw-bold mb-0">{{ health.failed_count }}</div>
+            </div>
+        </div>
+    </div>
+    {% if health.error %}
+    <div class="alert alert-danger small mt-3 mb-0">{{ health.error }}</div>
+    {% endif %}
+    {% if health.recent_failed_jobs %}
+    <div class="border-top mt-3 pt-3">
+        <div class="fw-bold small mb-2">Recent Failures</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="small text-muted">
+                    <tr><th>Job</th><th>Error</th><th>Ended</th></tr>
+                </thead>
+                <tbody>
+                    {% for job in health.recent_failed_jobs %}
+                    <tr class="small">
+                        <td>
+                            <div class="fw-bold">{{ job.id }}</div>
+                            <div class="text-muted text-truncate" style="max-width: 400px;">{{ job.description or '-' }}</div>
+                        </td>
+                        <td class="text-danger">{{ job.error or 'No error captured' }}</td>
+                        <td>{% if job.ended_age_seconds is not none %}{{ job.ended_age_seconds }}s ago{% else %}<span class="text-muted">Unknown</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

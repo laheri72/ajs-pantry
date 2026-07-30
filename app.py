@@ -1,16 +1,17 @@
 import os
 import logging
+import click
 from flask import Flask, session, g, redirect, url_for, request, abort, jsonify
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from blueprints.rate_limit_keys import client_ip_key
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from flask_migrate import Migrate
 from datetime import datetime, timedelta
 from flask_caching import Cache
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import CSRFError
 from redis import Redis
 from werkzeug.middleware.proxy_fix import ProxyFix
 try:
@@ -29,6 +30,7 @@ migrate = Migrate()
 
 # Initialize Cache
 cache = Cache()
+csrf = CSRFProtect()
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[],
@@ -61,21 +63,32 @@ try:
     redis_conn = Redis.from_url(redis_url)
     # Test connection
     redis_conn.ping()
+    # Separate queues so a slow OCR backlog can't delay quick notification/email jobs.
     app.task_queue = Queue("ajs_pantry_tasks", connection=redis_conn) if Queue else None
+    app.notification_queue = Queue("ajs_pantry_notifications", connection=redis_conn) if Queue else None
+    app.email_queue = Queue("ajs_pantry_emails", connection=redis_conn) if Queue else None
     app.config["CACHE_TYPE"] = "RedisCache"
     app.config["CACHE_REDIS_URL"] = redis_url
-    logging.info("Redis connected and RQ queue initialized.")
+    logging.info("Redis connected and RQ queues initialized (tasks, notifications, emails).")
 except Exception as e:
     logging.warning(f"Redis not available ({e}). Falling back to SimpleCache and sync tasks.")
-    app.task_queue = None # Fallback logic will check this
+    app.task_queue = None  # Fallback logic will check this
+    app.notification_queue = None
+    app.email_queue = None
     app.config["CACHE_TYPE"] = "SimpleCache"
 
 cache.init_app(app)
 limiter.init_app(app)
+csrf.init_app(app)
 
 # Session Security for Shared PCs
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=15)
 app.config["SESSION_REFRESH_EACH_REQUEST"] = True
+
+# Session cookie hardening
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "1").lower() not in {"0", "false", "no", "off"}
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["REPORT_STORAGE_ROOT"] = os.environ.get(
     "REPORT_STORAGE_ROOT",
     os.path.join(os.path.expanduser("~"), "ajs-pantry-data", "reports")
@@ -150,41 +163,43 @@ with app.app_context():
         logging.critical(str(e))
 
 
-    # Admin setup
-    try:
-        query_engine = db.engine
-        from models import User
-        from sqlalchemy import inspect
-        from sqlalchemy.orm import sessionmaker
-        inspector = inspect(query_engine)
-        if not inspector.has_table("user"):
-            logging.info("Default admin setup skipped because user table is missing.")
-            raise RuntimeError("user table missing")
-        user_columns = {column["name"] for column in inspector.get_columns("user")}
-        if "is_active" not in user_columns:
-            logging.info("Default admin setup skipped until user.is_active migration is applied.")
-            raise RuntimeError("user.is_active column missing")
-        Session = sessionmaker(bind=query_engine)
-        session_db = Session()
-        admin = session_db.query(User).filter_by(username='Administrator').first()
-        if not admin:
-            from werkzeug.security import generate_password_hash
-            admin_user = User()
-            admin_user.username='Administrator'
-            admin_user.email='admin@maskan.local'
-            admin_user.password_hash=generate_password_hash('administrator')
-            admin_user.role='admin'
-            admin_user.floor=1
-            admin_user.is_verified=True
-            admin_user.is_active=True
-            admin_user.is_first_login=False
-            session_db.add(admin_user)
-            session_db.commit()
-            logging.info("Default admin user created.")
-        session_db.close()
-    except Exception as e:
-        if str(e) not in {"user table missing", "user.is_active column missing"}:
-            logging.warning(f"Admin management failed: {e}")
+@app.cli.command("bootstrap-admin")
+@click.option("--username", default="Administrator", show_default=True, help="Username for the new admin account.")
+@click.option("--floor", default=1, show_default=True, type=int, help="Floor to assign the new admin account to.")
+def bootstrap_admin(username, floor):
+    """One-time CLI bootstrap for the first Administrator account.
+
+    Generates a random password, prints it once, and forces a password
+    change on first login. Refuses to run if the username already exists.
+    Run with: flask --app app.py bootstrap-admin
+    """
+    import secrets
+    from models import User
+    from werkzeug.security import generate_password_hash
+
+    with app.app_context():
+        existing = User.query.filter_by(username=username).first()
+        if existing:
+            click.echo(f"Refusing to bootstrap: user '{username}' already exists.", err=True)
+            raise SystemExit(1)
+
+        password = secrets.token_urlsafe(18)
+        admin_user = User()
+        admin_user.username = username
+        admin_user.email = f"{username.lower()}@maskan.local"
+        admin_user.password_hash = generate_password_hash(password)
+        admin_user.role = 'admin'
+        admin_user.floor = floor
+        admin_user.is_verified = True
+        admin_user.is_active = True
+        admin_user.is_first_login = True
+        db.session.add(admin_user)
+        db.session.commit()
+
+        click.echo("Administrator account created.")
+        click.echo(f"username: {username}")
+        click.echo(f"temporary password: {password}")
+        click.echo("This password is shown only once. The account must change it on first login.")
 
 from blueprints.utils import (
     _get_active_floor,
@@ -197,7 +212,7 @@ from blueprints.utils import (
 @app.before_request
 def enforce_tenancy():
     # Public routes and Platform Admin portal.
-    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login', 'faculty.login', 'send_email']
+    public_endpoints = ['auth.login', 'static', 'auth.logout', 'main.home', 'super_admin.login', 'faculty.login', 'send_email', 'healthz']
     if request.endpoint in public_endpoints or (request.endpoint and request.endpoint.startswith('static')) or request.path.startswith('/platform-admin'):
         return
 
@@ -283,6 +298,28 @@ def handle_rate_limit(error):
         return render_template(template), 429, headers
 
     return message, 429, headers
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(error):
+    message = "Your session security token expired. Please try again."
+
+    wants_json = (
+        request.is_json
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.accept_mimetypes.best == "application/json"
+        or request.path.startswith("/api/")
+        or request.path.startswith("/internal/")
+    )
+    if wants_json:
+        return jsonify({"error": "csrf_invalid", "message": message}), 400
+
+    from flask import flash
+
+    flash(message, "error")
+    referrer = request.referrer
+    if referrer and referrer.startswith(request.host_url):
+        return redirect(referrer)
+    return redirect(url_for('main.home'))
 
 @app.context_processor
 def inject_terms():
@@ -404,6 +441,17 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static', 'favicon_io'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+@app.route('/healthz')
+def healthz():
+    from sqlalchemy import text
+    try:
+        db.session.execute(text("SELECT 1")).fetchone()
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status = 200 if db_ok else 503
+    return jsonify({"status": "ok" if db_ok else "error", "database": db_ok}), status
+
 from blueprints.auth import auth_bp
 from blueprints.pantry import pantry_bp
 from blueprints.finance import finance_bp
@@ -432,43 +480,41 @@ app.register_blueprint(main_bp)
 app.register_blueprint(super_admin_bp)
 app.register_blueprint(faculty_bp)
 
-@app.route("/internal/send-email", methods=["POST"])
-def send_email():
-    secret = request.headers.get("X-SECRET")
-    internal_secret = os.environ.get("INTERNAL_API_SECRET")
+MAX_INTERNAL_EMAIL_SUBJECT_LEN = 200
+MAX_INTERNAL_EMAIL_HTML_LEN = 200_000
 
-    # Simple protection so nobody abuses your endpoint
-    if not internal_secret or secret != internal_secret:
+
+@app.route("/internal/send-email", methods=["POST"])
+@csrf.exempt
+@limiter.limit("20 per minute; 200 per hour", key_func=client_ip_key)
+def send_email():
+    import hmac as hmac_module
+
+    secret = request.headers.get("X-SECRET") or ""
+    internal_secret = os.environ.get("INTERNAL_API_SECRET") or ""
+
+    # Constant-time comparison so the secret can't be brute-forced via timing.
+    if not internal_secret or not hmac_module.compare_digest(secret, internal_secret):
         return jsonify({"error": "Unauthorized"}), 403
 
-    data = request.json
-    to_email = data.get("email")
-    subject = data.get("subject")
-    html_content = data.get("html")
+    data = request.get_json(silent=True) or {}
+    to_email = (data.get("email") or "").strip()
+    subject = (data.get("subject") or "").strip()
+    html_content = data.get("html") or ""
 
-    if not to_email:
-        return jsonify({"error": "Missing email"}), 400
+    if not to_email or "@" not in to_email:
+        return jsonify({"error": "Missing or invalid email"}), 400
+    if not subject or len(subject) > MAX_INTERNAL_EMAIL_SUBJECT_LEN:
+        return jsonify({"error": "Missing or oversized subject"}), 400
+    if not html_content or len(html_content) > MAX_INTERNAL_EMAIL_HTML_LEN:
+        return jsonify({"error": "Missing or oversized html body"}), 400
 
-    msg = MIMEMultipart("alternative")
-    msg["From"] = os.environ.get("GMAIL_USER")
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(html_content, "html"))
+    from blueprints.utils import send_email_notification
 
     try:
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
-        server.login(
-            os.environ.get("GMAIL_USER"),
-            os.environ.get("GMAIL_PASS")
-        )
-        server.sendmail(
-            os.environ.get("GMAIL_USER"),
-            to_email,
-            msg.as_string()
-        )
-        server.quit()
+        send_email_notification(to_email, subject, html_content)
+    except Exception:
+        logging.exception("Failed to dispatch internal email to %s", to_email)
+        return jsonify({"error": "Failed to send email"}), 500
 
-        return jsonify({"success": True})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"success": True})

@@ -4,6 +4,23 @@
 
 {% block content %}
 <div class="container-fluid dashboard-page">
+    {% if new_member_credentials %}
+    <div class="alert alert-warning alert-dismissible fade show shadow-sm" role="alert">
+        <h6 class="fw-bold mb-2"><i class="fas fa-key me-1"></i> One-time temporary passwords</h6>
+        <p class="mb-2 small">These are shown only once. Share each password securely with its member — they will be required to set a new password on first login.</p>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0 bg-white">
+                <thead><tr><th>TR Number</th><th>Temporary Password</th></tr></thead>
+                <tbody>
+                    {% for cred in new_member_credentials %}
+                    <tr><td>{{ cred.tr }}</td><td><code>{{ cred.password }}</code></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
     <div class="row mb-4 align-items-center">
         <div class="col-md-6">
             <h2 class="fw-bold text-teal-dark"><i class="fas fa-shield-alt me-2"></i>System Administration</h2>

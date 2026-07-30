@@ -1,3 +1,4 @@
+import logging
 from flask import render_template, request, redirect, url_for, flash, jsonify, abort, g
 from app import db
 from models import User, TeaTask, Request, ProcurementItem
@@ -708,9 +709,10 @@ def bulk_complete_procurement():
         db.session.commit()
         _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
         flash(f'Successfully completed {updated_count} items.', 'success')
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        flash(f'Error completing items: {str(e)}', 'error')
+        logging.exception("Error completing procurement items")
+        flash('Error completing items. Please try again.', 'error')
 
     return redirect(url_for('ops.procurement'))
 

@@ -18,6 +18,7 @@ from ..utils import (
     _get_active_floor,
     _get_floor_options_for_admin,
     current_tenant_faculty_workflow_enabled,
+    log_tenant_audit,
     tenant_filter,
     visible_budget_condition,
 )
@@ -112,9 +113,10 @@ def expenses():
                 db.session.commit()
                 _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
                 flash(f'Bill {bill_no} recorded successfully with {len(item_ids)} items.', 'success')
-            except Exception as e:
+            except Exception:
                 db.session.rollback()
-                flash(f'Error recording bill: {str(e)}', 'error')
+                current_app.logger.exception('Error recording bill %s', bill_no)
+                flash('Error recording bill. Please check the details and try again.', 'error')
             return redirect(url_for('finance.expenses'))
 
     faculty_workflow_enabled = current_tenant_faculty_workflow_enabled()
@@ -456,10 +458,10 @@ def upload_print_report_pdf(report_id):
         
         db.session.commit()
         return jsonify({'success': True, 'message': 'File securely uploaded and saved.'})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        logging.error(f"Ad-hoc PDF Upload Error: {str(e)}")
-        return jsonify({'error': f"Failed to process upload: {str(e)}"}), 500
+        logging.exception("Ad-hoc PDF Upload Error")
+        return jsonify({'error': "Failed to process upload."}), 500
 
 @finance_bp.route('/bills/<int:bill_id>/archive', methods=['POST'])
 def archive_bill(bill_id):
@@ -502,9 +504,10 @@ def bulk_archive_bills():
         if archived_count > 0:
             _clear_dashboard_cache(getattr(g, 'tenant_id', None), user.floor if user.role != 'admin' else None)
         return jsonify({'success': True, 'count': archived_count})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        logging.exception("Bulk bill archive error")
+        return jsonify({'error': "Failed to archive bills."}), 500
 
 @finance_bp.route('/bills/bulk-delete-permanent', methods=['POST'])
 def bulk_delete_permanent_bills():
@@ -521,20 +524,31 @@ def bulk_delete_permanent_bills():
     try:
         bills = tenant_filter(Bill.query).filter(Bill.id.in_(bill_ids)).all()
         deleted_count = 0
+        deleted_bill_nos = []
         for bill in bills:
             if user.role == 'admin' or bill.floor == user.floor:
+                deleted_bill_nos.append(bill.bill_no)
                 for item in bill.items:
                     db.session.delete(item)
                 db.session.delete(bill)
                 deleted_count += 1
-        
+
+        if deleted_count > 0:
+            log_tenant_audit(
+                'finance_bulk_delete_bills_permanent',
+                target_type='bill',
+                description=f'Permanently deleted {deleted_count} bills.',
+                details={'bill_ids': bill_ids, 'bill_nos': deleted_bill_nos},
+                actor_user=user,
+            )
         db.session.commit()
         if deleted_count > 0:
             _clear_dashboard_cache(getattr(g, 'tenant_id', None), user.floor if user.role != 'admin' else None)
         return jsonify({'success': True, 'count': deleted_count})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        logging.exception("Bulk bill delete error")
+        return jsonify({'error': "Failed to delete bills."}), 500
 
 @finance_bp.route('/bills/<int:bill_id>/delete', methods=['POST'])
 def delete_bill(bill_id):
@@ -551,7 +565,15 @@ def delete_bill(bill_id):
         # Also clear costs so they are truly "pending" and not counting in Total Spent
         item.actual_cost = None
         item.expense_recorded_at = None
-    
+
+    log_tenant_audit(
+        'finance_delete_bill',
+        target_type='bill',
+        target_id=bill.id,
+        description=f'Deleted bill {bill.bill_no} (items returned to pending).',
+        details={'floor': bill.floor, 'total_amount': float(bill.total_amount or 0)},
+        actor_user=user,
+    )
     db.session.delete(bill)
     db.session.commit()
     _clear_dashboard_cache(getattr(g, 'tenant_id', None), bill.floor)
@@ -571,7 +593,15 @@ def delete_bill_permanent(bill_id):
     # Delete all items associated with this bill permanently
     for item in bill.items:
         db.session.delete(item)
-    
+
+    log_tenant_audit(
+        'finance_delete_bill_permanent',
+        target_type='bill',
+        target_id=bill.id,
+        description=f'Permanently deleted bill {bill.bill_no} and its items.',
+        details={'floor': bill.floor, 'total_amount': float(bill.total_amount or 0)},
+        actor_user=user,
+    )
     db.session.delete(bill)
     db.session.commit()
     flash('Bill and all its associated items have been permanently deleted.', 'success')
@@ -619,9 +649,10 @@ def atomic_reconcile():
         db.session.commit()
         _clear_dashboard_cache(getattr(g, 'tenant_id', None), bill.floor)
         return jsonify({'success': True, 'reconciled_count': len(reconciliations), 'new_total': float(bill.total_amount)})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        logging.exception("Bill reconciliation error")
+        return jsonify({'error': "Failed to reconcile bill."}), 500
 
 @finance_bp.route('/procurement/unbilled', methods=['GET'])
 def get_unbilled_procurement():
@@ -720,10 +751,10 @@ def atomic_reconcile_full():
         db.session.commit()
         _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
         return jsonify({'success': True, 'bill_id': bill.id})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        logging.error(f"Atomic Full Reconcile Error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logging.exception("Atomic Full Reconcile Error")
+        return jsonify({'error': "Failed to reconcile bill."}), 500
 
 @finance_bp.route('/budgets/add', methods=['POST'])
 def add_budget():
@@ -756,6 +787,15 @@ def add_budget():
         tenant_id=getattr(g, 'tenant_id', None)
     )
     db.session.add(budget)
+    db.session.flush()
+    log_tenant_audit(
+        'finance_add_budget',
+        target_type='budget',
+        target_id=budget.id,
+        description=f'Added manual budget allocation of {amount} to Floor {floor}.',
+        details={'floor': floor, 'amount': amount, 'start_date': str(start_date), 'end_date': str(end_date) if end_date else None},
+        actor_user=user,
+    )
     db.session.commit()
     _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
     flash('Manual budget allocation added.', 'success')
@@ -777,6 +817,14 @@ def delete_budget(budget_id):
     if user.role != 'admin' and budget.floor != user.floor:
         abort(403)
 
+    log_tenant_audit(
+        'finance_delete_budget',
+        target_type='budget',
+        target_id=budget.id,
+        description=f'Deleted manual budget allocation of {budget.amount_allocated} from Floor {budget.floor}.',
+        details={'floor': budget.floor, 'amount': float(budget.amount_allocated or 0)},
+        actor_user=user,
+    )
     db.session.delete(budget)
     db.session.commit()
     _clear_dashboard_cache(getattr(g, 'tenant_id', None), budget.floor)
@@ -836,6 +884,14 @@ def update_budget(budget_id):
     budget.end_date = end_date
     budget.notes = (request.form.get('notes') or '').strip() or None
 
+    log_tenant_audit(
+        'finance_update_budget',
+        target_type='budget',
+        target_id=budget.id,
+        description=f'Updated budget period for Floor {budget.floor}.',
+        details={'floor': budget.floor, 'start_date': str(start_date), 'end_date': str(end_date) if end_date else None},
+        actor_user=user,
+    )
     db.session.commit()
     _clear_dashboard_cache(getattr(g, 'tenant_id', None), budget.floor)
     flash('Budget period updated successfully.', 'success')
@@ -856,6 +912,14 @@ def delete_expense(expense_id):
     if user.role == 'pantryHead' and expense.floor != user.floor:
         abort(404)
 
+    log_tenant_audit(
+        'finance_delete_expense',
+        target_type='expense',
+        target_id=expense.id,
+        description=f'Deleted expense of {expense.amount} on Floor {expense.floor}.',
+        details={'floor': expense.floor, 'amount': float(expense.amount or 0)},
+        actor_user=user,
+    )
     db.session.delete(expense)
     db.session.commit()
     _clear_dashboard_cache(getattr(g, 'tenant_id', None), expense.floor)
@@ -1135,9 +1199,9 @@ def import_receipt():
         
         # Sync Fallback
         return _process_receipt_inline(file, mime_type)
-    except Exception as e:
-        logging.error(f"Receipt Import Error: {str(e)}")
-        return jsonify({'error': f"Failed to parse receipt: {str(e)}"}), 500
+    except Exception:
+        logging.exception("Receipt Import Error")
+        return jsonify({'error': "Failed to parse receipt."}), 500
 
 @finance_bp.route('/expenses/import-status/<task_id>', methods=['GET'])
 def check_import_status(task_id):
@@ -1242,10 +1306,10 @@ def save_imported_bill():
         db.session.commit()
         _clear_dashboard_cache(getattr(g, 'tenant_id', None), floor)
         return jsonify({'success': True, 'bill_id': bill.id})
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        logging.error(f"Save Imported Bill Error: {str(e)}")
-        return jsonify({'error': f"Failed to save bill: {str(e)}"}), 500
+        logging.exception("Save Imported Bill Error")
+        return jsonify({'error': "Failed to save bill."}), 500
 
 @finance_bp.route('/bills/<int:bill_id>/items', methods=['GET'])
 def get_bill_items(bill_id):

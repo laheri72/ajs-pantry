@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Maskan Breakfast Management{% endblock %}</title>
 
     <!-- Canonical URL -->
@@ -46,21 +47,13 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Inter (modern UI typeface) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.9">
-    <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}?v=1.3">
-
-    <!-- Active Navigation Tab Highlight (Bypasses Static File Cache) -->
-    <style>
-        .app-navbar .nav-link.active {
-            background-color: rgba(255, 255, 255, 0.22) !important;
-            color: var(--white) !important;
-            font-weight: 600 !important;
-        }
-        .app-navbar .nav-link.active:hover {
-            background-color: rgba(255, 255, 255, 0.28) !important;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2.9">
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme-dark.css') }}?v=1.4">
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -80,133 +73,161 @@
         })();
     </script>
     {% if current_user %}
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-teal fixed-top app-navbar{% if current_user.role in ['admin', 'pantryHead'] %} app-navbar--dense{% endif %}">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('faculty.dashboard') if current_user.role == 'faculty' else url_for('pantry.dashboard') }}">
-                <i class="fas fa-utensils me-2"></i>{% if tenant_name %}{{ tenant_name }}{% else %}Maskan Breakfast{% endif %}
-            </a>
+    <div class="app-shell" id="appShell">
+        <div class="app-sidebar-backdrop" id="sidebarBackdrop"></div>
+        <!-- Sidebar -->
+        <aside class="app-sidebar">
+            <div class="app-sidebar-header">
+                <a class="app-sidebar-brand" href="{{ url_for('faculty.dashboard') if current_user.role == 'faculty' else url_for('pantry.dashboard') }}">
+                    <span class="app-sidebar-brand-icon"><i class="fas fa-utensils"></i></span>
+                    <span class="app-sidebar-brand-text">{% if tenant_name %}{{ tenant_name }}{% else %}Maskan Breakfast{% endif %}</span>
+                </a>
+                <button class="app-sidebar-collapse-btn d-none d-lg-inline-flex" type="button" id="sidebarCollapseBtn" title="Collapse sidebar">
+                    <i class="fas fa-angles-left"></i>
+                </button>
+            </div>
 
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto app-primary-nav">
-                    {% if current_user.role == 'faculty' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('faculty.dashboard') }}">
-                            <i class="fas fa-chart-line"></i> Faculty Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('faculty.cycles') }}">
-                            <i class="fas fa-layer-group"></i> Budget Cycles
-                        </a>
-                    </li>
-                    {% else %}
-                    {% if is_super_admin %}
-                    <li class="nav-item">
-                        <a class="nav-link text-warning fw-bold" href="{{ url_for('super_admin.dashboard') }}">
-                            <i class="fas fa-shield-alt"></i> PLATFORM
-                        </a>
-                    </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path in ['/dashboard', '/home', '/'] %} active{% endif %}" href="{{ url_for('pantry.dashboard') }}">
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/people' or request.path.startswith('/people/') %} active{% endif %}" href="{{ url_for('pantry.people') }}">
-                            <i class="fas fa-users"></i> People
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/calendar' or request.path.startswith('/calendar/') or request.path.startswith('/special-events') %} active{% endif %}" href="{{ url_for('pantry.calendar') }}">
-                            <i class="fas fa-calendar"></i> Calendar
-                        </a>
-                    </li>
-                    {% if current_user.role in ['admin', 'pantryHead'] %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/menus' or request.path.startswith('/menus/') %} active{% endif %}" href="{{ url_for('pantry.menus') }}">
-                            <i class="fas fa-utensils"></i> Menus
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if current_user.role in ['admin', 'pantryHead', 'teaManager'] %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/tea' or request.path.startswith('/tea/') %} active{% endif %}" href="{{ url_for('ops.tea') }}">
-                            <i class="fas fa-coffee"></i> Tea
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if current_user.role in ['admin', 'pantryHead'] %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/expenses' or request.path.startswith('/expenses/') or request.path.startswith('/bills') %} active{% endif %}" href="{{ url_for('finance.expenses') }}">
-                            <i class="fas fa-money-bill"></i> Expenses
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/reports' or request.path.startswith('/reports/') %} active{% endif %}" href="{{ url_for('faculty.reports_page') }}">
-                            <i class="fas fa-file-upload"></i> Reports
-                        </a>
-                    </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/feedbacks' or request.path.startswith('/feedbacks/') or request.path.startswith('/suggestions') %} active{% endif %}" href="{{ url_for('pantry.feedbacks') }}">
-                            <i class="fas fa-comment"></i> Feedbacks
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/requests' or request.path.startswith('/requests/') %} active{% endif %}" href="{{ url_for('ops.requests') }}">
-                            <i class="fas fa-bell"></i> Requests
-                        </a>
-                    </li>
-                    {% if current_user.role in ['admin', 'pantryHead'] %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/procurement' or request.path.startswith('/procurement/') %} active{% endif %}" href="{{ url_for('ops.procurement') }}">
-                            <i class="fas fa-shopping-cart"></i> Procurement
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if current_user.role in ['admin', 'pantryHead'] %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/lend-borrow' or request.path.startswith('/lend-borrow/') %} active{% endif %}" href="{{ url_for('finance.lend_borrow') }}">
-                            <i class="fas fa-handshake"></i> Lend & Borrow
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/floor-admin' or request.path.startswith('/floor-admin/') or request.path.startswith('/teams') %} active{% endif %}" href="{{ url_for('admin_panel.floor_admin') }}">
-                            <i class="fas fa-user-shield"></i> Floor Admin
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% if current_user.role == 'admin' %}
-                    <li class="nav-item">
-                        <a class="nav-link{% if request.path == '/admin' or request.path.startswith('/admin/') %} active{% endif %}" href="{{ url_for('admin_panel.admin') }}">
-                            <i class="fas fa-cog"></i> Admin
-                        </a>
-                    </li>
-                    {% endif %}
-                    {% endif %}
-                </ul>
-
-                {% if current_user.role == 'admin' %}
-                <form class="d-flex align-items-center me-3 app-floor-switcher" method="POST" action="{{ url_for('admin_panel.set_active_floor') }}">
-                    <label class="text-white small me-2 mb-0" for="activeFloorSelect">Viewing</label>
-                    <select class="form-select form-select-sm" id="activeFloorSelect" name="floor"
-                        onchange="this.form.submit()">
-                        {% for f in floor_options %}
-                        <option value="{{ f }}" {% if f==active_floor %}selected{% endif %}>Floor {{ f }}</option>
-                        {% endfor %}
-                    </select>
-                </form>
+            <nav class="app-sidebar-nav">
+                {% if current_user.role == 'faculty' %}
+                <div class="app-nav-group">
+                    <div class="app-nav-group-label">Faculty</div>
+                    <a class="app-nav-link{% if request.path in ['/dashboard', '/home', '/', '/faculty', '/faculty/dashboard'] %} active{% endif %}" href="{{ url_for('faculty.dashboard') }}">
+                        <i class="fas fa-chart-line"></i> <span>Faculty Home</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path.startswith('/faculty/cycles') %} active{% endif %}" href="{{ url_for('faculty.cycles') }}">
+                        <i class="fas fa-layer-group"></i> <span>Budget Cycles</span>
+                    </a>
+                </div>
+                {% else %}
+                {% if is_super_admin %}
+                <div class="app-nav-group">
+                    <a class="app-nav-link app-nav-link--platform" href="{{ url_for('super_admin.dashboard') }}">
+                        <i class="fas fa-shield-alt"></i> <span>PLATFORM</span>
+                    </a>
+                </div>
                 {% endif %}
 
-                <ul class="navbar-nav app-user-nav d-flex align-items-center flex-row gap-2">
-                    <li class="nav-item dropdown me-1 d-flex align-items-center">
-                        <a class="nav-link px-0 app-theme-button" href="#" id="themeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Theme">
+                <div class="app-nav-group">
+                    <div class="app-nav-group-label">Overview</div>
+                    <a class="app-nav-link{% if request.path in ['/dashboard', '/home', '/'] %} active{% endif %}" href="{{ url_for('pantry.dashboard') }}">
+                        <i class="fas fa-home"></i> <span>Home</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/people' or request.path.startswith('/people/') %} active{% endif %}" href="{{ url_for('pantry.people') }}">
+                        <i class="fas fa-users"></i> <span>People</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/calendar' or request.path.startswith('/calendar/') or request.path.startswith('/special-events') %} active{% endif %}" href="{{ url_for('pantry.calendar') }}">
+                        <i class="fas fa-calendar"></i> <span>Calendar</span>
+                    </a>
+                </div>
+
+                {% if current_user.role in ['admin', 'pantryHead', 'teaManager'] %}
+                <div class="app-nav-group">
+                    <div class="app-nav-group-label">Daily Ops</div>
+                    {% if current_user.role in ['admin', 'pantryHead'] %}
+                    <a class="app-nav-link{% if request.path == '/menus' or request.path.startswith('/menus/') %} active{% endif %}" href="{{ url_for('pantry.menus') }}">
+                        <i class="fas fa-utensils"></i> <span>Menus</span>
+                    </a>
+                    {% endif %}
+                    <a class="app-nav-link{% if request.path == '/tea' or request.path.startswith('/tea/') %} active{% endif %}" href="{{ url_for('ops.tea') }}">
+                        <i class="fas fa-coffee"></i> <span>Tea</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/feedbacks' or request.path.startswith('/feedbacks/') or request.path.startswith('/suggestions') %} active{% endif %}" href="{{ url_for('pantry.feedbacks') }}">
+                        <i class="fas fa-comment"></i> <span>Feedbacks</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/requests' or request.path.startswith('/requests/') %} active{% endif %}" href="{{ url_for('ops.requests') }}">
+                        <i class="fas fa-bell"></i> <span>Requests</span>
+                    </a>
+                </div>
+                {% else %}
+                <div class="app-nav-group">
+                    <div class="app-nav-group-label">Community</div>
+                    <a class="app-nav-link{% if request.path == '/feedbacks' or request.path.startswith('/feedbacks/') or request.path.startswith('/suggestions') %} active{% endif %}" href="{{ url_for('pantry.feedbacks') }}">
+                        <i class="fas fa-comment"></i> <span>Feedbacks</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/requests' or request.path.startswith('/requests/') %} active{% endif %}" href="{{ url_for('ops.requests') }}">
+                        <i class="fas fa-bell"></i> <span>Requests</span>
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if current_user.role in ['admin', 'pantryHead'] %}
+                <div class="app-nav-group">
+                    <div class="app-nav-group-label">Finance</div>
+                    <a class="app-nav-link{% if request.path == '/expenses' or request.path.startswith('/expenses/') or request.path.startswith('/bills') %} active{% endif %}" href="{{ url_for('finance.expenses') }}">
+                        <i class="fas fa-money-bill"></i> <span>Expenses</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/reports' or request.path.startswith('/reports/') %} active{% endif %}" href="{{ url_for('faculty.reports_page') }}">
+                        <i class="fas fa-file-upload"></i> <span>Reports</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/procurement' or request.path.startswith('/procurement/') %} active{% endif %}" href="{{ url_for('ops.procurement') }}">
+                        <i class="fas fa-shopping-cart"></i> <span>Procurement</span>
+                    </a>
+                    <a class="app-nav-link{% if request.path == '/lend-borrow' or request.path.startswith('/lend-borrow/') %} active{% endif %}" href="{{ url_for('finance.lend_borrow') }}">
+                        <i class="fas fa-handshake"></i> <span>Lend & Borrow</span>
+                    </a>
+                </div>
+
+                <div class="app-nav-group">
+                    <div class="app-nav-group-label">Administration</div>
+                    <a class="app-nav-link{% if request.path == '/floor-admin' or request.path.startswith('/floor-admin/') or request.path.startswith('/teams') %} active{% endif %}" href="{{ url_for('admin_panel.floor_admin') }}">
+                        <i class="fas fa-user-shield"></i> <span>Floor Admin</span>
+                    </a>
+                    {% if current_user.role == 'admin' %}
+                    <a class="app-nav-link{% if request.path == '/admin' or request.path.startswith('/admin/') %} active{% endif %}" href="{{ url_for('admin_panel.admin') }}">
+                        <i class="fas fa-cog"></i> <span>Admin</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+            </nav>
+
+            <div class="app-sidebar-footer">
+                <div class="dropdown">
+                    <button class="app-user-trigger dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="list-style: none;">
+                        <span class="app-user-avatar"><i class="fas fa-user"></i></span>
+                        <span class="app-user-meta">
+                            <span class="app-user-name">{{ display_name }}</span>
+                            <span class="app-user-role">{{ current_user.role }}</span>
+                        </span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% if current_user.role == 'faculty' %}
+                        <li><a class="dropdown-item" href="{{ url_for('faculty.dashboard') }}">Faculty Portal</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        {% endif %}
+                        <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                <i class="fas fa-unlock"></i> Logout
+                            </a></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main column -->
+        <div class="app-main">
+            <header class="app-header">
+                <button class="app-sidebar-mobile-toggle" type="button" id="sidebarMobileToggle" title="Open menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="app-header-start">
+                    {% if current_user.role == 'admin' %}
+                    <form class="app-floor-switcher" method="POST" action="{{ url_for('admin_panel.set_active_floor') }}">
+                        <label for="activeFloorSelect">Viewing</label>
+                        <select class="form-select form-select-sm" id="activeFloorSelect" name="floor"
+                            onchange="this.form.submit()">
+                            {% for f in floor_options %}
+                            <option value="{{ f }}" {% if f==active_floor %}selected{% endif %}>Floor {{ f }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    {% endif %}
+                </div>
+                <div class="app-header-end">
+                    <div class="dropdown">
+                        <a class="app-theme-button" href="#" id="themeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Change Theme">
                             <span id="currentThemeIconContainer"><i class="fas fa-palette" id="currentThemeIcon"></i></span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="themeDropdown" id="themeDropdownMenu">
@@ -243,59 +264,56 @@
                                 </a>
                             </li>
                         </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-circle"></i> {{ display_name }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            {% if current_user.role == 'faculty' %}
-                            <li><a class="dropdown-item" href="{{ url_for('faculty.dashboard') }}">Faculty Portal</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            {% endif %}
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
-                                    <i class="fas fa-unlock"></i> Logout
-                                </a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    {% endif %}
-
-    <!-- Main Content -->
-    <main class="{% if current_user %}main-content{% endif %}">
-        <!-- Modern Floating Flash Messages -->
-        <style>
-            .flash-toast { min-width: 300px; }
-            .flash-toast-success { border-left: 5px solid #2E7D32 !important; }
-            .flash-toast-error { border-left: 5px solid #C62828 !important; }
-        </style>
-        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show shadow-lg mb-3 auto-dismiss flash-toast flash-toast-{{ 'error' if category == 'error' else 'success' }}"
-                    role="alert">
-                    <div class="d-flex align-items-center">
-                        <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-3 fs-4"></i>
-                        <div>{{ message }}</div>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
-                {% endfor %}
+            </header>
+
             {% endif %}
-            {% endwith %}
+
+            <main class="{% if current_user %}app-content main-content{% endif %}">
+                <!-- Modern Floating Flash Messages -->
+                <style>
+                    .flash-toast { min-width: 300px; }
+                    .flash-toast-success { border-left: 5px solid #2E7D32 !important; }
+                    .flash-toast-error { border-left: 5px solid #C62828 !important; }
+                </style>
+                <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show shadow-lg mb-3 auto-dismiss flash-toast flash-toast-{{ 'error' if category == 'error' else 'success' }}"
+                            role="alert">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-3 fs-4"></i>
+                                <div>{{ message }}</div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                    {% endwith %}
+                </div>
+
+                {% block content %}{% endblock %}
+            </main>
+
+            {% if current_user %}
+            <footer class="app-footer text-center d-print-none">
+                <div class="mb-2">
+                    <a href="{{ url_for('main.privacy') }}" class="text-muted text-decoration-none me-3 small">Privacy Policy</a>
+                    <a href="{{ url_for('main.terms') }}" class="text-muted text-decoration-none small">Terms of Service</a>
+                </div>
+                <span class="text-muted small">
+                    &copy; {{ now.year if now else '2026' }} <strong>Maskan1447</strong>
+                    All rights Reserved | Maintained by
+                    <a href="https://github.com/laheri72/" target="_blank" class="text-teal ms-1">
+                        <i class="fab fa-github"></i> <strong>Laheri72</strong>
+                    </a>
+                </span>
+            </footer>
         </div>
-
-        {% block content %}{% endblock %}
-    </main>
-
+    </div>
+    {% else %}
     <footer class="footer mt-auto py-3 bg-white border-top d-print-none">
         <div class="container text-center">
             <div class="mb-2">
@@ -311,11 +329,14 @@
             </span>
         </div>
     </footer>
+    {% endif %}
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- CSRF wiring (must load before any page script fires a fetch/form submit) -->
+    <script src="{{ url_for('static', filename='csrf.js') }}"></script>
     <!-- Custom JS -->
-    <script src="{{ url_for('static', filename='script.js') }}?v=1.3"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=1.5"></script>
     <script>
         // Initialize cooking alerts on page load
         document.addEventListener('DOMContentLoaded', function () {

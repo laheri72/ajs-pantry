@@ -1,8 +1,9 @@
 from flask import render_template, make_response, current_app, request, jsonify, g, send_from_directory
 from . import main_bp
-from app import db
+from app import db, limiter
 from models import PushSubscription
 from ..utils import _require_user, tenant_filter
+from ..rate_limit_keys import current_user_or_ip_key
 import os
 
 @main_bp.route('/service-worker.js')
@@ -64,13 +65,19 @@ def get_public_key():
     return jsonify({"public_key": os.environ.get("VAPID_PUBLIC_KEY")})
 
 @main_bp.route('/api/push/subscribe', methods=['POST'])
+@limiter.limit("10 per minute; 60 per hour", key_func=current_user_or_ip_key)
 def subscribe_push():
     user = _require_user()
     if not user:
         return jsonify({"error": "unauthorized"}), 401
-    
+
     subscription_data = request.json
-    if not subscription_data:
+    if not subscription_data or not isinstance(subscription_data, dict):
+        return jsonify({"error": "invalid_data"}), 400
+
+    endpoint = subscription_data.get('endpoint')
+    keys = subscription_data.get('keys') or {}
+    if not endpoint or not isinstance(keys, dict) or not keys.get('p256dh') or not keys.get('auth'):
         return jsonify({"error": "invalid_data"}), 400
 
     # Check if this endpoint already exists for this user

@@ -2,6 +2,14 @@ from flask import session, abort, g, current_app
 from models import User
 from datetime import datetime
 from sqlalchemy import and_, or_, select
+import secrets
+
+_TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O/1/I/l
+
+
+def generate_temp_password(length=10):
+    """Per-user random first-login password (avoids ambiguous characters for manual handout)."""
+    return "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))
 
 FLOOR_MIN = 1
 FLOOR_MAX = 11
@@ -244,8 +252,8 @@ from pywebpush import webpush, WebPushException
 
 def send_email_notification(to_email, subject, html_content):
     """Dispatches an email notification, using the background queue if available."""
-    if hasattr(current_app, 'task_queue') and current_app.task_queue:
-        current_app.task_queue.enqueue('blueprints.utils.send_email_worker', to_email, subject, html_content)
+    if hasattr(current_app, 'email_queue') and current_app.email_queue:
+        current_app.email_queue.enqueue('blueprints.utils.send_email_worker', to_email, subject, html_content)
         return True
     return send_email_worker(to_email, subject, html_content)
 
@@ -276,8 +284,8 @@ def send_email_worker(to_email, subject, html_content):
 
 def send_push_notification(user_id, title, body, icon=None, url=None):
     """Dispatches a push notification, using the background queue if available."""
-    if hasattr(current_app, 'task_queue') and current_app.task_queue:
-        current_app.task_queue.enqueue('blueprints.utils.send_push_worker', user_id, title, body, icon, url)
+    if hasattr(current_app, 'notification_queue') and current_app.notification_queue:
+        current_app.notification_queue.enqueue('blueprints.utils.send_push_worker', user_id, title, body, icon, url)
         return True
     return send_push_worker(user_id, title, body, icon, url)
 
