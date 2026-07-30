@@ -2,12 +2,56 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
+    initializeSidebarShell();
 });
+
+function initializeSidebarShell() {
+    const shell = document.getElementById('appShell');
+    if (!shell) return;
+
+    const collapseBtn = document.getElementById('sidebarCollapseBtn');
+    const mobileToggle = document.getElementById('sidebarMobileToggle');
+    const backdrop = document.getElementById('sidebarBackdrop');
+
+    function updateCollapseIcon() {
+        if (!collapseBtn) return;
+        const icon = collapseBtn.querySelector('i');
+        if (!icon) return;
+        const collapsed = shell.classList.contains('sidebar-collapsed');
+        icon.classList.toggle('fa-angles-left', !collapsed);
+        icon.classList.toggle('fa-angles-right', collapsed);
+    }
+
+    if (localStorage.getItem('sidebar-collapsed') === '1') {
+        shell.classList.add('sidebar-collapsed');
+    }
+    updateCollapseIcon();
+
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', function() {
+            const collapsed = shell.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+            updateCollapseIcon();
+        });
+    }
+
+    if (mobileToggle) {
+        mobileToggle.addEventListener('click', function() {
+            shell.classList.toggle('sidebar-mobile-open');
+        });
+    }
+
+    if (backdrop) {
+        backdrop.addEventListener('click', function() {
+            shell.classList.remove('sidebar-mobile-open');
+        });
+    }
+}
 
 function initializeApp() {
     // Load theme preference
     loadTheme();
-    
+
     // Initialize form validation
     initializeFormValidation();
     

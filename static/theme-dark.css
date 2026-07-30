@@ -29,9 +29,41 @@ body.dark-theme {
     --shadow: 0 4px 12px rgba(0,0,0,0.5);
     --shadow-hover: 0 8px 24px rgba(0,0,0,0.7);
 
+    /* App shell (sidebar/header) overrides */
+    --shell-border: rgba(255, 255, 255, 0.09);
+    --shell-sidebar-bg: #171717;
+    --shell-content-bg: #121212;
+
     /* Primary Overrides */
     background-color: var(--bg-body) !important;
     color: var(--text-main) !important;
+}
+
+body.dark-theme .app-header {
+    background-color: rgba(23, 23, 23, 0.72) !important;
+}
+
+body.dark-theme .app-nav-link:hover,
+body.dark-theme .app-sidebar-collapse-btn:hover,
+body.dark-theme .app-user-trigger:hover,
+body.dark-theme .app-sidebar-toggle:hover,
+body.dark-theme .app-sidebar-mobile-toggle:hover,
+body.dark-theme .app-header .app-theme-button:hover {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+body.dark-theme .app-nav-link,
+body.dark-theme .app-user-name,
+body.dark-theme .app-sidebar-brand,
+body.dark-theme .app-sidebar-collapse-btn,
+body.dark-theme .app-sidebar-toggle,
+body.dark-theme .app-sidebar-mobile-toggle,
+body.dark-theme .app-header .app-theme-button {
+    color: var(--text-main) !important;
+}
+
+body.dark-theme .app-nav-link.active {
+    color: var(--teal-dark) !important;
 }
 
 /* Base Elements */
