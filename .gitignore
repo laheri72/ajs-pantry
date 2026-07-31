@@ -1,9 +1,18 @@
 # Environments
 .env
+.env*.local
 .venv/
 env/
 venv/
 ENV/
+
+# Keys and Certificates
+*.pem
+*.key
+*.crt
+*.id_rsa
+*.id_ed25519
+
 
 # Python
 __pycache__/
