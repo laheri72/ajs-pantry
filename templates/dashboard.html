@@ -364,90 +364,99 @@
                             <span class="text-muted small">Shortcuts</span>
                         </div>
                     </div>
-                    <div class="card-body pt-3">
-                        <div class="row g-3">
+                    <div class="card-body pt-2 pb-0">
+                        <div class="action-list">
                             {% if user.role in ['admin', 'pantryHead'] %}
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('pantry.menus') }}" class="action-card">
-                                    <i class="fas fa-utensils"></i>
+                            <a href="{{ url_for('pantry.menus') }}" class="action-list-item">
+                                <i class="fas fa-utensils action-list-icon"></i>
+                                <span class="action-list-text">
                                     <h5>Manage Menus</h5>
                                     <p>Create and edit meal plans</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
                             {% endif %}
 
                             {% if user.role in ['admin', 'teaManager'] %}
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('ops.tea') }}" class="action-card">
-                                    <i class="fas fa-coffee"></i>
+                            <a href="{{ url_for('ops.tea') }}" class="action-list-item">
+                                <i class="fas fa-coffee action-list-icon action-list-icon--tea"></i>
+                                <span class="action-list-text">
                                     <h5>Tea Management</h5>
                                     <p>Schedule tea tasks</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
                             {% endif %}
 
                             {% if user.role in ['admin', 'pantryHead'] %}
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('finance.expenses') }}" class="action-card">
-                                    <i class="fas fa-money-bill"></i>
+                            <a href="{{ url_for('finance.expenses') }}" class="action-list-item">
+                                <i class="fas fa-money-bill action-list-icon action-list-icon--expense"></i>
+                                <span class="action-list-text">
                                     <h5>Track Expenses</h5>
                                     <p>Manage floor expenses</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
                             {% endif %}
 
                             {% if user.role == 'member' %}
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('pantry.calendar') }}" class="action-card">
-                                    <i class="fas fa-calendar-alt"></i>
+                            <a href="{{ url_for('pantry.calendar') }}" class="action-list-item">
+                                <i class="fas fa-calendar-alt action-list-icon action-list-icon--calendar"></i>
+                                <span class="action-list-text">
                                     <h5>Calendar</h5>
                                     <p>View upcoming meals</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
 
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('pantry.people') }}" class="action-card">
-                                    <i class="fas fa-users"></i>
+                            <a href="{{ url_for('pantry.people') }}" class="action-list-item">
+                                <i class="fas fa-users action-list-icon action-list-icon--people"></i>
+                                <span class="action-list-text">
                                     <h5>People</h5>
                                     <p>View teams and stats</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
                             {% endif %}
 
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('pantry.feedbacks') }}" class="action-card">
-                                    <i class="fas fa-comments"></i>
+                            <a href="{{ url_for('pantry.feedbacks') }}" class="action-list-item">
+                                <i class="fas fa-comments action-list-icon action-list-icon--feedback"></i>
+                                <span class="action-list-text">
                                     <h5>Feedbacks</h5>
                                     <p>Rate meals and share ideas</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
 
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('ops.requests') }}" class="action-card">
-                                    <i class="fas fa-bell"></i>
+                            <a href="{{ url_for('ops.requests') }}" class="action-list-item">
+                                <i class="fas fa-bell action-list-icon action-list-icon--requests"></i>
+                                <span class="action-list-text">
                                     <h5>Requests</h5>
                                     <p>Submit or manage requests</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
 
                             {% if user.role in ['admin', 'pantryHead'] %}
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('ops.procurement') }}" class="action-card">
-                                    <i class="fas fa-shopping-cart"></i>
+                            <a href="{{ url_for('ops.procurement') }}" class="action-list-item">
+                                <i class="fas fa-shopping-cart action-list-icon action-list-icon--procurement"></i>
+                                <span class="action-list-text">
                                     <h5>Procurement</h5>
                                     <p>Manage shopping lists</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
                             {% endif %}
 
                             {% if user.role == 'admin' %}
-                            <div class="col-6 col-md-4 col-xl-3">
-                                <a href="{{ url_for('admin_panel.admin') }}" class="action-card">
-                                    <i class="fas fa-cog"></i>
+                            <a href="{{ url_for('admin_panel.admin') }}" class="action-list-item">
+                                <i class="fas fa-cog action-list-icon action-list-icon--admin"></i>
+                                <span class="action-list-text">
                                     <h5>Admin Panel</h5>
                                     <p>Manage users and settings</p>
-                                </a>
-                            </div>
+                                </span>
+                                <i class="fas fa-chevron-right action-list-chevron"></i>
+                            </a>
                             {% endif %}
                         </div>
                     </div>

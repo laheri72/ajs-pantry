@@ -1,6 +1,9 @@
 import os
 import logging
 import click
+from dotenv import load_dotenv
+
+load_dotenv()
 from flask import Flask, session, g, redirect, url_for, request, abort, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address

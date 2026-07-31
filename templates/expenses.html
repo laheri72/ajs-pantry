@@ -197,22 +197,6 @@
     .receipt-mobile-toggle {
         display: none;
     }
-    .floor-insight-mini {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-        padding: 0.18rem 0.5rem;
-        border-radius: 999px;
-        border: 1px solid #d8e7e5;
-        background: #f7fbfa;
-        font-size: 0.68rem;
-        color: #5f6f82;
-        white-space: nowrap;
-    }
-    .floor-insight-mini strong {
-        color: #37566c;
-        font-weight: 600;
-    }
     @media (max-width: 991.98px) {
         .receipt-review-shell {
             min-height: auto;
@@ -253,9 +237,9 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="row mb-4 d-print-none">
-        <div class="col-md-6">
-            <h2 class="fw-bold"><i class="fas fa-money-bill-wave text-teal me-2"></i>Financial Ledger</h2>
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4 d-print-none">
+        <div>
+            <h2 class="fw-bold mb-1"><i class="fas fa-wallet text-teal me-2"></i>Financial Ledger</h2>
             <div class="text-muted">
                 {% if faculty_workflow_enabled %}
                 Track the current budget period, carry-forward balance, and Faculty cycle spending.
@@ -274,30 +258,40 @@
             </div>
             {% endif %}
         </div>
-        <div class="col-md-6 text-end">
-            <button type="button" class="btn btn-outline-teal me-2" data-bs-toggle="modal"
-                data-bs-target="#printConfigModal">
-                <i class="fas fa-print"></i> Print Report
-            </button>
-            {% if is_manager and faculty_workflow_enabled %}
-            <a href="{{ url_for('faculty.reports_page') }}" class="btn btn-outline-secondary me-2">
-                <i class="fas fa-file-upload"></i> Submit Report
-            </a>
-            {% endif %}
+        <div class="d-flex flex-wrap align-items-center gap-2 expenses-toolbar">
             {% if is_manager %}
-            <button type="button" class="btn btn-outline-teal me-2" data-bs-toggle="modal" data-bs-target="#directBillModal">
-                <i class="fas fa-file-invoice-dollar"></i> Manual Bill
-            </button>
-            <button type="button" class="btn btn-outline-primary me-2" onclick="document.getElementById('receiptImportInput').click()">
-                <i class="fas fa-file-invoice"></i> Import Receipt
-            </button>
-            <input type="file" id="receiptImportInput" class="d-none" accept=".pdf,image/*" onchange="handleReceiptUpload(this)">
             {% if not faculty_workflow_enabled %}
             <button class="btn btn-teal" data-bs-toggle="modal" data-bs-target="#addBudgetModal">
                 <i class="fas fa-plus"></i> Allocate Budget
             </button>
             {% endif %}
+            <button type="button" class="btn btn-teal" onclick="document.getElementById('receiptImportInput').click()">
+                <i class="fas fa-file-invoice"></i> Import Receipt
+            </button>
+            <input type="file" id="receiptImportInput" class="d-none" accept=".pdf,image/*" onchange="handleReceiptUpload(this)">
+            <button type="button" class="btn btn-outline-teal" data-bs-toggle="modal" data-bs-target="#directBillModal">
+                <i class="fas fa-file-invoice-dollar"></i> Manual Bill
+            </button>
             {% endif %}
+            <div class="dropdown">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-ellipsis-vertical"></i> More
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#printConfigModal">
+                            <i class="fas fa-print me-2 text-muted"></i>Print Report
+                        </a>
+                    </li>
+                    {% if is_manager and faculty_workflow_enabled %}
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('faculty.reports_page') }}">
+                            <i class="fas fa-file-upload me-2 text-muted"></i>Submit Report
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -367,10 +361,11 @@
                         Available: &#8377;{{ current_available_budget|inr }}
                     </div>
                 </div>
-                {% if remaining_balance < 0 %} <div class="position-absolute top-0 end-0 p-2">
-                    <i class="fas fa-exclamation-triangle text-white animate-pulse"></i>
-            </div>
-            {% endif %}
+                {% if remaining_balance < 0 %}
+                <div class="position-absolute top-0 end-0 p-2">
+                    <i class="fas fa-exclamation-triangle text-danger animate-pulse"></i>
+                </div>
+                {% endif %}
         </div>
     </div>
 </div>
@@ -466,9 +461,10 @@
 
                     <!-- Recorded Bills Tab -->
                     <div class="tab-pane fade show active" id="recorded-pane" role="tabpanel">
+                        {% if bills %}
                         <div class="p-3 border-bottom bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <div class="d-flex align-items-center gap-3">
-                                {% if is_manager and bills %}
+                                {% if is_manager %}
                                 <div class="form-check mb-0">
                                     <input type="checkbox" class="form-check-input" id="select-all-bills" onclick="toggleAllBills(this)">
                                     <label class="form-check-label small fw-bold text-muted" for="select-all-bills">Select All</label>
@@ -487,6 +483,7 @@
                             </div>
                             {% endif %}
                         </div>
+                        {% endif %}
                         <div class="accordion accordion-flush" id="billsAccordion">
                             {% for bill in bills %}
                             <div class="accordion-item border-bottom">
@@ -582,7 +579,11 @@
                             </div>
                             {% endfor %}
                             {% if not bills %}
-                            <div class="p-4 text-center text-muted">No recorded bills yet.</div>
+                            <div class="empty-state">
+                                <i class="fas fa-file-invoice"></i>
+                                <div class="fw-bold">No bills recorded yet</div>
+                                <p class="mb-0">Record a bill manually or import a receipt to get started.</p>
+                            </div>
                             {% endif %}
                         </div>
                         
@@ -690,7 +691,11 @@
                             </div>
                             {% endfor %}
                             {% if not archived_bills %}
-                            <div class="p-4 text-center text-muted">No old bills found.</div>
+                            <div class="empty-state">
+                                <i class="fas fa-box-archive"></i>
+                                <div class="fw-bold">No archived bills</div>
+                                <p class="mb-0">Bills you archive will be kept here for reference.</p>
+                            </div>
                             {% endif %}
                         </div>
 
@@ -730,11 +735,17 @@
     <!-- Sidebar: Budget History & Legacy -->
     <div class="col-lg-4">
             <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <div class="card-header bg-white py-3">
                 <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-teal"></i>Budget Timeline</h5>
-                <div class="floor-insight-mini" title="All-time totals for this floor">
-                    <span>Bgt <strong>&#8377;{{ floor_total_budget|inr }}</strong></span>
-                    <span>Spent <strong>&#8377;{{ floor_total_spent|inr }}</strong></span>
+            </div>
+            <div class="d-flex gap-4 px-3 pb-3 border-bottom" title="All-time totals for this floor">
+                <div>
+                    <div class="floor-insight-label">All-time Budget</div>
+                    <div class="fw-bold">&#8377;{{ floor_total_budget|inr }}</div>
+                </div>
+                <div>
+                    <div class="floor-insight-label">All-time Spent</div>
+                    <div class="fw-bold">&#8377;{{ floor_total_spent|inr }}</div>
                 </div>
             </div>
             <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
@@ -791,7 +802,11 @@
                     </div>
                     {% endfor %}
                     {% if not budget_periods %}
-                    <div class="p-3 text-center text-muted">No budget history yet.</div>
+                    <div class="empty-state">
+                        <i class="fas fa-clock-rotate-left"></i>
+                        <div class="fw-bold">No budget history yet</div>
+                        <p class="mb-0">Allocated periods will show up here.</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>

@@ -112,7 +112,7 @@ def staff_login():
             if _ensure_username_from_full_name(user, db.session):
                 db.session.commit()
 
-            if user.role != 'admin' and user.is_first_login:
+            if user.is_first_login:
                 session['temp_user_id'] = user.id
                 return redirect(url_for('auth.change_password'))
 

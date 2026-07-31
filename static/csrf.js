@@ -32,19 +32,30 @@
         return originalFetch.call(this, input, init);
     };
 
+    function injectIntoForm(form) {
+        var method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (method !== 'POST') return;
+        if (form.querySelector('input[name="csrf_token"]')) {
+            return;
+        }
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = token;
+        form.appendChild(input);
+    }
+
     function injectIntoForms() {
         var forms = document.querySelectorAll('form[method="post"], form[method="POST"]');
-        forms.forEach(function (form) {
-            if (form.querySelector('input[name="csrf_token"]')) {
-                return;
-            }
-            var input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'csrf_token';
-            input.value = token;
-            form.appendChild(input);
-        });
+        forms.forEach(injectIntoForm);
     }
+
+    // Capture submit events globally to handle dynamically added forms
+    document.addEventListener('submit', function (event) {
+        if (event.target && event.target.tagName === 'FORM') {
+            injectIntoForm(event.target);
+        }
+    }, true);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', injectIntoForms);
