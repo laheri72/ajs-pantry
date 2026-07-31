@@ -49,4 +49,4 @@ jobs:
             # NOTE: adjust the port below to match your gunicorn bind/nginx upstream port
             # (no web systemd unit or gunicorn config is checked into this repo to confirm it).
             sleep 3
-            curl -sf http://127.0.0.1:5000/healthz || (echo "Health check failed after deploy" && exit 1)
+            curl -sf http://127.0.0.1:8000/healthz || (echo "Health check failed after deploy" && exit 1)
