@@ -1,5 +1,4 @@
 from flask import session, abort, g, current_app
-from models import User
 from datetime import datetime
 from sqlalchemy import and_, or_, select
 import secrets
@@ -22,6 +21,7 @@ def tenant_filter(query):
 
 def faculty_visible_users_query():
     """Tenant-scoped users Faculty can see and manage."""
+    from models import User
     return User.query.filter(
         User.tenant_id == getattr(g, 'tenant_id', None),
         User.role.notin_(['admin', 'super_admin']),
@@ -30,6 +30,7 @@ def faculty_visible_users_query():
 
 def faculty_deactivated_users_query():
     """Tenant-scoped users Faculty can see that are deactivated."""
+    from models import User
     return User.query.filter(
         User.tenant_id == getattr(g, 'tenant_id', None),
         User.role.notin_(['admin', 'super_admin']),
@@ -82,6 +83,7 @@ def _make_unique_username(base, exclude_user_id=None):
 
     candidate = base[:64]
     counter = 2
+    from models import User
     while True:
         existing = User.query.filter_by(username=candidate).first()
         if not existing or (exclude_user_id and existing.id == exclude_user_id):
@@ -240,6 +242,7 @@ def _get_current_user():
     user_id = session.get('user_id')
     if not user_id:
         return None
+    from models import User
     return User.query.get(user_id)
 
 import os
